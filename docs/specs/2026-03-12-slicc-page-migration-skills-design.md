@@ -100,7 +100,7 @@ The main skill. Teaches the cone the 4-phase migration flow:
 
 **Depends on:** migrate-block, migrate-header, dismiss-overlays
 
-**Allowed tools:** `browser, read_file, write_file, edit_file, bash`
+**Allowed tools:** `browser, read_file, write_file, edit_file, bash, javascript`
 
 ### migrate-block (scoop skill)
 
