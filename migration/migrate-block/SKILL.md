@@ -187,6 +187,50 @@ Do NOT fetch external resources or add `<script>` tags.
 
 ---
 
+## EDS DOM Transformation Reference
+
+When EDS decorates your block, the DOM changes. Your CSS selectors must
+target the **decorated** structure, not the authored structure.
+
+```
+Authored (.plain.html):            After EDS decoration:
+
+<div>                              <div class="section">
+  <div class="hero">                <div class="hero-wrapper">
+    <div>  ← row 1                     <div class="hero block"
+      <div>cell 1</div>                      data-block-name="hero"
+      <div>cell 2</div>                      data-block-status="loaded">
+    </div>                               <div>  ← row 1 (unchanged)
+  </div>                                   <div>cell 1</div>
+</div>                                     <div>cell 2</div>
+                                         </div>
+                                       </div>
+                                     </div>
+                                   </div>
+```
+
+**Key points:**
+- The block `<div>` gets `.block` class + `data-block-name` + `data-block-status`
+- A `-wrapper` div is inserted around the block
+- A `.section` div wraps the section
+- Rows and cells inside the block are NOT changed
+- Your `decorate(block)` function receives the `.hero.block` element
+
+**Common side-effects of `decorateMain()`:**
+- Bare `<img>` and `<picture>` in cells get wrapped in `<p>` tags
+- Standalone `<p><a>` links get `.button` class and `.button-container` wrapper
+- `<blockquote>` content may get wrapped in extra `<p>` tags
+
+**CSS selector guide:**
+```css
+.hero > div              /* targets rows ✅ */
+.hero > div > div        /* targets cells ✅ */
+.hero-wrapper            /* targets the wrapper (rarely needed) */
+.hero > .hero            /* WRONG — block IS .hero ❌ */
+```
+
+---
+
 ## Step 6: Create Preview Page and Serve
 
 This step loads the **real EDS framework** to test your block through the
@@ -297,6 +341,16 @@ For each iteration:
 ---
 
 ## Step 8: Write Report
+
+**Write the report in TWO passes** to ensure a report exists even if visual
+iterations don't complete (timeout, error, etc.):
+
+**Pass 1 — Write immediately after Step 6c passes** (before visual iterations):
+Write with `"status": "partial"` and the `edsVerification` data. This
+guarantees the cone gets a report even if Step 7 never finishes.
+
+**Pass 2 — Update after Step 7 completes** (after visual iterations):
+Update with final `status`, `visualVerification`, and `designTokens`.
 
 Write to `{projectPath}/.migration/reports/{blockName}-report.json`:
 
