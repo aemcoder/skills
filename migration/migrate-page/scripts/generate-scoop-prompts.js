@@ -13,6 +13,9 @@
  * @returns {Array<{name: string, model?: string, prompt: string}>}
  */
 function generateScoopConfigs(decomposition, headHtml, sourceUrl, projectPath, model) {
+  if (!headHtml || headHtml.trim().length === 0) {
+    throw new Error('headHtml is empty — read head.html from the project before calling generateScoopConfigs. Example: const headHtml = await fs.readFile("/shared/repo-name/head.html", { encoding: "utf-8" });');
+  }
   const configs = [];
 
   for (const fragment of decomposition.fragments) {
