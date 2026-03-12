@@ -104,7 +104,7 @@ Run this JavaScript via `browser evaluate` on the target page:
 - **Cookies persist across tabs.** If you dismiss a cookie banner on one
   tab, the consent cookie is set and the banner won't appear on other tabs
   to the same domain in the same browser session.
-- **The migrate_page tool runs this automatically** during extraction. If
+- **Phase 1 of the migrate-page skill runs this automatically** during extraction. If
   you're working in a scoop and navigating to the same source page, the
   banner should already be dismissed. Only use this skill if you see
   overlays in your screenshots.
