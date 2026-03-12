@@ -561,9 +561,8 @@ Write `/shared/{repo-name}/drafts/{page-path}-preview.html`:
 ```
 
 Serve and verify:
-```json
-{ "action": "serve", "directory": "/shared/{repo-name}",
-  "entry": "drafts/{page-path}-preview.html", "projectServe": true }
+```bash
+serve --entry drafts/{page-path}-preview.html --project /shared/{repo-name}
 ```
 
 Wait for all blocks to load before screenshotting. The page has header

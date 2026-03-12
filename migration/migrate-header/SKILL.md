@@ -327,9 +327,8 @@ The EDS header block will automatically load `nav.plain.html` via the
 
 ### 6b. Serve Preview
 
-```json
-{ "action": "serve", "directory": "{projectPath}",
-  "entry": "drafts/header-preview.html", "projectServe": true }
+```bash
+serve --entry drafts/header-preview.html --project {projectPath}
 ```
 
 ### 6c. Verify EDS Framework

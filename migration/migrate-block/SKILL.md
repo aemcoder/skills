@@ -235,9 +235,8 @@ worker doesn't enforce CSP, so the CSP meta can be omitted).
 
 ### 6b. Serve with EDS Project Mode
 
-```json
-{ "action": "serve", "directory": "{projectPath}",
-  "entry": "drafts/{blockName}-preview.html", "projectServe": true }
+```bash
+serve --entry drafts/{blockName}-preview.html --project {projectPath}
 ```
 
 ### 6c. Verify EDS Framework Loaded
