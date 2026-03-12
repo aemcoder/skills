@@ -10,6 +10,13 @@ Migrate a web page into AEM Edge Delivery Services: extract structure,
 decompose into blocks, generate EDS-compatible code per block, and verify
 each with visual comparison.
 
+## IMPORTANT: Cone-Only Skill
+
+**This skill MUST be executed by the cone directly. Do NOT delegate the
+migration to a scoop.** The cone runs Phases 1–2.5 and 4 itself. Only
+Phase 3 (block generation) creates scoops — one per block. Scoops cannot
+create other scoops, so the cone must be the orchestrator.
+
 ## Triggers
 
 "migrate this page", "convert to EDS", "create EDS blocks from URL".
@@ -17,10 +24,10 @@ User provides a URL and a GitHub repo (owner/repo).
 
 ## Four Phases
 
-1. **Extraction** — clone repo, navigate to URL, run extraction scripts
-2. **Decomposition** — classify visual tree into fragments/sections/blocks
-3. **Block Generation** — one scoop per block, parallel
-4. **Assembly** — collect results, build page, commit
+1. **Extraction** — cone clones repo, navigates to URL, runs extraction scripts
+2. **Decomposition** — cone classifies visual tree into fragments/sections/blocks
+3. **Block Generation** — cone creates one scoop per block, monitors until all complete
+4. **Assembly** — cone collects results, builds page, commits
 
 ---
 
@@ -308,10 +315,11 @@ Write `decomposition.json` to `/shared/{repo-name}/.migration/`:
 
 ---
 
-## Phase 2.5: Prepare Brand, Fonts, and Styles — BEFORE creating scoops
+## Phase 2.5: Prepare Brand, Fonts, and Styles
 
-Scoops need the brand fully set up so their preview pages load with correct
-fonts, colors, and spacing. Do ALL of this BEFORE Phase 3.
+The cone sets up brand, fonts, and styles BEFORE creating scoops in Phase 3.
+Scoops need these in place so their preview pages load with correct fonts,
+colors, and spacing.
 
 ### 2.5a: Resolve Fonts
 
@@ -395,8 +403,10 @@ behavior from the start.
 
 ## Phase 3: Block Generation (Parallel Scoops)
 
-Create one scoop per **block**. **Do NOT drop scoops** — keep them alive
-for user review and debugging. Never call `drop_scoop` during migration.
+The cone creates one scoop per **block** and monitors them until all complete.
+Only then does the cone proceed to Phase 4. **Do NOT drop scoops** — keep
+them alive for user review and debugging. Never call `drop_scoop` during
+migration.
 
 **`default-content` items do NOT get scoops.** They are simple prose
 (headings, paragraphs, lists, images) that the cone writes directly
@@ -451,11 +461,21 @@ Each generated prompt includes the block parameters, head.html content,
 and instructions to read the appropriate skill. The cone does NOT need
 to generate or modify any prompt text.
 
+### Step 3 — Monitor scoops until all complete
+
+After creating all scoops, the cone waits for each scoop to finish. Scoops
+use `send_message` to notify the cone when done. The cone checks for
+incoming messages and tracks which scoops have reported back.
+
+**Do NOT proceed to Phase 4 until ALL scoops have completed.** If a scoop
+fails or gets stuck, the cone should note the issue and continue once all
+other scoops have reported. Missing block reports will be flagged in Phase 4.
+
 ---
 
 ## Phase 4: Assembly — MANDATORY STEPS
 
-After all scoops complete, the cone MUST execute ALL of the following steps.
+After ALL scoops complete, the cone MUST execute ALL of the following steps.
 Do not skip any. Phase 4 is not optional — it produces the final deliverables.
 
 **Do NOT drop scoops.** Keep them alive for user review.
