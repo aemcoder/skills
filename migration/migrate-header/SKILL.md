@@ -27,7 +27,6 @@ typically pre-built in the EDS repo — you customize CSS only.
 
 - `sourceUrl` — URL of the source page
 - `projectPath` — EDS project path (e.g., `/shared/vibemigrated`)
-- `headHtmlContent` — full content of `head.html`
 - `bounds` — bounding box of the header region
 - `notes` — decomposition notes (e.g., "two-tier purple header")
 
@@ -299,6 +298,11 @@ Extract actual values from the source page's computed styles.
 ## Step 6: Preview and Verify
 
 ### 6a. Create Preview Page
+
+Read head.html from the project:
+```
+read_file({ "path": "{projectPath}/head.html" })
+```
 
 Write `{projectPath}/drafts/header-preview.html`:
 

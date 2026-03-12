@@ -2,20 +2,16 @@
  * Generate scoop creation configs for page migration.
  *
  * Usage (in slicc JavaScript tool):
- *   const configs = generateScoopConfigs(decomposition, headHtml, sourceUrl, projectPath);
+ *   const configs = generateScoopConfigs(decomposition, sourceUrl, projectPath);
  *   // Returns array of { name, model, prompt } ready for scoop_scoop
  *
  * @param {object} decomposition - The decomposition.json content (parsed)
- * @param {string} headHtml - The full content of head.html
  * @param {string} sourceUrl - The source page URL
  * @param {string} projectPath - The EDS project path in VFS (e.g., "/shared/vibemigrated")
  * @param {string} [model] - Optional model ID for scoops. If omitted, no model is set (uses cone's model).
  * @returns {Array<{name: string, model?: string, prompt: string}>}
  */
-function generateScoopConfigs(decomposition, headHtml, sourceUrl, projectPath, model) {
-  if (!headHtml || headHtml.trim().length === 0) {
-    throw new Error('headHtml is empty — read head.html from the project before calling generateScoopConfigs. Example: const headHtml = await fs.readFile("/shared/repo-name/head.html", { encoding: "utf-8" });');
-  }
+function generateScoopConfigs(decomposition, sourceUrl, projectPath, model) {
   const configs = [];
 
   for (const fragment of decomposition.fragments) {
@@ -40,11 +36,11 @@ function generateScoopConfigs(decomposition, headHtml, sourceUrl, projectPath, m
         let prompt;
 
         if (isHeader) {
-          prompt = buildHeaderPrompt(block, sourceUrl, projectPath, bounds, headHtml);
+          prompt = buildHeaderPrompt(block, sourceUrl, projectPath, bounds);
         } else if (isFooter) {
-          prompt = buildFooterPrompt(block, sourceUrl, projectPath, bounds, headHtml);
+          prompt = buildFooterPrompt(block, sourceUrl, projectPath, bounds);
         } else {
-          prompt = buildBlockPrompt(block, sourceUrl, projectPath, bounds, headHtml);
+          prompt = buildBlockPrompt(block, sourceUrl, projectPath, bounds);
         }
 
         const config = { name: scoopName, prompt };
@@ -57,7 +53,7 @@ function generateScoopConfigs(decomposition, headHtml, sourceUrl, projectPath, m
   return configs;
 }
 
-function buildBlockPrompt(block, sourceUrl, projectPath, bounds, headHtml) {
+function buildBlockPrompt(block, sourceUrl, projectPath, bounds) {
   return `You are migrating a single block to EDS.
 
 ## Parameters
@@ -68,16 +64,13 @@ function buildBlockPrompt(block, sourceUrl, projectPath, bounds, headHtml) {
 - EDS project: ${projectPath}
 - Notes: ${block.notes || block.style || ''}
 
-## head.html Content
-${headHtml}
-
 ## Instructions
 Read /workspace/skills/migrate-block/SKILL.md and follow every step.
-Your preview MUST use head.html content.
+The skill tells you how to read head.html from the project.
 Do NOT inline CSS or JS as a substitute for the EDS framework.`;
 }
 
-function buildHeaderPrompt(block, sourceUrl, projectPath, bounds, headHtml) {
+function buildHeaderPrompt(block, sourceUrl, projectPath, bounds) {
   return `You are migrating the website header/navigation to EDS.
 
 ## Parameters
@@ -86,9 +79,6 @@ function buildHeaderPrompt(block, sourceUrl, projectPath, bounds, headHtml) {
 - Bounds: ${bounds}
 - Notes: ${block.notes || block.style || ''}
 
-## head.html Content
-${headHtml}
-
 ## Instructions
 Read /workspace/skills/migrate-header/SKILL.md and follow it exactly.
 This is a HEADER migration, not a regular block. Follow the header skill
@@ -96,7 +86,7 @@ exactly — it handles nav.plain.html generation, section-metadata styles,
 dropdown detection, and header-specific CSS patterns.`;
 }
 
-function buildFooterPrompt(block, sourceUrl, projectPath, bounds, headHtml) {
+function buildFooterPrompt(block, sourceUrl, projectPath, bounds) {
   return `You are migrating a single block to EDS.
 
 ## Parameters
@@ -108,12 +98,9 @@ function buildFooterPrompt(block, sourceUrl, projectPath, bounds, headHtml) {
 - Special: This is the FOOTER block. Output footer.plain.html, not ${block.name}.plain.html. See "Footer Block — Special Case" in the migrate-block skill.
 - Notes: ${block.notes || block.style || ''}
 
-## head.html Content
-${headHtml}
-
 ## Instructions
 Read /workspace/skills/migrate-block/SKILL.md and follow every step.
-Follow every step exactly. Your preview MUST use head.html content.
+The skill tells you how to read head.html from the project.
 Do NOT inline CSS or JS as a substitute for the EDS framework.`;
 }
 

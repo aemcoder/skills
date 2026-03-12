@@ -46,7 +46,6 @@ Your prompt will include these parameters:
 - `id` — visual tree positional ID
 - `bounds` — bounding box {x, y, width, height}
 - `projectPath` — EDS project path in VFS (e.g., "/shared/vibemigrated")
-- `headHtmlContent` — the FULL content of the repo's `head.html` file
 - `notes` — optional decomposition notes from the cone
 
 ---
@@ -261,15 +260,15 @@ Write to `{projectPath}/drafts/{blockName}-preview.html`:
 </html>
 ```
 
-**The head.html content provided in your parameters is:**
+**Read head.html from the project:**
 
 ```
-{headHtmlContent}
+read_file({ "path": "{projectPath}/head.html" })
 ```
 
-Copy the `<script>` and `<link>` tags from this EXACTLY — including `nonce`
-attributes, `type="module"`, and all `<meta>` tags except CSP (the service
-worker doesn't enforce CSP, so the CSP meta can be omitted).
+Copy the `<script>` and `<link>` tags from head.html EXACTLY — including
+`nonce` attributes, `type="module"`, and all `<meta>` tags except CSP (the
+service worker doesn't enforce CSP, so the CSP meta can be omitted).
 
 **Key points:**
 - `<header>` and `<footer>` are empty — EDS fills them from nav/footer fragments
