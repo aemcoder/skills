@@ -80,22 +80,59 @@ session, overlays should NOT appear when you navigate here. If you do
 see an overlay blocking content, click its accept/dismiss button via
 `evaluate` — do not just remove it from the DOM.
 
-Extract the component's content using the CSS selector from the visual
-tree or one you identify:
+**Always wrap `eval` calls in IIFEs** to avoid variable redeclaration
+errors across multiple calls:
 
 ```bash
-playwright-cli eval "..."
+playwright-cli eval "(() => { /* your code here */ })()"
 ```
 
-Extract: headings, paragraphs, links (href + text), image URLs (src + alt),
-button text, any structured data within the component's bounds.
+Extract the component's content in as few `eval` calls as possible. Prefer
+one comprehensive extraction over many small probes:
+
+```bash
+playwright-cli eval "(() => {
+  const el = document.querySelector('{selector}');
+  if (!el) return JSON.stringify({ error: 'not found' });
+  const imgs = [...el.querySelectorAll('img')].map(i => ({ src: i.src, alt: i.alt }));
+  const bgImgs = [...el.querySelectorAll('[style*=background-image]')].map(e => {
+    const m = getComputedStyle(e).backgroundImage.match(/url\([\"']?(.+?)[\"']?\)/);
+    return m ? m[1] : null;
+  }).filter(Boolean);
+  const links = [...el.querySelectorAll('a')].map(a => ({ href: a.href, text: a.textContent.trim() }));
+  const styles = getComputedStyle(el);
+  return JSON.stringify({
+    text: el.innerText.slice(0, 2000),
+    imgs, bgImgs, links,
+    tokens: { bg: styles.backgroundColor, color: styles.color, padding: styles.padding, fontSize: styles.fontSize }
+  });
+})()"
+```
+
+Note: AEM sites commonly use `background-image` CSS instead of `<img>` tags.
+Check both `<img>` elements and inline `style` attributes for images.
 
 **Screenshot the source component NOW** — you will reuse this screenshot
 for all visual iterations in Step 7. Do NOT navigate back to the source
 page later.
 
+Use snapshot + ref-based screenshot for a tight element crop:
+
 ```bash
-playwright-cli screenshot --selector "{component-selector}" --path {projectPath}/.migration/source-{blockName}.png
+# 1. Take a snapshot to get element refs
+playwright-cli snapshot
+
+# 2. Find the ref for your component in the snapshot output (e.g., e15)
+# 3. Screenshot that specific element by ref
+playwright-cli screenshot e15 --filename {projectPath}/.migration/source-{blockName}.png
+```
+
+If you can't identify the right ref, fall back to a viewport screenshot
+after scrolling the component into view:
+
+```bash
+playwright-cli eval "document.querySelector('{selector}').scrollIntoView({ block: 'start' })"
+playwright-cli screenshot --filename {projectPath}/.migration/source-{blockName}.png
 ```
 
 **Close the source tab** after extraction to reduce tab clutter:
@@ -171,6 +208,26 @@ inline styles, or any wrapper outside the content divs.
 ---
 
 ## Step 4: Write Block CSS
+
+**BEFORE writing CSS**, check the project's global styles for layout
+constraints and button overrides that will affect your block:
+
+```bash
+playwright-cli eval "(() => {
+  const styles = document.querySelector('link[href*=styles]');
+  return styles ? 'styles.css loaded' : 'not loaded yet';
+})()"
+```
+
+```
+read_file({ "path": "{projectPath}/styles/styles.css" })
+```
+
+Look for:
+- `max-width` on `.section > div` — if present, full-width blocks need a
+  wrapper override (see "Full-Width Blocks" in Known EDS Behaviors)
+- `a.button` rules — note the specificity; your block button overrides must
+  match or exceed it (use `main .{blockName} a.button:any-link` as baseline)
 
 Write to `{projectPath}/blocks/{blockName}/{blockName}.css`
 
@@ -253,7 +310,10 @@ Authored (.plain.html):            After EDS decoration:
 - Your `decorate(block)` function receives the `.hero.block` element
 
 **Common side-effects of `decorateMain()`:**
-- Bare `<img>` and `<picture>` in cells get wrapped in `<p>` tags
+- **WARNING: Bare `<img>` and `<picture>` in cells get wrapped in `<p>` tags.**
+  Since HTML does not allow `<p>` inside `<p>`, this mangles the DOM if your
+  cell already contains `<p>` elements alongside images. **Always put images
+  in their own dedicated cell** to avoid this.
 - Standalone `<p><a>` links get `.button` class and `.button-container` wrapper
 - `<blockquote>` content may get wrapped in extra `<p>` tags
 
@@ -381,8 +441,11 @@ iteration.
 For each iteration:
 
 1. **Screenshot the preview:** Your preview tab is already selected.
+   Take a snapshot first, then screenshot by element ref for a tight crop:
    ```bash
-   playwright-cli screenshot --selector ".{blockName}" --path {projectPath}/.migration/preview-{blockName}-iter{N}.png
+   playwright-cli snapshot
+   # Find the ref for your block element (e.g., e8)
+   playwright-cli screenshot e8 --filename {projectPath}/.migration/preview-{blockName}-iter{N}.png
    ```
 
 2. **Compare:** Read both screenshots (source from Step 1, preview from
@@ -536,39 +599,83 @@ transforms standalone paragraph links into button elements:
 <p class="button-container"><a href="/cta" class="button">Learn More</a></p>
 ```
 
-This turns text links into filled blue buttons — which is usually NOT
-what the source site looks like. You will likely need to override this
-in your block CSS:
+This turns text links into styled buttons. EDS also applies `text-align: center`
+to `.button` elements.
+
+**IMPORTANT:** Check `{projectPath}/styles/styles.css` for project-level
+button resets before writing your overrides. The project may have rules like
+`main a.button:any-link { ... }` that require matching specificity.
+
+**Safe baseline override** (works against both EDS defaults and project resets):
 
 ```css
-/* Reset EDS button decoration to match source styling */
-.{blockName} .button-container {
-  display: inline;
-}
-
-.{blockName} a.button {
-  background: none;
-  border: none;
+/* Reset button to inline link */
+main .{blockName} .button-container { display: inline; }
+main .{blockName} a.button:any-link {
+  background: none; border: none;
   color: var(--link-color, inherit);
-  font-size: inherit;
-  font-weight: inherit;
-  padding: 0;
-  margin: 0;
-  text-decoration: underline;
+  font-size: inherit; font-weight: inherit;
+  padding: 0; margin: 0;
+  text-align: left; text-decoration: underline;
 }
 
-/* Or style as bordered/outlined CTA if source uses that pattern */
-.{blockName} a.button {
+/* Or style as bordered CTA */
+main .{blockName} a.button:any-link {
   background: transparent;
   border: 2px solid currentColor;
   border-radius: 4px;
   padding: 8px 24px;
-  text-decoration: none;
+  text-align: center; text-decoration: none;
 }
 ```
 
-This is a standard EDS behavior — not a bug. Plan for it when writing
-your block CSS.
+Note: always use `main .{blockName} a.button:any-link` — NOT just
+`.{blockName} a.button` — to match the specificity of project-level resets.
+
+### Full-Width Blocks
+
+EDS wraps sections in `.section > div { max-width: 1200px }`. Heroes,
+banners, and full-bleed blocks get constrained to the center column.
+
+**Fix:** Override the wrapper's max-width in your block CSS:
+
+```css
+.{blockName}-wrapper {
+  max-width: 100% !important;
+  padding: 0 !important;
+}
+```
+
+This is needed for any block that should span the full viewport width.
+
+### Icon Rendering
+
+EDS renders `<span class="icon icon-{name}">` as `<img>` tags pointing
+to `/icons/{name}.svg`. Because they're `<img>` elements (not inline SVG),
+**`fill="currentColor"` does NOT work.**
+
+When creating SVG icons for EDS:
+- Use explicit fill colors: `fill="#ffffff"` or `fill="#000000"`
+- Do NOT use `fill="currentColor"` — it renders as invisible/black
+
+### decorateButtons() Variant Risk
+
+Some projects override `decorateButtons()` in `scripts.js` to require
+`<strong>` or `<em>` wrapper around links for button decoration. Check:
+
+```bash
+playwright-cli eval "(() => {
+  const s = document.querySelector('script[src*=scripts]');
+  return s ? 'scripts.js found' : 'not found';
+})()"
+```
+
+```
+read_file({ "path": "{projectPath}/scripts/scripts.js" })
+```
+
+Search for `strong` or `em` in the `decorateButtons` function. If found,
+wrap CTA links: `<p><strong><a href="...">CTA text</a></strong></p>`
 
 ---
 

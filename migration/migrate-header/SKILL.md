@@ -45,20 +45,46 @@ Phase 1.5 and set consent cookies. Since all tabs share the same browser
 session, overlays should NOT appear when you navigate here. If you do
 see an overlay, click its accept/dismiss button via `evaluate`.
 
-Use `evaluate` to extract the header HTML, including:
-- Logo (image URL, alt text, link href)
-- Navigation links (text, href, nested dropdowns)
-- Utility links (login, search, cart, language selector)
-- Announcement/promo bar text (if present)
-- Background colors for each header section
+**Always wrap `eval` calls in IIFEs** to avoid variable redeclaration
+errors across multiple calls.
+
+Use `eval` to extract the header HTML. Note: some sites use `<nav>` instead
+of `<header>` for navigation. Check with `eval` first to confirm the right
+element:
 
 ```bash
-playwright-cli eval "document.querySelector('header').outerHTML"
+playwright-cli eval "(() => {
+  const h = document.querySelector('header');
+  const n = document.querySelector('nav');
+  return JSON.stringify({ header: !!h, nav: !!n, headerTag: h?.tagName, navId: n?.id });
+})()"
 ```
 
-**Screenshot the source header NOW** — reuse for all visual iterations:
+Extract all header content in one comprehensive call:
+
 ```bash
-playwright-cli screenshot --selector "header" --path {projectPath}/.migration/source-header.png
+playwright-cli eval "(() => {
+  const nav = document.querySelector('header') || document.querySelector('nav');
+  if (!nav) return JSON.stringify({ error: 'no header/nav found' });
+  const logo = nav.querySelector('img');
+  const links = [...nav.querySelectorAll('a')].map(a => ({ href: a.href, text: a.textContent.trim() }));
+  const styles = getComputedStyle(nav);
+  return JSON.stringify({
+    html: nav.outerHTML.slice(0, 5000),
+    logo: logo ? { src: logo.src, alt: logo.alt } : null,
+    links: links.slice(0, 50),
+    tokens: { bg: styles.backgroundColor, color: styles.color, height: styles.height, fontSize: styles.fontSize }
+  });
+})()"
+```
+
+**Screenshot the source header NOW** — reuse for all visual iterations.
+Use snapshot + ref-based screenshot for a tight crop:
+
+```bash
+playwright-cli snapshot
+# Find the ref for the header/nav element (e.g., e3)
+playwright-cli screenshot e3 --filename {projectPath}/.migration/source-header.png
 ```
 
 **Close the source tab** after extraction:
@@ -113,14 +139,23 @@ Also detect dropdown types for each nav item:
 
 Check if the repo already has a header block:
 
-```json
-{ "action": "evaluate", "expression": "..." }
+```
+read_file({ "path": "{projectPath}/blocks/header/header.js" })
+read_file({ "path": "{projectPath}/blocks/header/header.css" })
 ```
 
-Read `{projectPath}/blocks/header/header.js` and `header.css`. If they
-exist, **keep the existing JS** — it handles fragment loading, section
-building, dropdown behavior, hamburger menu, and keyboard navigation.
-You only need to customize the CSS.
+**CRITICAL: Read header.js to understand the JS contract.** The nav.plain.html
+structure MUST match what the JS expects:
+
+- If the JS uses **index-based section assignment** (e.g.,
+  `const classes = ['brand', 'sections', 'tools']` and assigns by
+  `children[0]`, `children[1]`, `children[2]`), do NOT add `section-metadata`
+  divs — they would count as extra children and throw off the indexing.
+- If the JS uses **section-metadata Style values**, use the multi-section
+  format with metadata divs.
+- Count how many child `<div>`s the JS expects and match exactly.
+
+If `blocks/header/` exists, **keep the existing JS**. You only customize CSS.
 
 If `blocks/header/` does NOT exist, create both files. The JS should:
 - Load `nav.plain.html` as a fragment via `getMetadata('nav')`
@@ -313,6 +348,32 @@ Edit `{projectPath}/blocks/header/header.css`.
 
 Extract actual values from the source page's computed styles.
 
+**`aria-expanded` desktop behavior:** Standard header.js sets
+`aria-expanded="true"` on the nav element when on desktop. Your desktop
+CSS MUST handle both `[aria-expanded="true"]` and `[aria-expanded="false"]`
+states. If you only style `[aria-expanded="true"]` for mobile menu expansion,
+that style will also apply on desktop — causing the mobile layout to appear
+on desktop.
+
+**Multi-tier headers:** If the source has two rows (e.g., logo+utility on
+top, nav on bottom), the existing CSS may be flex-based for single-row.
+You may need to replace it entirely with CSS Grid:
+
+```css
+@media (width >= 900px) {
+  .header.block nav {
+    display: grid;
+    grid-template:
+      'brand . tools' {topRowHeight}
+      'sections sections sections' {navRowHeight}
+      / auto 1fr auto;
+  }
+}
+```
+
+This is a larger change than "tweaking tokens" — acknowledge that multi-tier
+headers may require a near-complete CSS rewrite.
+
 ---
 
 ## Step 6: Preview and Verify
@@ -399,10 +460,24 @@ when deployed to a whitelisted production domain.
 `{projectPath}/.migration/source-header.png`
 Do NOT navigate back to the source page. Reuse for every iteration.
 
+For thin headers (<150px tall), also use `eval`-based measurements for
+precision — screenshots may be too small for reliable pixel comparison:
+```bash
+playwright-cli eval "(() => {
+  const h = document.querySelector('header');
+  const r = h.getBoundingClientRect();
+  const logo = h.querySelector('img');
+  const lr = logo ? logo.getBoundingClientRect() : null;
+  return JSON.stringify({ totalHeight: r.height, logoHeight: lr?.height, logoWidth: lr?.width });
+})()"
+```
+
 For each iteration:
 1. **Screenshot the preview header:**
    ```bash
-   playwright-cli screenshot --selector "header" --path {projectPath}/.migration/preview-header-iter{N}.png
+   playwright-cli snapshot
+   # Find the header ref (e.g., e2)
+   playwright-cli screenshot e2 --filename {projectPath}/.migration/preview-header-iter{N}.png
    ```
 2. **Compare** source (from Step 1) and preview: focus on background color, logo size, nav spacing, layout
 3. **Fix:** Batch ALL CSS fixes for this iteration into a SINGLE `edit_file`
