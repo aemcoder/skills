@@ -61,9 +61,8 @@ Open the source URL in a new browser tab:
 
 Capture the page BEFORE any modifications — this shows overlays as visitors see them:
 
-```json
-{ "action": "screenshot", "fullPage": true,
-  "path": "/shared/{repo-name}/.migration/screenshot-raw.png" }
+```bash
+playwright-cli screenshot --fullPage=true --max-width=1440 --filename /shared/{repo-name}/.migration/screenshot-raw.png
 ```
 
 ### Step 1.4: Dismiss Overlays
@@ -87,7 +86,7 @@ playwright-cli eval-file /workspace/skills/migrate-page/scripts/page-prep.js
 Capture the page after preparation:
 
 ```bash
-playwright-cli screenshot --fullPage=true --filename /shared/{repo-name}/.migration/screenshot.png
+playwright-cli screenshot --fullPage=true --max-width=1440 --filename /shared/{repo-name}/.migration/screenshot.png
 ```
 
 ### Step 1.7: Extract Visual Tree

@@ -84,7 +84,7 @@ Use snapshot + ref-based screenshot for a tight crop:
 ```bash
 playwright-cli snapshot
 # Find the ref for the header/nav element (e.g., e3)
-playwright-cli screenshot e3 --filename {projectPath}/.migration/source-header.png
+playwright-cli screenshot e3 --max-width=1440 --filename {projectPath}/.migration/source-header.png
 ```
 
 **Close the source tab** after extraction:
@@ -469,7 +469,7 @@ playwright-cli snapshot
 For each iteration:
 1. **Screenshot the preview header** by ref (reuse across iterations):
    ```bash
-   playwright-cli screenshot e2 --filename {projectPath}/.migration/preview-header-iter{N}.png
+   playwright-cli screenshot e2 --max-width=1440 --filename {projectPath}/.migration/preview-header-iter{N}.png
    ```
 2. **Compare** source (from Step 1) and preview: focus on background color, logo size, nav spacing, layout
 3. **Fix:** Batch ALL CSS fixes for this iteration into a SINGLE `edit_file`
