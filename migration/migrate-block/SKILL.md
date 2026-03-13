@@ -84,7 +84,7 @@ Extract the component's content using the CSS selector from the visual
 tree or one you identify:
 
 ```bash
-playwright-cli evaluate "..."
+playwright-cli eval "..."
 ```
 
 Extract: headings, paragraphs, links (href + text), image URLs (src + alt),
@@ -344,7 +344,7 @@ After `tab-select` (or `tab-new`), your preview is the current tab. All
 After selecting your preview tab, run this verification BEFORE any visual comparison:
 
 ```bash
-playwright-cli evaluate "JSON.stringify({ hlx: !!window.hlx, codeBasePath: window.hlx?.codeBasePath, bodyAppear: document.body.classList.contains('appear'), sections: document.querySelectorAll('.section').length, blocks: Array.from(document.querySelectorAll('[data-block-name]')).map(b => ({ name: b.dataset.blockName, status: b.dataset.blockStatus })) })"
+playwright-cli eval "JSON.stringify({ hlx: !!window.hlx, codeBasePath: window.hlx?.codeBasePath, bodyAppear: document.body.classList.contains('appear'), sections: document.querySelectorAll('.section').length, blocks: Array.from(document.querySelectorAll('[data-block-name]')).map(b => ({ name: b.dataset.blockName, status: b.dataset.blockStatus })) })"
 ```
 
 **Required results:**

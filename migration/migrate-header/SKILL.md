@@ -53,7 +53,7 @@ Use `evaluate` to extract the header HTML, including:
 - Background colors for each header section
 
 ```bash
-playwright-cli evaluate "document.querySelector('header').outerHTML"
+playwright-cli eval "document.querySelector('header').outerHTML"
 ```
 
 **Screenshot the source header NOW** — reuse for all visual iterations:
@@ -373,7 +373,7 @@ After `tab-select` (or `tab-new`), your preview is the current tab.
 ### 6c. Verify EDS Framework
 
 ```bash
-playwright-cli evaluate "JSON.stringify({ hlx: !!window.hlx, codeBasePath: window.hlx?.codeBasePath, bodyAppear: document.body.classList.contains('appear'), headerBlock: !!document.querySelector('.header.block'), navSections: document.querySelectorAll('.header-section').length })"
+playwright-cli eval "JSON.stringify({ hlx: !!window.hlx, codeBasePath: window.hlx?.codeBasePath, bodyAppear: document.body.classList.contains('appear'), headerBlock: !!document.querySelector('.header.block'), navSections: document.querySelectorAll('.header-section').length })"
 ```
 
 **Required:** `hlx: true`, `bodyAppear: true`, `headerBlock: true`.
