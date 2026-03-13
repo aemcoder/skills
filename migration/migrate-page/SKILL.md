@@ -68,82 +68,47 @@ Capture the page BEFORE any modifications — this shows overlays as visitors se
 
 ### Step 1.4: Dismiss Overlays
 
-Read the overlay dismissal script and run it in the page:
+Run the overlay dismissal script directly from file and save the result:
 
+```bash
+playwright-cli eval-file /workspace/skills/migrate-page/scripts/overlay-dismiss.js --output=/shared/{repo-name}/.migration/overlay-recipe.json
 ```
-read_file({ "path": "/workspace/skills/migrate-page/scripts/overlay-dismiss.js" })
-```
-
-Then evaluate the script content in the browser:
-
-```json
-{ "action": "evaluate", "expression": "<content of overlay-dismiss.js>" }
-```
-
-Save the result to `/shared/{repo-name}/.migration/overlay-recipe.json`.
 
 ### Step 1.5: Page Preparation
 
-Read and run the page prep script (fixes fixed-position elements, scrolls for lazy-load):
+Run the page prep script (fixes fixed-position elements, scrolls for lazy-load):
 
-```
-read_file({ "path": "/workspace/skills/migrate-page/scripts/page-prep.js" })
-```
-
-```json
-{ "action": "evaluate", "expression": "<content of page-prep.js>" }
+```bash
+playwright-cli eval-file /workspace/skills/migrate-page/scripts/page-prep.js
 ```
 
 ### Step 1.6: Clean Screenshot
 
 Capture the page after preparation:
 
-```json
-{ "action": "screenshot", "fullPage": true,
-  "path": "/shared/{repo-name}/.migration/screenshot.png" }
+```bash
+playwright-cli screenshot --fullPage=true --filename /shared/{repo-name}/.migration/screenshot.png
 ```
 
 ### Step 1.7: Extract Visual Tree
 
-Read and run the visual tree extraction script:
+Run the visual tree extraction and save directly to file:
 
+```bash
+playwright-cli eval-file /workspace/skills/migrate-page/scripts/visual-tree.js --output=/shared/{repo-name}/.migration/visual-tree.json
 ```
-read_file({ "path": "/workspace/skills/migrate-page/scripts/visual-tree.js" })
-```
-
-```json
-{ "action": "evaluate", "expression": "<content of visual-tree.js>" }
-```
-
-Save the result to `/shared/{repo-name}/.migration/visual-tree.json`.
 
 ### Step 1.8: Extract Brand Data
 
-Read and run the brand extraction script:
-
+```bash
+playwright-cli eval-file /workspace/skills/migrate-page/scripts/brand-extract.js --output=/shared/{repo-name}/.migration/brand.json
 ```
-read_file({ "path": "/workspace/skills/migrate-page/scripts/brand-extract.js" })
-```
-
-```json
-{ "action": "evaluate", "expression": "<content of brand-extract.js>" }
-```
-
-Save the result to `/shared/{repo-name}/.migration/brand.json`.
 
 ### Step 1.9: Extract Metadata
 
-Read and run the metadata extraction script:
-
+```bash
+playwright-cli eval-file /workspace/skills/migrate-page/scripts/metadata-extract.js --output=/shared/{repo-name}/.migration/metadata.json
 ```
-read_file({ "path": "/workspace/skills/migrate-page/scripts/metadata-extract.js" })
-```
-
-```json
-{ "action": "evaluate", "expression": "<content of metadata-extract.js>" }
-```
-
-Save the result to `/shared/{repo-name}/.migration/metadata.json`.
 
 ### Step 1.10: Scan Block Inventory
 

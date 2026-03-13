@@ -366,35 +366,19 @@ service worker doesn't enforce CSP, so the CSP meta can be omitted).
   completed yet — this is expected, focus on the block itself
 - The `overflow: auto !important` fixes SLICC's scrolling limitation
 
-### 6b. Serve and Track Your Preview Tab
-
-Open the preview with EDS project mode, then immediately claim the tab
-in playwright-cli so all subsequent commands target it:
+### 6b. Serve with EDS Project Mode
 
 ```bash
-# 1. Serve — opens the preview tab with correct projectRoot wiring
 serve --entry drafts/{blockName}-preview.html --project {projectPath}
-
-# 2. Find YOUR tab — match on your unique block name in the URL
-playwright-cli tab-list
-
-# 3. Select it by index (the one whose URL contains "{blockName}-preview")
-playwright-cli tab-select <index>
 ```
 
-**If your tab is NOT in the list:** The tab may not have registered yet
-(race with other scoops). Wait 3 seconds and retry `tab-list`. If still
-not found, open it directly:
-```bash
-playwright-cli tab-new <preview-url-from-serve-output>
-```
-
-After `tab-select` (or `tab-new`), your preview is the current tab. All
-`screenshot`, `snapshot`, `evaluate` commands will target it automatically.
+The `serve` command opens the preview tab AND sets it as playwright-cli's
+current target. All subsequent `screenshot`, `eval`, `snapshot` commands
+automatically target this tab — no `tab-list` or `tab-select` needed.
 
 ### 6c. Verify EDS Framework Loaded
 
-After selecting your preview tab, run this verification BEFORE any visual comparison:
+Run this verification BEFORE any visual comparison:
 
 ```bash
 playwright-cli eval "JSON.stringify({ hlx: !!window.hlx, codeBasePath: window.hlx?.codeBasePath, bodyAppear: document.body.classList.contains('appear'), sections: document.querySelectorAll('.section').length, blocks: Array.from(document.querySelectorAll('[data-block-name]')).map(b => ({ name: b.dataset.blockName, status: b.dataset.blockStatus })) })"

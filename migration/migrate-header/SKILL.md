@@ -410,26 +410,14 @@ Write `{projectPath}/drafts/header-preview.html`:
 The EDS header block will automatically load `nav.plain.html` via the
 `<meta name="nav">` tag and render the full header.
 
-### 6b. Serve and Track Your Preview Tab
+### 6b. Serve with EDS Project Mode
 
 ```bash
-# 1. Serve — opens the preview tab with correct projectRoot wiring
 serve --entry drafts/header-preview.html --project {projectPath}
-
-# 2. Find YOUR tab — match on "header-preview" in the URL
-playwright-cli tab-list
-
-# 3. Select it by index
-playwright-cli tab-select <index>
 ```
 
-**If your tab is NOT in the list:** Wait 3 seconds and retry `tab-list`.
-If still not found, open it directly:
-```bash
-playwright-cli tab-new <preview-url-from-serve-output>
-```
-
-After `tab-select` (or `tab-new`), your preview is the current tab.
+The `serve` command opens the preview tab AND sets it as playwright-cli's
+current target. All subsequent commands automatically target this tab.
 
 ### 6c. Verify EDS Framework
 
