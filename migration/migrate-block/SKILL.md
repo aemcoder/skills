@@ -104,6 +104,9 @@ playwright-cli screenshot --selector "{component-selector}" --path {projectPath}
 playwright-cli tab-close
 ```
 
+After closing, playwright-cli has no active tab. Steps 2–5 do not use the
+browser. You will select a new tab in Step 6b.
+
 ---
 
 ## Step 2: Download Images
@@ -326,8 +329,15 @@ playwright-cli tab-list
 playwright-cli tab-select <index>
 ```
 
-After `tab-select`, your preview is the current tab. All `screenshot`,
-`snapshot`, `evaluate` commands will target it automatically.
+**If your tab is NOT in the list:** The tab may not have registered yet
+(race with other scoops). Wait 3 seconds and retry `tab-list`. If still
+not found, open it directly:
+```bash
+playwright-cli tab-new <preview-url-from-serve-output>
+```
+
+After `tab-select` (or `tab-new`), your preview is the current tab. All
+`screenshot`, `snapshot`, `evaluate` commands will target it automatically.
 
 ### 6c. Verify EDS Framework Loaded
 
@@ -372,7 +382,7 @@ For each iteration:
 
 1. **Screenshot the preview:** Your preview tab is already selected.
    ```bash
-   playwright-cli screenshot --path {projectPath}/.migration/preview-{blockName}-iter{N}.png
+   playwright-cli screenshot --selector ".{blockName}" --path {projectPath}/.migration/preview-{blockName}-iter{N}.png
    ```
 
 2. **Compare:** Read both screenshots (source from Step 1, preview from

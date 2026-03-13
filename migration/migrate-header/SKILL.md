@@ -66,6 +66,22 @@ playwright-cli screenshot --selector "header" --path {projectPath}/.migration/so
 playwright-cli tab-close
 ```
 
+After closing, playwright-cli has no active tab. Steps 2–5 do not use the
+browser. You will select a new tab in Step 6b.
+
+---
+
+## HARD RULE: Draft-First Workflow
+
+**Write nav.plain.html within 7 minutes of starting.** Do NOT spend more
+than 7 minutes on header analysis before writing the initial files.
+
+- Use placeholder items for complex mega menu content. Note gaps in report.
+- Do NOT recreate icon fonts or SVG icons from scratch. Use text/emoji.
+- Extract the 5 most impactful header tokens (background color, nav font
+  size, logo height, nav gap, section padding) before writing the first CSS.
+  Iterate toward exact values during visual verification.
+
 ---
 
 ## Step 2: Analyze Header Structure
@@ -346,7 +362,13 @@ playwright-cli tab-list
 playwright-cli tab-select <index>
 ```
 
-After `tab-select`, your preview is the current tab.
+**If your tab is NOT in the list:** Wait 3 seconds and retry `tab-list`.
+If still not found, open it directly:
+```bash
+playwright-cli tab-new <preview-url-from-serve-output>
+```
+
+After `tab-select` (or `tab-new`), your preview is the current tab.
 
 ### 6c. Verify EDS Framework
 
@@ -401,6 +423,16 @@ For each iteration:
 ---
 
 ## Step 8: Write Report
+
+**Write the report in TWO passes** to ensure a report exists even if visual
+iterations don't complete (timeout, error, etc.):
+
+**Pass 1 — Write immediately after Step 6c passes** (before visual iterations):
+Write with `"status": "partial"` and the `edsVerification` data. This
+guarantees the cone gets a report even if Step 7 never finishes.
+
+**Pass 2 — Update after Step 7 completes** (after visual iterations):
+Update with final `status`, `visualVerification`, and `designTokens`.
 
 Write to `{projectPath}/.migration/reports/header-report.json`:
 
