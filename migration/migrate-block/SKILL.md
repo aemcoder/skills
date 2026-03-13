@@ -35,6 +35,24 @@ Delivery Services block with CSS, JS, content model, and visual verification.
    contains ONLY content divs. If you need a preview page, write it to
    a separate `-preview.html` file.
 
+6. **ALWAYS put images in their own dedicated cell.** EDS's `decorateMain()`
+   wraps bare `<picture>`/`<img>` elements in `<p>` tags. If a cell contains
+   both images and `<p>` text, the DOM gets mangled (HTML forbids `<p>` inside
+   `<p>`). Split image and text into separate cells, then merge in `decorate()`.
+
+   ```html
+   <!-- ❌ WRONG — image + text in same cell → DOM mangled -->
+   <div>
+     <div><picture><img src="..."></picture><h2>Title</h2><p>Text</p></div>
+   </div>
+
+   <!-- ✅ CORRECT — image in own cell, text in own cell -->
+   <div>
+     <div><picture><img src="..."></picture></div>
+     <div><h2>Title</h2><p>Text</p></div>
+   </div>
+   ```
+
 ---
 
 ## Parameters (from cone's feed_scoop prompt)
@@ -531,6 +549,33 @@ If your block is the footer:
 - If the repo already has `blocks/footer/`, use existing code
 - Do NOT use a `footer` class in any inner `<div>` inside footer.plain.html
   (the EDS framework would try to recursively load the footer block)
+
+### Footer Fragment DOM Structure
+
+The footer loads through a **fragment pipeline** — not as a normal block.
+The chain is: `footer.js` → `fragment.js` → `decorateMain()` →
+`decorateSections()` → `decorateBlocks()` → your block's `decorate()`.
+
+This means the DOM has extra wrapper layers compared to a normal block:
+
+```
+<footer>
+  <div>                          ← fragment container (created by footer.js)
+    <div class="section">        ← added by decorateSections()
+      <div>                      ← section content wrapper
+        <div class="your-block-wrapper">
+          <div class="your-block block" data-block-name="your-block">
+            <div>row 1</div>     ← your authored content
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</footer>
+```
+
+**CSS selectors must account for this nesting.** Use `.your-block > div`
+to target rows — do NOT assume the block is a direct child of `<footer>`.
 
 ### Footer Preview — CRITICAL
 

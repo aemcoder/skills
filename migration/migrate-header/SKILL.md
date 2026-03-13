@@ -350,18 +350,25 @@ Extract actual values from the source page's computed styles.
 
 **`aria-expanded` desktop behavior:** Standard header.js sets
 `aria-expanded="true"` on the nav element when on desktop. Your desktop
-CSS MUST handle both `[aria-expanded="true"]` and `[aria-expanded="false"]`
-states. If you only style `[aria-expanded="true"]` for mobile menu expansion,
-that style will also apply on desktop — causing the mobile layout to appear
-on desktop.
+CSS MUST handle both states. If you only style `[aria-expanded="true"]` for
+mobile menu expansion, that style will also apply on desktop — causing the
+mobile layout to appear on desktop.
 
-**Multi-tier headers:** If the source has two rows (e.g., logo+utility on
-top, nav on bottom), the existing CSS may be flex-based for single-row.
-You may need to replace it entirely with CSS Grid:
+**Required scoping pattern:**
 
 ```css
+/* Mobile: expanded menu takes full width */
+@media (width < 900px) {
+  .header.block nav[aria-expanded='true'] {
+    display: grid;
+    grid-template: 'brand' auto 'sections' 1fr 'tools' auto / 1fr;
+  }
+}
+
+/* Desktop: MUST override mobile expanded styles */
 @media (width >= 900px) {
-  .header.block nav {
+  .header.block nav,
+  .header.block nav[aria-expanded='true'] {
     display: grid;
     grid-template:
       'brand . tools' {topRowHeight}
@@ -371,8 +378,14 @@ You may need to replace it entirely with CSS Grid:
 }
 ```
 
-This is a larger change than "tweaking tokens" — acknowledge that multi-tier
-headers may require a near-complete CSS rewrite.
+The key: the desktop `@media (width >= 900px)` block MUST explicitly include
+`nav[aria-expanded='true']` to override the mobile expanded layout.
+
+**Multi-tier headers:** If the source has two rows (e.g., logo+utility on
+top, nav on bottom), the existing CSS may be flex-based for single-row.
+You may need to replace it entirely with the Grid template above. This is
+a larger change than "tweaking tokens" — acknowledge that multi-tier headers
+may require a near-complete CSS rewrite.
 
 ---
 
