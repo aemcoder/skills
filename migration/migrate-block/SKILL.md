@@ -392,7 +392,9 @@ For each iteration:
    - Layout/flex direction
    - Font size/weight (but NOT font-family — see note above)
 
-3. **Fix:** Make surgical CSS edits to
+3. **Fix:** Batch ALL CSS fixes for this iteration into a SINGLE `edit_file`
+   call. Identify all gaps from the comparison, then apply them together —
+   do not make separate edits for each property. Edit
    `{projectPath}/blocks/{blockName}/{blockName}.css`. Do NOT rewrite the
    entire file.
 

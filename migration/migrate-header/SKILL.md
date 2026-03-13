@@ -405,7 +405,9 @@ For each iteration:
    playwright-cli screenshot --selector "header" --path {projectPath}/.migration/preview-header-iter{N}.png
    ```
 2. **Compare** source (from Step 1) and preview: focus on background color, logo size, nav spacing, layout
-3. **Fix:** edit `header.css` custom properties — surgical changes only
+3. **Fix:** Batch ALL CSS fixes for this iteration into a SINGLE `edit_file`
+   call. Do not make separate edits for each property. Edit `header.css`
+   custom properties only.
 4. **Reload:** `playwright-cli goto <your-preview-url>`
 
 **Common header-specific fixes:**
