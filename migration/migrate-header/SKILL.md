@@ -36,8 +36,8 @@ typically pre-built in the EDS repo — you customize CSS only.
 
 Navigate to the source page and extract the header's content:
 
-```json
-{ "action": "navigate", "url": "{sourceUrl}" }
+```bash
+playwright-cli tab-new {sourceUrl}
 ```
 
 The cone dismissed overlays (cookie banners, consent dialogs) during
@@ -52,14 +52,18 @@ Use `evaluate` to extract the header HTML, including:
 - Announcement/promo bar text (if present)
 - Background colors for each header section
 
-```json
-{ "action": "evaluate", "expression": "document.querySelector('header').outerHTML" }
+```bash
+playwright-cli evaluate "document.querySelector('header').outerHTML"
 ```
 
-Also screenshot the header:
-```json
-{ "action": "screenshot", "selector": "header",
-  "path": "{projectPath}/.migration/source-header.png" }
+**Screenshot the source header NOW** — reuse for all visual iterations:
+```bash
+playwright-cli screenshot --selector "header" --path {projectPath}/.migration/source-header.png
+```
+
+**Close the source tab** after extraction:
+```bash
+playwright-cli tab-close
 ```
 
 ---
@@ -329,16 +333,25 @@ Write `{projectPath}/drafts/header-preview.html`:
 The EDS header block will automatically load `nav.plain.html` via the
 `<meta name="nav">` tag and render the full header.
 
-### 6b. Serve Preview
+### 6b. Serve and Track Your Preview Tab
 
 ```bash
+# 1. Serve — opens the preview tab with correct projectRoot wiring
 serve --entry drafts/header-preview.html --project {projectPath}
+
+# 2. Find YOUR tab — match on "header-preview" in the URL
+playwright-cli tab-list
+
+# 3. Select it by index
+playwright-cli tab-select <index>
 ```
+
+After `tab-select`, your preview is the current tab.
 
 ### 6c. Verify EDS Framework
 
-```json
-{ "action": "evaluate", "expression": "JSON.stringify({ hlx: !!window.hlx, codeBasePath: window.hlx?.codeBasePath, bodyAppear: document.body.classList.contains('appear'), headerBlock: !!document.querySelector('.header.block'), navSections: document.querySelectorAll('.header-section').length })" }
+```bash
+playwright-cli evaluate "JSON.stringify({ hlx: !!window.hlx, codeBasePath: window.hlx?.codeBasePath, bodyAppear: document.body.classList.contains('appear'), headerBlock: !!document.querySelector('.header.block'), navSections: document.querySelectorAll('.header-section').length })"
 ```
 
 **Required:** `hlx: true`, `bodyAppear: true`, `headerBlock: true`.
@@ -360,11 +373,18 @@ to fix. Do NOT waste iterations trying to match font rendering. Focus
 on layout, spacing, colors, and structure. Fonts will render correctly
 when deployed to a whitelisted production domain.
 
+**Source screenshot:** You already captured this in Step 1. Read it from:
+`{projectPath}/.migration/source-header.png`
+Do NOT navigate back to the source page. Reuse for every iteration.
+
 For each iteration:
-1. Screenshot the source header
-2. Screenshot the preview header (`selector: "header"`)
-3. Compare: focus on background color, logo size, nav spacing, layout
-4. Fix: edit `header.css` custom properties — surgical changes only
+1. **Screenshot the preview header:**
+   ```bash
+   playwright-cli screenshot --selector "header" --path {projectPath}/.migration/preview-header-iter{N}.png
+   ```
+2. **Compare** source (from Step 1) and preview: focus on background color, logo size, nav spacing, layout
+3. **Fix:** edit `header.css` custom properties — surgical changes only
+4. **Reload:** `playwright-cli goto <your-preview-url>`
 
 **Common header-specific fixes:**
 - Background color mismatch → `--header-background`

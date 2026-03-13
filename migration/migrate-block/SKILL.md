@@ -50,13 +50,28 @@ Your prompt will include these parameters:
 
 ---
 
+## HARD RULE: Draft-First Workflow
+
+**Write .plain.html within 5 minutes of starting.** Do NOT spend more than
+5 minutes on content extraction before writing the initial files.
+
+- Use placeholder text for complex decorative elements (icon fonts, SVG
+  illustrations, animated elements). Note gaps in the report.
+- Do NOT recreate decorative elements from scratch. Use text, emoji, or
+  the project's existing icon system.
+- Extract at most 5 design tokens (background color, text color, padding,
+  gap, font-size) before writing the first CSS. Iterate toward exact
+  values during visual verification.
+
+---
+
 ## Step 1: Extract Content from Source Page
 
 The visual tree is for decomposition only — it does NOT contain the actual
 content. Navigate to the source page and extract content directly:
 
-```json
-{ "action": "navigate", "url": "{sourceUrl}" }
+```bash
+playwright-cli tab-new {sourceUrl}
 ```
 
 The cone dismissed overlays (cookie banners, consent dialogs) during
@@ -68,12 +83,26 @@ see an overlay blocking content, click its accept/dismiss button via
 Extract the component's content using the CSS selector from the visual
 tree or one you identify:
 
-```json
-{ "action": "evaluate", "expression": "..." }
+```bash
+playwright-cli evaluate "..."
 ```
 
 Extract: headings, paragraphs, links (href + text), image URLs (src + alt),
 button text, any structured data within the component's bounds.
+
+**Screenshot the source component NOW** — you will reuse this screenshot
+for all visual iterations in Step 7. Do NOT navigate back to the source
+page later.
+
+```bash
+playwright-cli screenshot --selector "{component-selector}" --path {projectPath}/.migration/source-{blockName}.png
+```
+
+**Close the source tab** after extraction to reduce tab clutter:
+
+```bash
+playwright-cli tab-close
+```
 
 ---
 
@@ -81,12 +110,17 @@ button text, any structured data within the component's bounds.
 
 Download all images from the source component to `{projectPath}/drafts/images/`.
 
-Use the JavaScript tool or browser evaluate to fetch and save each image:
+Download images in parallel using the JavaScript tool:
 
 ```javascript
-const resp = await fetch('https://source-site.com/image.jpg');
-const bytes = new Uint8Array(await resp.arrayBuffer());
-await fs.writeFile('{projectPath}/drafts/images/image.jpg', bytes);
+const urls = ['https://source-site.com/img1.jpg', 'https://source-site.com/img2.jpg'];
+await Promise.all(urls.map(async (url) => {
+  const resp = await fetch(url);
+  const bytes = new Uint8Array(await resp.arrayBuffer());
+  const filename = url.split('/').pop();
+  await fs.writeFile('{projectPath}/drafts/images/' + filename, bytes);
+}));
+return 'Downloaded ' + urls.length + ' images';
 ```
 
 Image paths in `.plain.html` files use root-relative paths: `/drafts/images/image.jpg`
@@ -276,18 +310,31 @@ service worker doesn't enforce CSP, so the CSP meta can be omitted).
   completed yet — this is expected, focus on the block itself
 - The `overflow: auto !important` fixes SLICC's scrolling limitation
 
-### 6b. Serve with EDS Project Mode
+### 6b. Serve and Track Your Preview Tab
+
+Open the preview with EDS project mode, then immediately claim the tab
+in playwright-cli so all subsequent commands target it:
 
 ```bash
+# 1. Serve — opens the preview tab with correct projectRoot wiring
 serve --entry drafts/{blockName}-preview.html --project {projectPath}
+
+# 2. Find YOUR tab — match on your unique block name in the URL
+playwright-cli tab-list
+
+# 3. Select it by index (the one whose URL contains "{blockName}-preview")
+playwright-cli tab-select <index>
 ```
+
+After `tab-select`, your preview is the current tab. All `screenshot`,
+`snapshot`, `evaluate` commands will target it automatically.
 
 ### 6c. Verify EDS Framework Loaded
 
-After serving, run this verification BEFORE doing any visual comparison:
+After selecting your preview tab, run this verification BEFORE any visual comparison:
 
-```json
-{ "action": "evaluate", "expression": "JSON.stringify({ hlx: !!window.hlx, codeBasePath: window.hlx?.codeBasePath, bodyAppear: document.body.classList.contains('appear'), sections: document.querySelectorAll('.section').length, blocks: Array.from(document.querySelectorAll('[data-block-name]')).map(b => ({ name: b.dataset.blockName, status: b.dataset.blockStatus })) })" }
+```bash
+playwright-cli evaluate "JSON.stringify({ hlx: !!window.hlx, codeBasePath: window.hlx?.codeBasePath, bodyAppear: document.body.classList.contains('appear'), sections: document.querySelectorAll('.section').length, blocks: Array.from(document.querySelectorAll('[data-block-name]')).map(b => ({ name: b.dataset.blockName, status: b.dataset.blockStatus })) })"
 ```
 
 **Required results:**
@@ -316,22 +363,33 @@ to fix. Do NOT waste iterations trying to match font rendering. Focus
 on layout, spacing, colors, and structure. Fonts will render correctly
 when deployed to a whitelisted production domain.
 
+**Source screenshot:** You already captured this in Step 1. Read it from:
+`{projectPath}/.migration/source-{blockName}.png`
+Do NOT navigate back to the source page. Reuse this screenshot for every
+iteration.
+
 For each iteration:
 
-1. **Screenshot the source component:** Navigate to source URL, screenshot
-   the component region based on bounds or selector.
+1. **Screenshot the preview:** Your preview tab is already selected.
+   ```bash
+   playwright-cli screenshot --path {projectPath}/.migration/preview-{blockName}-iter{N}.png
+   ```
 
-2. **Screenshot the preview:** Screenshot the preview tab.
-
-3. **Compare:** Read both screenshots. Identify the top 2-3 CSS gaps:
+2. **Compare:** Read both screenshots (source from Step 1, preview from
+   above). Identify the top 2-3 CSS gaps:
    - Padding/margin (highest priority)
    - Background color/gradient
    - Layout/flex direction
    - Font size/weight (but NOT font-family — see note above)
 
-4. **Fix:** Make surgical CSS edits to
+3. **Fix:** Make surgical CSS edits to
    `{projectPath}/blocks/{blockName}/{blockName}.css`. Do NOT rewrite the
-   entire file. After editing, reload the preview and re-screenshot.
+   entire file.
+
+4. **Reload and re-screenshot:** Navigate the preview tab to reload:
+   ```bash
+   playwright-cli goto <your-preview-url>
+   ```
 
 **Stop conditions:**
 - After iteration 3: finalize regardless of remaining differences
