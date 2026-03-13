@@ -78,7 +78,7 @@ The cone dismissed overlays (cookie banners, consent dialogs) during
 Phase 1.5 and set consent cookies. Since all tabs share the same browser
 session, overlays should NOT appear when you navigate here. If you do
 see an overlay blocking content, click its accept/dismiss button via
-`evaluate` — do not just remove it from the DOM.
+`eval` — do not just remove it from the DOM.
 
 **Always wrap `eval` calls in IIFEs** to avoid variable redeclaration
 errors across multiple calls:
@@ -211,13 +211,6 @@ inline styles, or any wrapper outside the content divs.
 
 **BEFORE writing CSS**, check the project's global styles for layout
 constraints and button overrides that will affect your block:
-
-```bash
-playwright-cli eval "(() => {
-  const styles = document.querySelector('link[href*=styles]');
-  return styles ? 'styles.css loaded' : 'not loaded yet';
-})()"
-```
 
 ```
 read_file({ "path": "{projectPath}/styles/styles.css" })
@@ -438,13 +431,16 @@ when deployed to a whitelisted production domain.
 Do NOT navigate back to the source page. Reuse this screenshot for every
 iteration.
 
+**Before the first iteration**, take a snapshot to find your block's ref:
+```bash
+playwright-cli snapshot
+# Find the ref for your block element (e.g., e8) — note it for all iterations
+```
+
 For each iteration:
 
-1. **Screenshot the preview:** Your preview tab is already selected.
-   Take a snapshot first, then screenshot by element ref for a tight crop:
+1. **Screenshot the preview** by ref (reuse the same ref across iterations):
    ```bash
-   playwright-cli snapshot
-   # Find the ref for your block element (e.g., e8)
    playwright-cli screenshot e8 --filename {projectPath}/.migration/preview-{blockName}-iter{N}.png
    ```
 
@@ -661,14 +657,8 @@ When creating SVG icons for EDS:
 ### decorateButtons() Variant Risk
 
 Some projects override `decorateButtons()` in `scripts.js` to require
-`<strong>` or `<em>` wrapper around links for button decoration. Check:
-
-```bash
-playwright-cli eval "(() => {
-  const s = document.querySelector('script[src*=scripts]');
-  return s ? 'scripts.js found' : 'not found';
-})()"
-```
+`<strong>` or `<em>` wrapper around links for button decoration. Check
+when reading `styles.css` in Step 4:
 
 ```
 read_file({ "path": "{projectPath}/scripts/scripts.js" })

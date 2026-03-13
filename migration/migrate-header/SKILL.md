@@ -43,7 +43,7 @@ playwright-cli tab-new {sourceUrl}
 The cone dismissed overlays (cookie banners, consent dialogs) during
 Phase 1.5 and set consent cookies. Since all tabs share the same browser
 session, overlays should NOT appear when you navigate here. If you do
-see an overlay, click its accept/dismiss button via `evaluate`.
+see an overlay, click its accept/dismiss button via `eval`.
 
 **Always wrap `eval` calls in IIFEs** to avoid variable redeclaration
 errors across multiple calls.
@@ -472,11 +472,15 @@ playwright-cli eval "(() => {
 })()"
 ```
 
+**Before the first iteration**, take a snapshot to find the header ref:
+```bash
+playwright-cli snapshot
+# Find the ref for the header element (e.g., e2) — note it for all iterations
+```
+
 For each iteration:
-1. **Screenshot the preview header:**
+1. **Screenshot the preview header** by ref (reuse across iterations):
    ```bash
-   playwright-cli snapshot
-   # Find the header ref (e.g., e2)
    playwright-cli screenshot e2 --filename {projectPath}/.migration/preview-header-iter{N}.png
    ```
 2. **Compare** source (from Step 1) and preview: focus on background color, logo size, nav spacing, layout
