@@ -173,13 +173,16 @@ Download images in parallel using the JavaScript tool:
 ```javascript
 const urls = ['https://source-site.com/img1.jpg', 'https://source-site.com/img2.jpg'];
 await Promise.all(urls.map(async (url) => {
-  const resp = await fetch(url);
-  const bytes = new Uint8Array(await resp.arrayBuffer());
   const filename = url.split('/').pop();
-  await fs.writeFile('{projectPath}/drafts/images/' + filename, bytes);
+  await fs.fetchToFile(url, '{projectPath}/drafts/images/' + filename);
 }));
 return 'Downloaded ' + urls.length + ' images';
 ```
+
+**WARNING:** Do NOT use `fs.writeFile()` for binary data (images, fonts, etc.).
+The VFS bridge treats `writeFile` content as UTF-8 text — any `Uint8Array` gets
+coerced to a string, silently corrupting bytes > 127. Use `fs.fetchToFile(url, path)`
+to download binary files directly.
 
 Image paths in `.plain.html` files use root-relative paths: `/drafts/images/image.jpg`
 

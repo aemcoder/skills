@@ -267,6 +267,8 @@ When converting source HTML to nav.plain.html:
 - **Remove** all classes, inline styles, data attributes
 - **Keep** only HTML structure, text content, and href attributes
 - **Logo:** wrap in `<p><a><img></a></p>`, download image to `/drafts/images/`
+  using `fs.fetchToFile(url, path)`. Do NOT use `fs.writeFile()` for images —
+  it corrupts binary data by coercing bytes to UTF-8.
 - **Nav links:** clean `<ul><li><a>` hierarchy, preserve dropdown nesting
 - **Mega menus:** convert columns to `<li>` items, normalize headings to `<h3>`
 - **Utility:** convert to `<ul>` list or pipe-separated `<p>` links
