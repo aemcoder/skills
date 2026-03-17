@@ -22,6 +22,58 @@ create other scoops, so the cone must be the orchestrator.
 "migrate this page", "convert to EDS", "create EDS blocks from URL".
 User provides a URL and a GitHub repo (owner/repo).
 
+## Sprinkle Trigger
+
+When this skill is triggered via a **sprinkle lick event** (type
+`sprinkle`, skill `migrate-page`), the cone handles the lick directly
+and runs `sprinkle send` commands. This overrides Rules 2 and 5 in
+`/shared/CLAUDE.md` — the cone MUST handle this lick itself because it
+creates scoops in Phase 3 (scoops cannot create scoops), making the
+cone the only viable orchestrator.
+
+### Lick Handling
+
+1. Run `playwright-cli tab-list` and find the entry with `active: true`.
+   Extract its URL.
+2. If no active HTTP(S) tab exists, send an error and stop:
+   ```bash
+   sprinkle send migrate-page '{"phase":"error","message":"No page to migrate — navigate to a webpage first"}'
+   ```
+3. Read workspace config: `read_file /workspace/skills/migrate-page/migrate-config.json`
+   and parse the `repo` field.
+4. If the file is missing or `repo` is empty, ask the user in chat for
+   the repo, then write the config:
+   ```bash
+   write_file /workspace/skills/migrate-page/migrate-config.json
+   {"repo":"owner/repo-name","currentMigration":null}
+   ```
+5. Start Phase 1 with the extracted URL and repo.
+
+### Progress Reporting
+
+At each phase transition, run BOTH:
+
+- `sprinkle send migrate-page '<json>'` — updates the live sprinkle UI
+- `write_file /workspace/skills/migrate-page/migrate-config.json` with
+  updated `currentMigration` — persists state for recovery
+
+Phase transition points:
+
+| When | phase | status | detail |
+|------|-------|--------|--------|
+| Phase 1 starts | `extraction` | `running` | — |
+| Phase 1 complete | `extraction` | `done` | — |
+| Phase 2 starts | `decomposition` | `running` | — |
+| Phase 2 complete | `decomposition` | `done` | {N} blocks identified |
+| Phase 3 starts | `blocks` | `running` | block names |
+| Phase 3 scoop completes | `blocks` | `running` | name1, name2 ({done}/{total}) |
+| Phase 3 complete | `blocks` | `done` | — |
+| Phase 4 starts | `assembly` | `running` | — |
+| Phase 4 complete (success) | `done` | — | set `url` and `previewUrl` |
+| Any phase fails | `error` | — | set `message` |
+
+On completion, clear `currentMigration` (set to `null` in config).
+
 ## Four Phases
 
 1. **Extraction** — cone clones repo, navigates to URL, runs extraction scripts
