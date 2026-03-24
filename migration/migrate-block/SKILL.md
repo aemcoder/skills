@@ -389,7 +389,7 @@ service worker doesn't enforce CSP, so the CSP meta can be omitted).
   completed yet — this is expected, focus on the block itself
 - The `overflow: auto !important` fixes SLICC's scrolling limitation
 
-### 6b. Serve with EDS Project Mode
+### 6b. Serve with EDS Project Mode (once)
 
 ```bash
 serve --entry drafts/{blockName}-preview.html --project {projectPath}
@@ -397,6 +397,10 @@ serve --entry drafts/{blockName}-preview.html --project {projectPath}
 
 Capture the **targetId** from the output (e.g., `DEF456`). All subsequent
 `playwright-cli` commands for this preview tab MUST include `--tab {previewTabId}`.
+
+Also note the **preview URL** from the output — you will reuse it for
+reloads in Step 7. Do NOT call `serve` again. To pick up CSS/JS changes,
+just reload the existing tab with `goto`.
 
 ### 6c. Verify EDS Framework Loaded
 
@@ -463,9 +467,10 @@ For each iteration:
    `{projectPath}/blocks/{blockName}/{blockName}.css`. Do NOT rewrite the
    entire file.
 
-4. **Reload and re-screenshot:** Navigate the preview tab to reload:
+4. **Reload:** Refresh the preview tab to pick up CSS/JS changes (reuse
+   the preview URL from Step 6b — do NOT re-run `serve`):
    ```bash
-   playwright-cli goto --tab {previewTabId} <your-preview-url>
+   playwright-cli goto --tab {previewTabId} {previewUrl}
    ```
 
 **Stop conditions:**

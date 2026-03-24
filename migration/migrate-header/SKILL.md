@@ -433,8 +433,10 @@ The EDS header block will automatically load `nav.plain.html` via the
 serve --entry drafts/header-preview.html --project {projectPath}
 ```
 
-Capture the **targetId** from the output (e.g., `DEF456`). All subsequent
-`playwright-cli` commands for this preview tab MUST include `--tab {previewTabId}`.
+Capture the **targetId** and the **preview URL** from the output. All
+subsequent `playwright-cli` commands for this preview tab MUST include
+`--tab {previewTabId}`. Do NOT call `serve` again — to pick up CSS/JS
+changes, just reload the existing tab with `goto`.
 
 ### 6c. Verify EDS Framework
 
@@ -492,7 +494,8 @@ For each iteration:
 3. **Fix:** Batch ALL CSS fixes for this iteration into a SINGLE `edit_file`
    call. Do not make separate edits for each property. Edit `header.css`
    custom properties only.
-4. **Reload:** `playwright-cli goto --tab {previewTabId} <your-preview-url>`
+4. **Reload:** Refresh to pick up CSS changes (reuse URL from Step 6b — do NOT re-run `serve`):
+   `playwright-cli goto --tab {previewTabId} {previewUrl}`
 
 **Common header-specific fixes:**
 - Background color mismatch → `--header-background`
