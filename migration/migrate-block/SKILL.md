@@ -92,6 +92,9 @@ content. Navigate to the source page and extract content directly:
 playwright-cli tab-new {sourceUrl}
 ```
 
+Capture the **targetId** from the output (e.g., `ABC123`). All subsequent
+`playwright-cli` commands for this tab MUST include `--tab {sourceTabId}`.
+
 The cone dismissed overlays (cookie banners, consent dialogs) during
 Phase 1.5 and set consent cookies. Since all tabs share the same browser
 session, overlays should NOT appear when you navigate here. If you do
@@ -102,14 +105,14 @@ see an overlay blocking content, click its accept/dismiss button via
 errors across multiple calls:
 
 ```bash
-playwright-cli eval "(() => { /* your code here */ })()"
+playwright-cli eval --tab {sourceTabId} "(() => { /* your code here */ })()"
 ```
 
 Extract the component's content in as few `eval` calls as possible. Prefer
 one comprehensive extraction over many small probes:
 
 ```bash
-playwright-cli eval "(() => {
+playwright-cli eval --tab {sourceTabId} "(() => {
   const el = document.querySelector('{selector}');
   if (!el) return JSON.stringify({ error: 'not found' });
   const imgs = [...el.querySelectorAll('img')].map(i => ({ src: i.src, alt: i.alt }));
@@ -138,29 +141,28 @@ Use snapshot + ref-based screenshot for a tight element crop:
 
 ```bash
 # 1. Take a snapshot to get element refs
-playwright-cli snapshot
+playwright-cli snapshot --tab {sourceTabId}
 
 # 2. Find the ref for your component in the snapshot output (e.g., e15)
 # 3. Screenshot that specific element by ref
-playwright-cli screenshot e15 --max-width=1440 --filename {projectPath}/.migration/source-{blockName}.png
+playwright-cli screenshot --tab {sourceTabId} e15 --max-width=1440 --filename {projectPath}/.migration/source-{blockName}.png
 ```
 
 If you can't identify the right ref, fall back to a viewport screenshot
 after scrolling the component into view:
 
 ```bash
-playwright-cli eval "document.querySelector('{selector}').scrollIntoView({ block: 'start' })"
-playwright-cli screenshot --max-width=1440 --filename {projectPath}/.migration/source-{blockName}.png
+playwright-cli eval --tab {sourceTabId} "document.querySelector('{selector}').scrollIntoView({ block: 'start' })"
+playwright-cli screenshot --tab {sourceTabId} --max-width=1440 --filename {projectPath}/.migration/source-{blockName}.png
 ```
 
 **Close the source tab** after extraction to reduce tab clutter:
 
 ```bash
-playwright-cli tab-close
+playwright-cli tab-close --tab {sourceTabId}
 ```
 
-After closing, playwright-cli has no active tab. Steps 2–5 do not use the
-browser. You will select a new tab in Step 6b.
+Steps 2–5 do not use the browser. You will open a new tab in Step 6b.
 
 ---
 
@@ -393,16 +395,15 @@ service worker doesn't enforce CSP, so the CSP meta can be omitted).
 serve --entry drafts/{blockName}-preview.html --project {projectPath}
 ```
 
-The `serve` command opens the preview tab AND sets it as playwright-cli's
-current target. All subsequent `screenshot`, `eval`, `snapshot` commands
-automatically target this tab — no `tab-list` or `tab-select` needed.
+Capture the **targetId** from the output (e.g., `DEF456`). All subsequent
+`playwright-cli` commands for this preview tab MUST include `--tab {previewTabId}`.
 
 ### 6c. Verify EDS Framework Loaded
 
 Run this verification BEFORE any visual comparison:
 
 ```bash
-playwright-cli eval "JSON.stringify({ hlx: !!window.hlx, codeBasePath: window.hlx?.codeBasePath, bodyAppear: document.body.classList.contains('appear'), sections: document.querySelectorAll('.section').length, blocks: Array.from(document.querySelectorAll('[data-block-name]')).map(b => ({ name: b.dataset.blockName, status: b.dataset.blockStatus })) })"
+playwright-cli eval --tab {previewTabId} "JSON.stringify({ hlx: !!window.hlx, codeBasePath: window.hlx?.codeBasePath, bodyAppear: document.body.classList.contains('appear'), sections: document.querySelectorAll('.section').length, blocks: Array.from(document.querySelectorAll('[data-block-name]')).map(b => ({ name: b.dataset.blockName, status: b.dataset.blockStatus })) })"
 ```
 
 **Required results:**
@@ -438,7 +439,7 @@ iteration.
 
 **Before the first iteration**, take a snapshot to find your block's ref:
 ```bash
-playwright-cli snapshot
+playwright-cli snapshot --tab {previewTabId}
 # Find the ref for your block element (e.g., e8) — note it for all iterations
 ```
 
@@ -446,7 +447,7 @@ For each iteration:
 
 1. **Screenshot the preview** by ref (reuse the same ref across iterations):
    ```bash
-   playwright-cli screenshot e8 --max-width=1440 --filename {projectPath}/.migration/preview-{blockName}-iter{N}.png
+   playwright-cli screenshot --tab {previewTabId} e8 --max-width=1440 --filename {projectPath}/.migration/preview-{blockName}-iter{N}.png
    ```
 
 2. **Compare:** Read both screenshots (source from Step 1, preview from
@@ -464,7 +465,7 @@ For each iteration:
 
 4. **Reload and re-screenshot:** Navigate the preview tab to reload:
    ```bash
-   playwright-cli goto <your-preview-url>
+   playwright-cli goto --tab {previewTabId} <your-preview-url>
    ```
 
 **Stop conditions:**
@@ -538,10 +539,10 @@ Write to `{projectPath}/.migration/reports/{blockName}-report.json`:
 **ALL reports MUST use this exact schema.** Do not add extra top-level keys
 or rename fields.
 
-**Close the preview tab** before notifying the cone (while still attached):
+**Close the preview tab** before notifying the cone:
 
 ```bash
-playwright-cli tab-close
+playwright-cli tab-close --tab {previewTabId}
 ```
 
 Then use `send_message` to notify the cone with: block name, status,

@@ -40,6 +40,9 @@ Navigate to the source page and extract the header's content:
 playwright-cli tab-new {sourceUrl}
 ```
 
+Capture the **targetId** from the output (e.g., `ABC123`). All subsequent
+`playwright-cli` commands for this tab MUST include `--tab {sourceTabId}`.
+
 The cone dismissed overlays (cookie banners, consent dialogs) during
 Phase 1.5 and set consent cookies. Since all tabs share the same browser
 session, overlays should NOT appear when you navigate here. If you do
@@ -53,7 +56,7 @@ of `<header>` for navigation. Check with `eval` first to confirm the right
 element:
 
 ```bash
-playwright-cli eval "(() => {
+playwright-cli eval --tab {sourceTabId} "(() => {
   const h = document.querySelector('header');
   const n = document.querySelector('nav');
   return JSON.stringify({ header: !!h, nav: !!n, headerTag: h?.tagName, navId: n?.id });
@@ -63,7 +66,7 @@ playwright-cli eval "(() => {
 Extract all header content in one comprehensive call:
 
 ```bash
-playwright-cli eval "(() => {
+playwright-cli eval --tab {sourceTabId} "(() => {
   const nav = document.querySelector('header') || document.querySelector('nav');
   if (!nav) return JSON.stringify({ error: 'no header/nav found' });
   const logo = nav.querySelector('img');
@@ -82,18 +85,17 @@ playwright-cli eval "(() => {
 Use snapshot + ref-based screenshot for a tight crop:
 
 ```bash
-playwright-cli snapshot
+playwright-cli snapshot --tab {sourceTabId}
 # Find the ref for the header/nav element (e.g., e3)
-playwright-cli screenshot e3 --max-width=1440 --filename {projectPath}/.migration/source-header.png
+playwright-cli screenshot --tab {sourceTabId} e3 --max-width=1440 --filename {projectPath}/.migration/source-header.png
 ```
 
 **Close the source tab** after extraction:
 ```bash
-playwright-cli tab-close
+playwright-cli tab-close --tab {sourceTabId}
 ```
 
-After closing, playwright-cli has no active tab. Steps 2–5 do not use the
-browser. You will select a new tab in Step 6b.
+Steps 2–5 do not use the browser. You will open a new tab in Step 6b.
 
 ---
 
@@ -431,13 +433,13 @@ The EDS header block will automatically load `nav.plain.html` via the
 serve --entry drafts/header-preview.html --project {projectPath}
 ```
 
-The `serve` command opens the preview tab AND sets it as playwright-cli's
-current target. All subsequent commands automatically target this tab.
+Capture the **targetId** from the output (e.g., `DEF456`). All subsequent
+`playwright-cli` commands for this preview tab MUST include `--tab {previewTabId}`.
 
 ### 6c. Verify EDS Framework
 
 ```bash
-playwright-cli eval "JSON.stringify({ hlx: !!window.hlx, codeBasePath: window.hlx?.codeBasePath, bodyAppear: document.body.classList.contains('appear'), headerBlock: !!document.querySelector('.header.block'), navSections: document.querySelectorAll('.header-section').length })"
+playwright-cli eval --tab {previewTabId} "JSON.stringify({ hlx: !!window.hlx, codeBasePath: window.hlx?.codeBasePath, bodyAppear: document.body.classList.contains('appear'), headerBlock: !!document.querySelector('.header.block'), navSections: document.querySelectorAll('.header-section').length })"
 ```
 
 **Required:** `hlx: true`, `bodyAppear: true`, `headerBlock: true`.
@@ -466,7 +468,7 @@ Do NOT navigate back to the source page. Reuse for every iteration.
 For thin headers (<150px tall), also use `eval`-based measurements for
 precision — screenshots may be too small for reliable pixel comparison:
 ```bash
-playwright-cli eval "(() => {
+playwright-cli eval --tab {previewTabId} "(() => {
   const h = document.querySelector('header');
   const r = h.getBoundingClientRect();
   const logo = h.querySelector('img');
@@ -477,20 +479,20 @@ playwright-cli eval "(() => {
 
 **Before the first iteration**, take a snapshot to find the header ref:
 ```bash
-playwright-cli snapshot
+playwright-cli snapshot --tab {previewTabId}
 # Find the ref for the header element (e.g., e2) — note it for all iterations
 ```
 
 For each iteration:
 1. **Screenshot the preview header** by ref (reuse across iterations):
    ```bash
-   playwright-cli screenshot e2 --max-width=1440 --filename {projectPath}/.migration/preview-header-iter{N}.png
+   playwright-cli screenshot --tab {previewTabId} e2 --max-width=1440 --filename {projectPath}/.migration/preview-header-iter{N}.png
    ```
 2. **Compare** source (from Step 1) and preview: focus on background color, logo size, nav spacing, layout
 3. **Fix:** Batch ALL CSS fixes for this iteration into a SINGLE `edit_file`
    call. Do not make separate edits for each property. Edit `header.css`
    custom properties only.
-4. **Reload:** `playwright-cli goto <your-preview-url>`
+4. **Reload:** `playwright-cli goto --tab {previewTabId} <your-preview-url>`
 
 **Common header-specific fixes:**
 - Background color mismatch → `--header-background`
@@ -562,10 +564,10 @@ Write to `{projectPath}/.migration/reports/header-report.json`:
 
 **Status thresholds:** success (>85%), partial (50-85%), failed (<50%)
 
-**Close the preview tab** before notifying the cone (while still attached):
+**Close the preview tab** before notifying the cone:
 
 ```bash
-playwright-cli tab-close
+playwright-cli tab-close --tab {previewTabId}
 ```
 
 Then `send_message` to the cone with: status, header type, iteration count,
