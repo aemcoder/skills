@@ -399,8 +399,11 @@ Capture the **targetId** from the output (e.g., `DEF456`). All subsequent
 `playwright-cli` commands for this preview tab MUST include `--tab {previewTabId}`.
 
 Also note the **preview URL** from the output — you will reuse it for
-reloads in Step 7. Do NOT call `serve` again. To pick up CSS/JS changes,
-just reload the existing tab with `goto`.
+reloads in Step 7. To pick up CSS/JS changes, just reload the existing
+tab with `goto` — do not re-run `serve` for every iteration.
+
+If the preview tab is closed or a `--tab` command fails with an invalid
+target, re-run `serve` to get a new tab and targetId.
 
 ### 6c. Verify EDS Framework Loaded
 

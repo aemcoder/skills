@@ -435,8 +435,11 @@ serve --entry drafts/header-preview.html --project {projectPath}
 
 Capture the **targetId** and the **preview URL** from the output. All
 subsequent `playwright-cli` commands for this preview tab MUST include
-`--tab {previewTabId}`. Do NOT call `serve` again — to pick up CSS/JS
-changes, just reload the existing tab with `goto`.
+`--tab {previewTabId}`. To pick up CSS/JS changes, just reload the
+existing tab with `goto` — do not re-run `serve` for every iteration.
+
+If the preview tab is closed or a `--tab` command fails with an invalid
+target, re-run `serve` to get a new tab and targetId.
 
 ### 6c. Verify EDS Framework
 
