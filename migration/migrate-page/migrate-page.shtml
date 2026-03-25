@@ -1,65 +1,80 @@
 <div data-sprinkle-title="Migrate Page" data-sprinkle-autoopen class="sprinkle-stack" style="padding: 20px; max-width: 520px; margin: 0 auto;">
 
-  <div id="mp-ready">
-    <div class="sprinkle-heading" style="font-size: 18px;">Migrate Page</div>
+  <div id="mp-ready" class="mp-view">
+    <div class="sprinkle-heading mp-view-heading" tabindex="-1">Migrate Page</div>
     <dl class="sprinkle-kv-list">
       <dt>Target repo</dt>
       <dd id="mp-repo">Loading...</dd>
     </dl>
-    <div class="sprinkle-divider"></div>
-    <div class="sprinkle-body" style="margin-bottom: 12px;">
+    <div class="sprinkle-body">
       Migrates the active browser tab into an Edge Delivery Services page using the configured repository.
     </div>
     <div class="sprinkle-btn-group">
       <button class="sprinkle-btn sprinkle-btn--primary" onclick="startMigration()">Migrate This Page</button>
     </div>
+    <div class="sprinkle-detail" id="mp-config-hint" style="display:none; margin-top: 8px;">
+      Configure a target repository to get started.
+    </div>
   </div>
 
-  <div id="mp-migrating" style="display:none;">
-    <div class="sprinkle-heading" style="font-size: 18px;">Migrating</div>
+  <div id="mp-migrating" class="mp-view" style="display:none;">
+    <div class="sprinkle-heading mp-view-heading" tabindex="-1">Migrating</div>
     <div class="sprinkle-detail" id="mp-source-url"></div>
-    <div class="sprinkle-divider" style="margin: 8px 0;"></div>
-    <div class="sprinkle-stack" style="gap: 10px;" id="mp-phases">
-      <div class="sprinkle-row" style="gap: 8px; justify-content: flex-start;" data-phase="extraction">
-        <span class="mp-icon" style="font-size: 14px; width: 18px; text-align: center;"></span>
-        <span class="sprinkle-body" style="flex:1;">Extraction</span>
+    <div class="sprinkle-stack" id="mp-phases" aria-live="polite" aria-relevant="text">
+      <div class="sprinkle-row" data-phase="extraction">
+        <span class="mp-icon mp-icon--pending"></span>
+        <span class="sprinkle-body">Extraction</span>
         <span class="sprinkle-detail mp-detail"></span>
       </div>
-      <div class="sprinkle-row" style="gap: 8px; justify-content: flex-start;" data-phase="decomposition">
-        <span class="mp-icon" style="font-size: 14px; width: 18px; text-align: center;"></span>
-        <span class="sprinkle-body" style="flex:1;">Decomposition</span>
+      <div class="sprinkle-row" data-phase="decomposition">
+        <span class="mp-icon mp-icon--pending"></span>
+        <span class="sprinkle-body">Decomposition</span>
         <span class="sprinkle-detail mp-detail"></span>
       </div>
-      <div class="sprinkle-row" style="gap: 8px; justify-content: flex-start;" data-phase="blocks">
-        <span class="mp-icon" style="font-size: 14px; width: 18px; text-align: center;"></span>
-        <span class="sprinkle-body" style="flex:1;">Generating Blocks</span>
+      <div class="sprinkle-row" data-phase="blocks">
+        <span class="mp-icon mp-icon--pending"></span>
+        <span class="sprinkle-body">Generating Blocks</span>
         <span class="sprinkle-detail mp-detail"></span>
       </div>
-      <div class="sprinkle-row" style="gap: 8px; justify-content: flex-start;" data-phase="assembly">
-        <span class="mp-icon" style="font-size: 14px; width: 18px; text-align: center;"></span>
-        <span class="sprinkle-body" style="flex:1;">Assembly</span>
+      <div class="sprinkle-row" data-phase="assembly">
+        <span class="mp-icon mp-icon--pending"></span>
+        <span class="sprinkle-body">Assembly</span>
         <span class="sprinkle-detail mp-detail"></span>
       </div>
     </div>
-    <div class="sprinkle-progress-bar" id="mp-progress" style="--progress: 0%; margin-top: 12px;"></div>
+    <div class="sprinkle-progress-bar" id="mp-progress"
+         role="progressbar"
+         aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"
+         aria-label="Migration progress"
+         style="--progress: 0%; margin-top: 12px;"></div>
+    <div class="sprinkle-detail" id="mp-progress-label"
+         style="text-align: center; margin-top: 6px;"></div>
   </div>
 
-  <div id="mp-done" style="display:none;">
-    <div class="sprinkle-heading" style="font-size: 18px;">Migration Complete</div>
+  <div id="mp-done" class="mp-view" style="display:none;">
+    <div class="sprinkle-heading mp-view-heading" tabindex="-1">
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="currentColor" role="img" aria-label="Complete" style="vertical-align: middle; margin-right: 6px; color: #079355;"><path d="M10 18.75c-4.825 0-8.75-3.925-8.75-8.75S5.175 1.25 10 1.25s8.75 3.925 8.75 8.75-3.925 8.75-8.75 8.75m0-16c-3.998 0-7.25 3.252-7.25 7.25s3.252 7.25 7.25 7.25 7.25-3.252 7.25-7.25S13.998 2.75 10 2.75"/><path d="M9.223 13.5c-.212 0-.415-.09-.558-.248l-2.51-2.792c-.278-.309-.253-.782.055-1.06s.781-.252 1.06.056l1.893 2.107 3.487-4.756c.244-.334.711-.41 1.048-.161.334.244.406.713.161 1.047l-4.032 5.5c-.133.183-.342.295-.567.306z"/></svg>
+      Migration Complete
+    </div>
     <dl class="sprinkle-kv-list">
       <dt>Source</dt>
       <dd id="mp-done-url"></dd>
+      <dt id="mp-done-blocks-label" style="display:none;">Blocks</dt>
+      <dd id="mp-done-blocks" style="display:none;"></dd>
     </dl>
-    <div class="sprinkle-divider"></div>
+    <div style="height: 16px;"></div>
     <div class="sprinkle-btn-group">
       <button class="sprinkle-btn sprinkle-btn--primary" onclick="previewResult()">Preview</button>
       <button class="sprinkle-btn sprinkle-btn--secondary" onclick="newMigration()">New Migration</button>
     </div>
   </div>
 
-  <div id="mp-error" style="display:none;">
-    <div class="sprinkle-heading" style="font-size: 18px;">Migration Failed</div>
-    <div class="sprinkle-card" style="margin: 8px 0;">
+  <div id="mp-error" class="mp-view" style="display:none;" role="alert">
+    <div class="sprinkle-heading mp-view-heading" tabindex="-1">
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="currentColor" role="img" aria-label="Failed" style="vertical-align: middle; margin-right: 6px; color: #d73220;"><path d="m11.06 10 2.22-2.22c.293-.293.293-.767 0-1.06s-.767-.293-1.06 0L10 8.94 7.78 6.72c-.293-.293-.767-.293-1.06 0s-.293.767 0 1.06L8.94 10l-2.22 2.22c-.293.293-.293.767 0 1.06.146.147.338.22.53.22s.384-.073.53-.22L10 11.06l2.22 2.22c.146.147.338.22.53.22s.384-.073.53-.22c.293-.293.293-.767 0-1.06z"/><path d="M10 18.75c-4.825 0-8.75-3.925-8.75-8.75S5.175 1.25 10 1.25s8.75 3.925 8.75 8.75-3.925 8.75-8.75 8.75m0-16c-3.998 0-7.25 3.252-7.25 7.25s3.252 7.25 7.25 7.25 7.25-3.252 7.25-7.25S13.998 2.75 10 2.75"/></svg>
+      Migration Failed
+    </div>
+    <div class="mp-error-card">
       <div class="sprinkle-body" id="mp-error-msg"></div>
     </div>
     <div class="sprinkle-btn-group">
@@ -69,17 +84,85 @@
 
 </div>
 
+<style>
+.mp-view {
+  opacity: 0;
+  transition: opacity 150ms ease-in;
+}
+.mp-view.mp-visible {
+  opacity: 1;
+}
+
+.mp-icon {
+  display: inline-flex;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+}
+.mp-icon--pending { color: #dadada; }
+.mp-icon--active { color: #4b75ff; }
+.mp-icon--done { color: #079355; }
+.mp-icon--error { color: #d73220; }
+
+@keyframes mp-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+.mp-icon--active svg {
+  animation: mp-pulse 1.5s ease-in-out infinite;
+}
+
+.mp-error-card {
+  margin: 8px 0;
+  padding: 10px 12px;
+  border-left: 3px solid #d73220;
+  border-radius: 4px;
+  background: #ffebe8;
+}
+
+#mp-phases .sprinkle-row {
+  gap: 8px;
+  justify-content: flex-start;
+}
+#mp-phases .sprinkle-body { flex: 1; }
+
+#mp-ready .sprinkle-kv-list,
+#mp-done .sprinkle-kv-list { margin-top: 12px; }
+
+#mp-ready .sprinkle-body { margin-bottom: 16px; }
+
+#mp-ready .sprinkle-btn-group,
+#mp-done .sprinkle-btn-group,
+#mp-error .sprinkle-btn-group { margin-top: 16px; }
+</style>
+
 <script>
 var PHASES = ['extraction', 'decomposition', 'blocks', 'assembly'];
 var PHASE_PROGRESS = { extraction: 25, decomposition: 50, blocks: 75, assembly: 90 };
 var currentPreviewUrl = null;
 
+var ICON_PENDING = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="currentColor" role="img" aria-label="Pending"><path d="M10 18.75c-4.825 0-8.75-3.925-8.75-8.75S5.175 1.25 10 1.25s8.75 3.925 8.75 8.75-3.925 8.75-8.75 8.75m0-16c-3.998 0-7.25 3.252-7.25 7.25s3.252 7.25 7.25 7.25 7.25-3.252 7.25-7.25S13.998 2.75 10 2.75"/></svg>';
+var ICON_ACTIVE = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="currentColor" role="img" aria-label="In progress"><circle cx="10" cy="10" r="5"/></svg>';
+var ICON_DONE = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="currentColor" role="img" aria-label="Complete"><path d="M10 18.75c-4.825 0-8.75-3.925-8.75-8.75S5.175 1.25 10 1.25s8.75 3.925 8.75 8.75-3.925 8.75-8.75 8.75m0-16c-3.998 0-7.25 3.252-7.25 7.25s3.252 7.25 7.25 7.25 7.25-3.252 7.25-7.25S13.998 2.75 10 2.75"/><path d="M9.223 13.5c-.212 0-.415-.09-.558-.248l-2.51-2.792c-.278-.309-.253-.782.055-1.06s.781-.252 1.06.056l1.893 2.107 3.487-4.756c.244-.334.711-.41 1.048-.161.334.244.406.713.161 1.047l-4.032 5.5c-.133.183-.342.295-.567.306z"/></svg>';
+
 function showView(id) {
   var views = ['mp-ready', 'mp-migrating', 'mp-done', 'mp-error'];
   for (var i = 0; i < views.length; i++) {
-    document.getElementById(views[i]).style.display =
-      views[i] === id ? '' : 'none';
+    var el = document.getElementById(views[i]);
+    if (!el) continue;
+    el.style.display = 'none';
+    el.classList.remove('mp-visible');
   }
+  var target = document.getElementById(id);
+  if (!target) return;
+  target.style.display = '';
+  requestAnimationFrame(function() {
+    target.classList.add('mp-visible');
+    var heading = target.querySelector('.mp-view-heading');
+    if (heading) heading.focus();
+  });
 }
 
 function updatePhases(activePhase, detail) {
@@ -93,23 +176,31 @@ function updatePhases(activePhase, detail) {
     var detailEl = row.querySelector('.mp-detail');
 
     if (i < activeIdx) {
-      icon.textContent = '\u2713';
-      icon.style.color = 'var(--s2-color-positive, #0a0)';
+      icon.innerHTML = ICON_DONE;
+      icon.className = 'mp-icon mp-icon--done';
       detailEl.textContent = '';
     } else if (i === activeIdx) {
-      icon.textContent = '\u25CF';
-      icon.style.color = 'var(--s2-color-informative, #06f)';
+      icon.innerHTML = ICON_ACTIVE;
+      icon.className = 'mp-icon mp-icon--active';
       detailEl.textContent = detail || '';
     } else {
-      icon.textContent = '\u25CB';
-      icon.style.color = 'var(--s2-color-gray-500, #888)';
+      icon.innerHTML = ICON_PENDING;
+      icon.className = 'mp-icon mp-icon--pending';
       detailEl.textContent = '';
     }
   }
 
   var pct = PHASE_PROGRESS[activePhase] || 0;
   var bar = document.getElementById('mp-progress');
-  if (bar) bar.style.setProperty('--progress', pct + '%');
+  if (bar) {
+    bar.style.setProperty('--progress', pct + '%');
+    bar.setAttribute('aria-valuenow', pct);
+  }
+
+  var label = document.getElementById('mp-progress-label');
+  if (label) {
+    label.textContent = 'Phase ' + (activeIdx + 1) + ' of ' + PHASES.length;
+  }
 }
 
 function markAllDone() {
@@ -117,12 +208,45 @@ function markAllDone() {
     var row = document.querySelector('[data-phase="' + PHASES[i] + '"]');
     if (!row) continue;
     var icon = row.querySelector('.mp-icon');
-    icon.textContent = '\u2713';
-    icon.style.color = 'var(--s2-color-positive, #0a0)';
+    icon.innerHTML = ICON_DONE;
+    icon.className = 'mp-icon mp-icon--done';
     row.querySelector('.mp-detail').textContent = '';
   }
   var bar = document.getElementById('mp-progress');
-  if (bar) bar.style.setProperty('--progress', '100%');
+  if (bar) {
+    bar.style.setProperty('--progress', '100%');
+    bar.setAttribute('aria-valuenow', 100);
+  }
+  var label = document.getElementById('mp-progress-label');
+  if (label) label.textContent = 'Complete';
+}
+
+function populateDone(data) {
+  var doneUrl = document.getElementById('mp-done-url');
+  if (doneUrl) doneUrl.textContent = data.url || '';
+
+  var blocksLabel = document.getElementById('mp-done-blocks-label');
+  var blocksVal = document.getElementById('mp-done-blocks');
+  if (data.blockCount && blocksLabel && blocksVal) {
+    blocksLabel.style.display = '';
+    blocksVal.style.display = '';
+    blocksVal.textContent = data.blockCount + ' blocks migrated';
+  } else if (blocksLabel && blocksVal) {
+    blocksLabel.style.display = 'none';
+    blocksVal.style.display = 'none';
+  }
+}
+
+function populateError(data) {
+  var errMsg = document.getElementById('mp-error-msg');
+  if (errMsg) errMsg.textContent = data.message || 'Unknown error';
+}
+
+function populateMigrating(data) {
+  if (data.url) {
+    var srcEl = document.getElementById('mp-source-url');
+    if (srcEl) srcEl.textContent = data.url;
+  }
 }
 
 function startMigration() {
@@ -145,108 +269,100 @@ function newMigration() {
   loadConfig();
 }
 
-function loadConfig() {
-  slicc.readFile('/workspace/skills/migrate-page/migrate-config.json').then(function(raw) {
-    var config;
-    try { config = JSON.parse(raw); } catch (e) {
-      var el = document.getElementById('mp-repo');
-      if (el) el.textContent = 'Not configured';
-      return;
-    }
-    var repoEl = document.getElementById('mp-repo');
-    if (repoEl) repoEl.textContent = config.repo || 'Not configured';
-
-    if (config.currentMigration) {
-      var m = config.currentMigration;
-      if (m.phase === 'done') {
-        currentPreviewUrl = m.previewUrl || null;
-        var doneUrl = document.getElementById('mp-done-url');
-        if (doneUrl) doneUrl.textContent = m.url || '';
-        markAllDone();
-        showView('mp-done');
-        slicc.setState(m);
-      } else if (m.phase === 'error') {
-        var errMsg = document.getElementById('mp-error-msg');
-        if (errMsg) errMsg.textContent = m.message || 'Unknown error';
-        showView('mp-error');
-        slicc.setState(m);
-      } else if (m.phase && m.status) {
-        if (m.url) {
-          var srcEl = document.getElementById('mp-source-url');
-          if (srcEl) srcEl.textContent = m.url;
-        }
-        showView('mp-migrating');
-        updatePhases(m.phase, m.detail || '');
-        slicc.setState(m);
-      }
-    }
-  }).catch(function() {
-    var repoEl = document.getElementById('mp-repo');
-    if (repoEl) repoEl.textContent = 'Not configured';
-  });
-}
-
 function handleUpdate(data) {
   if (!data || !data.phase) return;
   slicc.setState(data);
 
   if (data.phase === 'done') {
     currentPreviewUrl = data.previewUrl || null;
-    var doneUrl = document.getElementById('mp-done-url');
-    if (doneUrl) doneUrl.textContent = data.url || '';
+    populateDone(data);
     markAllDone();
     showView('mp-done');
     return;
   }
 
   if (data.phase === 'error') {
-    var errMsg = document.getElementById('mp-error-msg');
-    if (errMsg) errMsg.textContent = data.message || 'Unknown error';
+    populateError(data);
     showView('mp-error');
     return;
   }
 
-  if (data.url) {
-    var srcEl = document.getElementById('mp-source-url');
-    if (srcEl) srcEl.textContent = data.url;
-  }
-
+  populateMigrating(data);
   showView('mp-migrating');
 
   if (data.status === 'done') {
     var phaseIdx = PHASES.indexOf(data.phase);
-    var nextPhase = phaseIdx < PHASES.length - 1
-      ? PHASES[phaseIdx + 1] : data.phase;
-    updatePhases(nextPhase, '');
+    if (phaseIdx === PHASES.length - 1) {
+      markAllDone();
+    } else {
+      updatePhases(PHASES[phaseIdx + 1], '');
+    }
   } else {
     updatePhases(data.phase, data.detail || '');
   }
 }
 
-// Initialize
-slicc.on('update', handleUpdate);
-
-var saved = slicc.getState();
-if (saved && saved.phase) {
-  if (saved.phase === 'done') {
-    currentPreviewUrl = saved.previewUrl || null;
-    var doneUrl = document.getElementById('mp-done-url');
-    if (doneUrl) doneUrl.textContent = saved.url || '';
-    markAllDone();
-    showView('mp-done');
-  } else if (saved.phase === 'error') {
-    var errMsg = document.getElementById('mp-error-msg');
-    if (errMsg) errMsg.textContent = saved.message || 'Unknown error';
-    showView('mp-error');
+function setConfigState(configured) {
+  var btn = document.querySelector('#mp-ready .sprinkle-btn--primary');
+  var hint = document.getElementById('mp-config-hint');
+  var repoEl = document.getElementById('mp-repo');
+  if (!configured) {
+    if (repoEl) repoEl.textContent = 'Not configured';
+    if (btn) btn.disabled = true;
+    if (hint) hint.style.display = '';
   } else {
-    if (saved.url) {
-      var srcEl = document.getElementById('mp-source-url');
-      if (srcEl) srcEl.textContent = saved.url;
-    }
-    showView('mp-migrating');
-    updatePhases(saved.phase, saved.detail || '');
+    if (btn) btn.disabled = false;
+    if (hint) hint.style.display = 'none';
   }
 }
 
-loadConfig();
+function loadConfig() {
+  slicc.readFile('/workspace/skills/migrate-page/migrate-config.json').then(function(raw) {
+    var config;
+    try { config = JSON.parse(raw); } catch (e) {
+      setConfigState(false);
+      return;
+    }
+
+    var repoEl = document.getElementById('mp-repo');
+    if (repoEl) repoEl.textContent = config.repo || 'Not configured';
+    setConfigState(!!config.repo);
+
+    if (config.currentMigration && !slicc.getState()) {
+      restoreState(config.currentMigration);
+    }
+  }).catch(function() {
+    setConfigState(false);
+  });
+}
+
+function restoreState(state) {
+  slicc.setState(state);
+  if (state.phase === 'done') {
+    currentPreviewUrl = state.previewUrl || null;
+    populateDone(state);
+    markAllDone();
+    showView('mp-done');
+  } else if (state.phase === 'error') {
+    populateError(state);
+    showView('mp-error');
+  } else {
+    populateMigrating(state);
+    showView('mp-migrating');
+    updatePhases(state.phase, state.detail || '');
+  }
+}
+
+function init() {
+  slicc.on('update', handleUpdate);
+  var saved = slicc.getState();
+  if (saved && saved.phase) {
+    restoreState(saved);
+  } else {
+    showView('mp-ready');
+  }
+  loadConfig();
+}
+
+init();
 </script>
