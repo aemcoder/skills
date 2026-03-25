@@ -39,11 +39,11 @@ serve --entry drafts/hero-preview.html --project /shared/my-site
 **Use --tab on every command:**
 
 ```bash
-playwright-cli eval --tab {sourceTabId} "document.title"
-playwright-cli screenshot --tab {previewTabId} --max-width=1440 --filename out.png
-playwright-cli snapshot --tab {previewTabId}
-playwright-cli goto --tab {previewTabId} {url}
-playwright-cli tab-close --tab {sourceTabId}
+playwright-cli eval --tab={sourceTabId} "document.title"
+playwright-cli screenshot --tab={previewTabId} --max-width=1440 --filename out.png
+playwright-cli snapshot --tab={previewTabId}
+playwright-cli goto --tab={previewTabId} {url}
+playwright-cli tab-close --tab={sourceTabId}
 ```
 
 Commands without --tab: `tab-list` (lists all tabs), `tab-new` (creates a tab).
@@ -54,7 +54,7 @@ For EDS block/page preview testing:
 
 1. Call `serve --project` **once** to open the preview tab
 2. Capture both the `targetId` and the `previewUrl` from output
-3. After editing CSS/JS, reload with `goto --tab {previewTabId} {previewUrl}`
+3. After editing CSS/JS, reload with `goto --tab={previewTabId} {previewUrl}`
 4. Do NOT re-run `serve` for each iteration
 
 If the preview tab is closed or `--tab` fails with an invalid target,

@@ -110,14 +110,14 @@ playwright-cli tab-new {sourceUrl}
 ```
 
 Capture the **targetId** from the output (e.g., `SRC123`). All subsequent
-`playwright-cli` commands for this source tab MUST include `--tab {sourceTabId}`.
+`playwright-cli` commands for this source tab MUST include `--tab={sourceTabId}`.
 
 ### Step 1.3: Raw Screenshot
 
 Capture the page BEFORE any modifications — this shows overlays as visitors see them:
 
 ```bash
-playwright-cli screenshot --tab {sourceTabId} --fullPage=true --max-width=1440 --filename /shared/{repo-name}/.migration/screenshot-raw.png
+playwright-cli screenshot --tab={sourceTabId} --fullPage=true --max-width=1440 --filename /shared/{repo-name}/.migration/screenshot-raw.png
 ```
 
 ### Step 1.4: Dismiss Overlays
@@ -125,7 +125,7 @@ playwright-cli screenshot --tab {sourceTabId} --fullPage=true --max-width=1440 -
 Run the overlay dismissal script directly from file and save the result:
 
 ```bash
-playwright-cli eval-file --tab {sourceTabId} /workspace/skills/migrate-page/scripts/overlay-dismiss.js --output=/shared/{repo-name}/.migration/overlay-recipe.json
+playwright-cli eval-file --tab={sourceTabId} /workspace/skills/migrate-page/scripts/overlay-dismiss.js --output=/shared/{repo-name}/.migration/overlay-recipe.json
 ```
 
 ### Step 1.5: Page Preparation
@@ -133,7 +133,7 @@ playwright-cli eval-file --tab {sourceTabId} /workspace/skills/migrate-page/scri
 Run the page prep script (fixes fixed-position elements, scrolls for lazy-load):
 
 ```bash
-playwright-cli eval-file --tab {sourceTabId} /workspace/skills/migrate-page/scripts/page-prep.js
+playwright-cli eval-file --tab={sourceTabId} /workspace/skills/migrate-page/scripts/page-prep.js
 ```
 
 ### Step 1.6: Clean Screenshot
@@ -141,7 +141,7 @@ playwright-cli eval-file --tab {sourceTabId} /workspace/skills/migrate-page/scri
 Capture the page after preparation:
 
 ```bash
-playwright-cli screenshot --tab {sourceTabId} --fullPage=true --max-width=1440 --filename /shared/{repo-name}/.migration/screenshot.png
+playwright-cli screenshot --tab={sourceTabId} --fullPage=true --max-width=1440 --filename /shared/{repo-name}/.migration/screenshot.png
 ```
 
 ### Step 1.7: Extract Visual Tree
@@ -149,19 +149,19 @@ playwright-cli screenshot --tab {sourceTabId} --fullPage=true --max-width=1440 -
 Run the visual tree extraction and save directly to file:
 
 ```bash
-playwright-cli eval-file --tab {sourceTabId} /workspace/skills/migrate-page/scripts/visual-tree.js --output=/shared/{repo-name}/.migration/visual-tree.json
+playwright-cli eval-file --tab={sourceTabId} /workspace/skills/migrate-page/scripts/visual-tree.js --output=/shared/{repo-name}/.migration/visual-tree.json
 ```
 
 ### Step 1.8: Extract Brand Data
 
 ```bash
-playwright-cli eval-file --tab {sourceTabId} /workspace/skills/migrate-page/scripts/brand-extract.js --output=/shared/{repo-name}/.migration/brand.json
+playwright-cli eval-file --tab={sourceTabId} /workspace/skills/migrate-page/scripts/brand-extract.js --output=/shared/{repo-name}/.migration/brand.json
 ```
 
 ### Step 1.9: Extract Metadata
 
 ```bash
-playwright-cli eval-file --tab {sourceTabId} /workspace/skills/migrate-page/scripts/metadata-extract.js --output=/shared/{repo-name}/.migration/metadata.json
+playwright-cli eval-file --tab={sourceTabId} /workspace/skills/migrate-page/scripts/metadata-extract.js --output=/shared/{repo-name}/.migration/metadata.json
 ```
 
 ### Step 1.10: Scan Block Inventory
@@ -233,17 +233,17 @@ An overlay is any element sitting ON TOP of the main page content:
 
    a. Navigate to the source page (reuse the source tab from Step 1.2):
       ```bash
-      playwright-cli goto --tab {sourceTabId} {sourceUrl}
+      playwright-cli goto --tab={sourceTabId} {sourceUrl}
       ```
    b. Take a snapshot to see the DOM:
       ```bash
-      playwright-cli snapshot --tab {sourceTabId}
+      playwright-cli snapshot --tab={sourceTabId}
       ```
    c. Find the **accept/dismiss button** and CLICK it (do NOT just remove
       the element — clicking sets the consent cookie which persists for
       scoops):
       ```bash
-      playwright-cli eval --tab {sourceTabId} "document.querySelector('SELECTOR').click()"
+      playwright-cli eval --tab={sourceTabId} "document.querySelector('SELECTOR').click()"
       ```
       Common selectors to try:
       - `#onetrust-accept-btn-handler` (OneTrust)
@@ -253,7 +253,7 @@ An overlay is any element sitting ON TOP of the main page content:
    d. Screenshot to confirm the overlay is gone
    e. If clicking didn't work (no button found), use `remove` as last resort:
       ```bash
-      playwright-cli eval --tab {sourceTabId} "document.querySelectorAll('SELECTOR').forEach(e => e.remove())"
+      playwright-cli eval --tab={sourceTabId} "document.querySelectorAll('SELECTOR').forEach(e => e.remove())"
       ```
 
 **CRITICAL:** Always prefer `click` over `remove`. Clicking sets cookies
@@ -584,19 +584,19 @@ serve --entry drafts/{page-path}-preview.html --project /shared/{repo-name}
 ```
 
 Capture the **targetId** from the output. All subsequent commands for this
-preview tab MUST include `--tab {previewTabId}`.
+preview tab MUST include `--tab={previewTabId}`.
 
 Wait for all blocks to load before screenshotting. The page has header
 (fragment load) + multiple content blocks + footer (fragment load) — these
 load asynchronously. Verify with:
 
 ```bash
-playwright-cli eval --tab {previewTabId} "JSON.stringify({ blocks: document.querySelectorAll('[data-block-status=\"loaded\"]').length, appear: document.body.classList.contains('appear') })"
+playwright-cli eval --tab={previewTabId} "JSON.stringify({ blocks: document.querySelectorAll('[data-block-status=\"loaded\"]').length, appear: document.body.classList.contains('appear') })"
 ```
 
 Wait until all expected blocks show `status: "loaded"`. Then take the screenshot:
 ```bash
-playwright-cli screenshot --tab {previewTabId} --fullPage=true --max-width=1440 --filename /shared/{repo-name}/.migration/preview-assembled.png
+playwright-cli screenshot --tab={previewTabId} --fullPage=true --max-width=1440 --filename /shared/{repo-name}/.migration/preview-assembled.png
 ```
 
 ### Step 4.5: Git Commit — MANDATORY
