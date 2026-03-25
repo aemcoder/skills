@@ -145,7 +145,7 @@ playwright-cli snapshot --tab={sourceTabId}
 
 # 2. Find the ref for your component in the snapshot output (e.g., e15)
 # 3. Screenshot that specific element by ref
-playwright-cli screenshot --tab={sourceTabId} e15 --max-width=1440 --filename {projectPath}/.migration/source-{blockName}.png
+playwright-cli screenshot --tab={sourceTabId} e15 --max-width=1440 --filename={projectPath}/.migration/source-{blockName}.png
 ```
 
 If you can't identify the right ref, fall back to a viewport screenshot
@@ -153,7 +153,7 @@ after scrolling the component into view:
 
 ```bash
 playwright-cli eval --tab={sourceTabId} "document.querySelector('{selector}').scrollIntoView({ block: 'start' })"
-playwright-cli screenshot --tab={sourceTabId} --max-width=1440 --filename {projectPath}/.migration/source-{blockName}.png
+playwright-cli screenshot --tab={sourceTabId} --max-width=1440 --filename={projectPath}/.migration/source-{blockName}.png
 ```
 
 **Close the source tab** after extraction to reduce tab clutter:
@@ -392,7 +392,7 @@ service worker doesn't enforce CSP, so the CSP meta can be omitted).
 ### 6b. Serve with EDS Project Mode (once)
 
 ```bash
-serve --entry drafts/{blockName}-preview.html --project {projectPath}
+serve --entry=drafts/{blockName}-preview.html --project={projectPath}
 ```
 
 Capture the **targetId** from the output (e.g., `DEF456`). All subsequent
@@ -454,7 +454,7 @@ For each iteration:
 
 1. **Screenshot the preview** by ref (reuse the same ref across iterations):
    ```bash
-   playwright-cli screenshot --tab={previewTabId} e8 --max-width=1440 --filename {projectPath}/.migration/preview-{blockName}-iter{N}.png
+   playwright-cli screenshot --tab={previewTabId} e8 --max-width=1440 --filename={projectPath}/.migration/preview-{blockName}-iter{N}.png
    ```
 
 2. **Compare:** Read both screenshots (source from Step 1, preview from

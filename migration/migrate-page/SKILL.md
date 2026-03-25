@@ -117,8 +117,12 @@ Capture the **targetId** from the output (e.g., `SRC123`). All subsequent
 Capture the page BEFORE any modifications — this shows overlays as visitors see them:
 
 ```bash
-playwright-cli screenshot --tab={sourceTabId} --fullPage=true --max-width=1440 --filename /shared/{repo-name}/.migration/screenshot-raw.png
+playwright-cli screenshot --tab={sourceTabId} --fullPage=true --max-width=1440 --filename=/shared/{repo-name}/.migration/screenshot-raw.png
+bash: ls -la /shared/{repo-name}/.migration/screenshot-raw.png
 ```
+
+Verify the file exists and has a reasonable size (>10 KB). If missing,
+the `--filename` flag was parsed incorrectly — retry with `--filename=`.
 
 ### Step 1.4: Dismiss Overlays
 
@@ -141,8 +145,11 @@ playwright-cli eval-file --tab={sourceTabId} /workspace/skills/migrate-page/scri
 Capture the page after preparation:
 
 ```bash
-playwright-cli screenshot --tab={sourceTabId} --fullPage=true --max-width=1440 --filename /shared/{repo-name}/.migration/screenshot.png
+playwright-cli screenshot --tab={sourceTabId} --fullPage=true --max-width=1440 --filename=/shared/{repo-name}/.migration/screenshot.png
+bash: ls -la /shared/{repo-name}/.migration/screenshot.png
 ```
+
+Verify the file exists before proceeding.
 
 ### Step 1.7: Extract Visual Tree
 
@@ -330,6 +337,16 @@ Write `decomposition.json` to `/shared/{repo-name}/.migration/`:
     }
   ]
 }
+```
+
+### Close Source Tab
+
+The source tab is no longer needed — all subsequent phases work from
+extracted artifacts, not the live page. Close it to free resources and
+prevent scoops from confusing it with their own tabs:
+
+```bash
+playwright-cli tab-close --tab={sourceTabId}
 ```
 
 ---
@@ -580,7 +597,7 @@ Write `/shared/{repo-name}/drafts/{page-path}-preview.html`:
 
 Serve and verify:
 ```bash
-serve --entry drafts/{page-path}-preview.html --project /shared/{repo-name}
+serve --entry=drafts/{page-path}-preview.html --project=/shared/{repo-name}
 ```
 
 Capture the **targetId** from the output. All subsequent commands for this
@@ -596,7 +613,8 @@ playwright-cli eval --tab={previewTabId} "JSON.stringify({ blocks: document.quer
 
 Wait until all expected blocks show `status: "loaded"`. Then take the screenshot:
 ```bash
-playwright-cli screenshot --tab={previewTabId} --fullPage=true --max-width=1440 --filename /shared/{repo-name}/.migration/preview-assembled.png
+playwright-cli screenshot --tab={previewTabId} --fullPage=true --max-width=1440 --filename=/shared/{repo-name}/.migration/preview-assembled.png
+bash: ls -la /shared/{repo-name}/.migration/preview-assembled.png
 ```
 
 ### Step 4.5: Git Commit — MANDATORY

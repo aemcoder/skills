@@ -31,7 +31,7 @@ playwright-cli tab-new https://example.com
 # Capture <targetId> as {sourceTabId}
 
 # serve also returns a targetId
-serve --entry drafts/hero-preview.html --project /shared/my-site
+serve --entry=drafts/hero-preview.html --project=/shared/my-site
 # Output: "serving ... (targetId: <targetId>)"
 # Capture <targetId> as {previewTabId}
 ```
@@ -40,7 +40,7 @@ serve --entry drafts/hero-preview.html --project /shared/my-site
 
 ```bash
 playwright-cli eval --tab={sourceTabId} "document.title"
-playwright-cli screenshot --tab={previewTabId} --max-width=1440 --filename out.png
+playwright-cli screenshot --tab={previewTabId} --max-width=1440 --filename=out.png
 playwright-cli snapshot --tab={previewTabId}
 playwright-cli goto --tab={previewTabId} {url}
 playwright-cli tab-close --tab={sourceTabId}

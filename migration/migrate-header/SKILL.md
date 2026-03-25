@@ -87,7 +87,7 @@ Use snapshot + ref-based screenshot for a tight crop:
 ```bash
 playwright-cli snapshot --tab={sourceTabId}
 # Find the ref for the header/nav element (e.g., e3)
-playwright-cli screenshot --tab={sourceTabId} e3 --max-width=1440 --filename {projectPath}/.migration/source-header.png
+playwright-cli screenshot --tab={sourceTabId} e3 --max-width=1440 --filename={projectPath}/.migration/source-header.png
 ```
 
 **Close the source tab** after extraction:
@@ -430,7 +430,7 @@ The EDS header block will automatically load `nav.plain.html` via the
 ### 6b. Serve with EDS Project Mode
 
 ```bash
-serve --entry drafts/header-preview.html --project {projectPath}
+serve --entry=drafts/header-preview.html --project={projectPath}
 ```
 
 Capture the **targetId** and the **preview URL** from the output. All
@@ -491,7 +491,7 @@ playwright-cli snapshot --tab={previewTabId}
 For each iteration:
 1. **Screenshot the preview header** by ref (reuse across iterations):
    ```bash
-   playwright-cli screenshot --tab={previewTabId} e2 --max-width=1440 --filename {projectPath}/.migration/preview-header-iter{N}.png
+   playwright-cli screenshot --tab={previewTabId} e2 --max-width=1440 --filename={projectPath}/.migration/preview-header-iter{N}.png
    ```
 2. **Compare** source (from Step 1) and preview: focus on background color, logo size, nav spacing, layout
 3. **Fix:** Batch ALL CSS fixes for this iteration into a SINGLE `edit_file`
