@@ -1,7 +1,7 @@
 ---
 name: migrate-block
 description: Migrate a single visual component into an AEM Edge Delivery Services block. Used by scoops during page migration. Requires parameters from the cone via feed_scoop.
-allowed-tools: browser,read_file,write_file,edit_file,bash,javascript
+allowed-tools: bash
 ---
 
 # Migrate Block to EDS
@@ -96,7 +96,7 @@ Capture the **targetId** from the output (e.g., `ABC123`). All subsequent
 `playwright-cli` commands for this tab MUST include `--tab={sourceTabId}`.
 
 The cone dismissed overlays (cookie banners, consent dialogs) during
-Phase 1.5 and set consent cookies. Since all tabs share the same browser
+Phase 1 and set consent cookies. Since all tabs share the same browser
 session, overlays should NOT appear when you navigate here. If you do
 see an overlay blocking content, click its accept/dismiss button via
 `eval` — do not just remove it from the DOM.
