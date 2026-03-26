@@ -1,7 +1,7 @@
 ---
 name: migrate-page
 description: Migrate a web page to AEM Edge Delivery Services. Extracts page structure, decomposes into blocks, generates EDS-compatible code, and verifies with visual comparison.
-allowed-tools: browser,read_file,write_file,edit_file,bash,javascript
+allowed-tools: bash
 ---
 
 # EDS Page Migration
@@ -112,52 +112,49 @@ playwright-cli tab-new {sourceUrl}
 Capture the **targetId** from the output (e.g., `SRC123`). All subsequent
 `playwright-cli` commands for this source tab MUST include `--tab={sourceTabId}`.
 
-### Step 1.3: Raw Screenshot
+### Step 1.3: Dismiss Overlays
 
-Capture the page BEFORE any modifications — this shows overlays as visitors see them:
+Delegate to the **dismiss-overlays** skill to handle cookie banners, consent
+dialogs, and other overlays on the source page. Pass `{sourceTabId}` as the
+target tab. The skill handles its own visual verification and cleanup —
+no overlay artifacts persist.
 
-```bash
-playwright-cli screenshot --tab={sourceTabId} --fullPage=true --max-width=1440 --filename=/shared/{repo-name}/.migration/screenshot-raw.png
-bash: ls -la /shared/{repo-name}/.migration/screenshot-raw.png
-```
+### Step 1.4: Lazy-Load Scroll
 
-Verify the file exists and has a reasonable size (>10 KB). If missing,
-the `--filename` flag was parsed incorrectly — retry with `--filename=`.
-
-### Step 1.4: Dismiss Overlays
-
-Run the overlay dismissal script directly from file and save the result:
+Scroll the page top-to-bottom to trigger lazy-loaded images and sections:
 
 ```bash
-playwright-cli eval-file --tab={sourceTabId} /workspace/skills/migrate-page/scripts/overlay-dismiss.js --output=/shared/{repo-name}/.migration/overlay-recipe.json
+playwright-cli eval-file --tab={sourceTabId} /workspace/skills/migrate-page/scripts/lazy-load-scroll.js
 ```
 
-### Step 1.5: Page Preparation
+### Step 1.5: De-Sticky
 
-Run the page prep script (fixes fixed-position elements, scrolls for lazy-load):
+Convert `position: fixed` elements to `position: relative` so they don't
+overlap content in the visual tree or full-page screenshot:
 
 ```bash
-playwright-cli eval-file --tab={sourceTabId} /workspace/skills/migrate-page/scripts/page-prep.js
+playwright-cli eval-file --tab={sourceTabId} /workspace/skills/migrate-page/scripts/de-sticky.js
 ```
 
-### Step 1.6: Clean Screenshot
-
-Capture the page after preparation:
-
-```bash
-playwright-cli screenshot --tab={sourceTabId} --fullPage=true --max-width=1440 --filename=/shared/{repo-name}/.migration/screenshot.png
-bash: ls -la /shared/{repo-name}/.migration/screenshot.png
-```
-
-Verify the file exists before proceeding.
-
-### Step 1.7: Extract Visual Tree
+### Step 1.6: Extract Visual Tree
 
 Run the visual tree extraction and save directly to file:
 
 ```bash
 playwright-cli eval-file --tab={sourceTabId} /workspace/skills/migrate-page/scripts/visual-tree.js --output=/shared/{repo-name}/.migration/visual-tree.json
 ```
+
+### Step 1.7: Full-Page Screenshot
+
+Capture the page after all preparation. This is the only screenshot used
+by downstream phases (decomposition, visual comparison):
+
+```bash
+playwright-cli screenshot --tab={sourceTabId} --fullPage=true --max-width=1440 --filename=/shared/{repo-name}/.migration/screenshot.png
+bash: ls -la /shared/{repo-name}/.migration/screenshot.png
+```
+
+Verify the file exists and has a reasonable size (>10 KB).
 
 ### Step 1.8: Extract Brand Data
 
@@ -189,82 +186,11 @@ After Phase 1, these files exist in `/shared/{repo-name}/.migration/`:
 
 | Artifact | Purpose |
 |----------|---------|
-| `screenshot-raw.png` | Full-page screenshot before modifications (for overlay check) |
 | `screenshot.png` | Full-page screenshot after prep (for decomposition) |
 | `visual-tree.json` | Spatial hierarchy (bounds, backgrounds, selectors) |
 | `brand.json` | Fonts, colors, spacing |
 | `metadata.json` | Title, description, OG tags |
 | `block-inventory.json` | Existing blocks in the EDS project |
-| `overlay-recipe.json` | Overlay dismiss actions from heuristic detection |
-
----
-
-## Phase 1.5: Dismiss Overlays — MANDATORY
-
-Phase 1 runs heuristic overlay detection, but it may miss
-custom overlays. You MUST verify the page is clean.
-
-**Why this matters:** All tabs share the same browser session. When you
-click "Accept All" on a cookie banner, the consent cookie is set and
-persists. Scoops opening new tabs to the same URL will NOT see the banner.
-But this only works if you CLICK the button — removing the DOM element
-does NOT set the cookie.
-
-### What Is an Overlay?
-
-An overlay is any element sitting ON TOP of the main page content:
-
-- **Full-width bars:** Cookie consent at bottom ("Accept All" / "Decline"),
-  GDPR/CCPA notice, dismissible announcements
-- **Centered modals:** Newsletter signup, login dialog, age gate, paywall —
-  typically with a dark semi-transparent backdrop
-- **Corner widgets:** Chat bubbles (Intercom, Zendesk), help buttons
-- **Visual indicators:** Dark backdrop dimming the page, element floating
-  with shadow, has X/close/accept/decline button, obscures page content
-
-**NOT overlays:** Sticky navigation, inline content, embedded forms.
-
-### Steps
-
-1. **Look at the RAW screenshot** (taken before any page modifications):
-   ```
-   read_file({ "path": "/shared/{repo-name}/.migration/screenshot-raw.png" })
-   ```
-   This shows the page exactly as a visitor sees it — including overlays.
-   Do NOT use `screenshot.png` (that's taken after page-prep which hides
-   overlays by converting `position: fixed` to `relative`).
-
-2. **If the raw screenshot is clean** — no overlays visible → proceed to Phase 2.
-
-3. **If overlays are visible:**
-
-   a. Navigate to the source page (reuse the source tab from Step 1.2):
-      ```bash
-      playwright-cli goto --tab={sourceTabId} {sourceUrl}
-      ```
-   b. Take a snapshot to see the DOM:
-      ```bash
-      playwright-cli snapshot --tab={sourceTabId}
-      ```
-   c. Find the **accept/dismiss button** and CLICK it (do NOT just remove
-      the element — clicking sets the consent cookie which persists for
-      scoops):
-      ```bash
-      playwright-cli eval --tab={sourceTabId} "document.querySelector('SELECTOR').click()"
-      ```
-      Common selectors to try:
-      - `#onetrust-accept-btn-handler` (OneTrust)
-      - `#CybotCookiebotDialogBodyLevelButtonLevelOptinAllowAll` (Cookiebot)
-      - `[class*="accept"]`, `[class*="allow"]`, `[aria-label*="Accept"]`
-      - `[aria-label*="close"]`, `[aria-label*="Close"]`, `.close-btn`
-   d. Screenshot to confirm the overlay is gone
-   e. If clicking didn't work (no button found), use `remove` as last resort:
-      ```bash
-      playwright-cli eval --tab={sourceTabId} "document.querySelectorAll('SELECTOR').forEach(e => e.remove())"
-      ```
-
-**CRITICAL:** Always prefer `click` over `remove`. Clicking sets cookies
-that persist across tabs. Removing just hides the element in this tab.
 
 ---
 
@@ -597,7 +523,7 @@ Write `/shared/{repo-name}/drafts/{page-path}-preview.html`:
 
 Serve and verify:
 ```bash
-serve --entry=drafts/{page-path}-preview.html --project=/shared/{repo-name}
+serve --entry=drafts/{page-path}-preview.html --project /shared/{repo-name}
 ```
 
 Capture the **targetId** from the output. All subsequent commands for this
@@ -624,14 +550,7 @@ git add blocks/ styles/ drafts/
 git commit -m "feat: migrate {page-path} from {source-domain}"
 ```
 
-### Step 4.6: Detach Browser
-
-Detach from the browser to remove the "debugging this browser" infobar:
-```json
-{ "action": "detach" }
-```
-
-### Step 4.7: Final Summary
+### Step 4.6: Final Summary
 
 Report to the user:
 - Number of blocks migrated and their statuses

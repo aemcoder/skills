@@ -1,7 +1,7 @@
 ---
 name: migrate-header
 description: Migrate a website header/navigation into an AEM Edge Delivery Services header block with nav.plain.html. Handles single-row and multi-section headers, dropdowns, mega menus, and mobile patterns.
-allowed-tools: browser,read_file,write_file,edit_file,bash,javascript
+allowed-tools: bash
 ---
 
 # Migrate Header to EDS
@@ -44,7 +44,7 @@ Capture the **targetId** from the output (e.g., `ABC123`). All subsequent
 `playwright-cli` commands for this tab MUST include `--tab={sourceTabId}`.
 
 The cone dismissed overlays (cookie banners, consent dialogs) during
-Phase 1.5 and set consent cookies. Since all tabs share the same browser
+Phase 1 and set consent cookies. Since all tabs share the same browser
 session, overlays should NOT appear when you navigate here. If you do
 see an overlay, click its accept/dismiss button via `eval`.
 
@@ -430,7 +430,7 @@ The EDS header block will automatically load `nav.plain.html` via the
 ### 6b. Serve with EDS Project Mode
 
 ```bash
-serve --entry=drafts/header-preview.html --project={projectPath}
+serve --entry=drafts/header-preview.html --project {projectPath}
 ```
 
 Capture the **targetId** and the **preview URL** from the output. All
