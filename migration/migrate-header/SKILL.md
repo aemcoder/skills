@@ -430,7 +430,7 @@ The EDS header block will automatically load `nav.plain.html` via the
 ### 6b. Serve with EDS Project Mode
 
 ```bash
-serve --entry=drafts/header-preview.html --project={projectPath}
+serve --entry=drafts/header-preview.html --project {projectPath}
 ```
 
 Capture the **targetId** and the **preview URL** from the output. All

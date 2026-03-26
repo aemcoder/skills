@@ -31,7 +31,7 @@ playwright-cli tab-new https://example.com
 # Capture <targetId> as {sourceTabId}
 
 # serve also returns a targetId
-serve --entry=drafts/hero-preview.html --project=/shared/my-site
+serve --entry=drafts/hero-preview.html --project /shared/my-site
 # Output: "serving ... (targetId: <targetId>)"
 # Capture <targetId> as {previewTabId}
 ```

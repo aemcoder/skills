@@ -392,7 +392,7 @@ service worker doesn't enforce CSP, so the CSP meta can be omitted).
 ### 6b. Serve with EDS Project Mode (once)
 
 ```bash
-serve --entry=drafts/{blockName}-preview.html --project={projectPath}
+serve --entry=drafts/{blockName}-preview.html --project {projectPath}
 ```
 
 Capture the **targetId** from the output (e.g., `DEF456`). All subsequent

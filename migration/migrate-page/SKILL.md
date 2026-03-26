@@ -523,7 +523,7 @@ Write `/shared/{repo-name}/drafts/{page-path}-preview.html`:
 
 Serve and verify:
 ```bash
-serve --entry=drafts/{page-path}-preview.html --project=/shared/{repo-name}
+serve --entry=drafts/{page-path}-preview.html --project /shared/{repo-name}
 ```
 
 Capture the **targetId** from the output. All subsequent commands for this
@@ -550,14 +550,7 @@ git add blocks/ styles/ drafts/
 git commit -m "feat: migrate {page-path} from {source-domain}"
 ```
 
-### Step 4.6: Detach Browser
-
-Detach from the browser to remove the "debugging this browser" infobar:
-```bash
-playwright-cli detach
-```
-
-### Step 4.7: Final Summary
+### Step 4.6: Final Summary
 
 Report to the user:
 - Number of blocks migrated and their statuses

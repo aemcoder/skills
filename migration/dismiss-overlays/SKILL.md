@@ -33,7 +33,7 @@ You receive a `{tabId}` for the target page.
 ### Step 1: Screenshot and Analyze
 
 ```bash
-playwright-cli screenshot --tab={tabId} --fullPage=true --max-width=1440 --filename=_overlay-check.png
+playwright-cli screenshot --tab={tabId} --fullPage=true --max-width=1440 --filename=/tmp/_overlay-check.png
 ```
 
 Read the screenshot. If no overlays are visible, skip to Step 4.
@@ -55,7 +55,7 @@ sets consent cookies that persist across tabs.
 Screenshot to check if overlays are gone:
 
 ```bash
-playwright-cli screenshot --tab={tabId} --fullPage=true --max-width=1440 --filename=_overlay-verify.png
+playwright-cli screenshot --tab={tabId} --fullPage=true --max-width=1440 --filename=/tmp/_overlay-verify.png
 ```
 
 Read the screenshot. If clean, go to Step 4.
@@ -89,7 +89,7 @@ Re-screenshot and verify. Max 2 manual retries after the heuristic script.
 Delete all temporary screenshots created by this skill:
 
 ```bash
-rm -f _overlay-check.png _overlay-verify.png
+rm -f /tmp/_overlay-check.png /tmp/_overlay-verify.png
 ```
 
 No artifacts from this skill should persist downstream.
