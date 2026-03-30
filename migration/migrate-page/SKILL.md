@@ -493,11 +493,22 @@ following the decomposition order:
 - Images use `/drafts/images/` root-relative paths
 - Default-content items (from decomposition): extract from source page
   and write as plain HTML (headings, paragraphs, lists) in their section
-- Do NOT include a `<div class="metadata">` block with nav/footer paths.
-  That block is only needed for the DA upload pipeline (EDS HTML → meta tags
-  conversion) and will be added at DA upload time. For local preview, the
-  `<meta name="nav">` and `<meta name="footer">` tags in the preview HTML
-  handle fragment loading.
+- **Metadata block — REQUIRED:** At the very end of the assembled
+  `.plain.html`, append a metadata block with nav and footer paths
+  pointing to the branch-specific DA folder:
+
+  ```html
+  <div>
+    <div class="metadata">
+      <div><div>nav</div><div>/{branch}/nav</div></div>
+      <div><div>footer</div><div>/{branch}/footer</div></div>
+    </div>
+  </div>
+  ```
+
+  This tells EDS to load nav/footer from the migration's own folder
+  instead of the site default. Each migration gets isolated nav/footer
+  documents so multiple migrations don't interfere with each other.
 
 ### Step 4.4: Create Full Preview Page — MANDATORY
 
