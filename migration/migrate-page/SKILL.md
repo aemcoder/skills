@@ -64,10 +64,16 @@ Phase transition points:
 | Phase 4 starts | `assembly` | `running` | — |
 | Phase 4 complete | `assembly` | `done` | set `previewUrl` |
 | Phase 5 starts | `publishing` | `running` | — |
-| Phase 5 complete (success) | `done` | — | set `url`, `previewUrl`, and `edsUrl` |
+| Phase 5 complete (success) | `done` | — | set `url`, `edsUrl`, `previewUrl`, `blockCount` |
 | Any phase fails | `error` | — | set `message` |
 
-On completion, clear `currentMigration` (set to `null` in config).
+On completion, the `done` payload includes:
+- `url` — source page URL
+- `edsUrl` — live EDS preview: `https://{branch}--vibemigrated--aemcoder.aem.page/{branch}/`
+- `previewUrl` — local serve preview URL (from Phase 4)
+- `blockCount` — number of blocks migrated
+
+Clear `currentMigration` (set to `null` in config).
 
 ## Five Phases
 
