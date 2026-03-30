@@ -3,17 +3,14 @@
   <div id="mp-ready" class="mp-view">
     <div class="sprinkle-heading mp-view-heading" tabindex="-1">Migrate Page</div>
     <dl class="sprinkle-kv-list">
-      <dt>Target repo</dt>
-      <dd id="mp-repo">Loading...</dd>
+      <dt>Target</dt>
+      <dd>aemcoder/vibemigrated</dd>
     </dl>
     <div class="sprinkle-body">
-      Migrates the active browser tab into an Edge Delivery Services page using the configured repository.
+      Migrates the active browser tab into an Edge Delivery Services page.
     </div>
     <div class="sprinkle-btn-group">
       <button class="sprinkle-btn sprinkle-btn--primary" onclick="startMigration()">Migrate This Page</button>
-    </div>
-    <div class="sprinkle-detail" id="mp-config-hint" style="display:none; margin-top: 8px;">
-      Configure a target repository to get started.
     </div>
   </div>
 
@@ -41,6 +38,11 @@
         <span class="sprinkle-body">Assembly</span>
         <span class="sprinkle-detail mp-detail"></span>
       </div>
+      <div class="sprinkle-row" data-phase="publishing">
+        <span class="mp-icon mp-icon--pending"></span>
+        <span class="sprinkle-body">Publishing</span>
+        <span class="sprinkle-detail mp-detail"></span>
+      </div>
     </div>
     <div class="sprinkle-progress-bar" id="mp-progress"
          role="progressbar"
@@ -61,6 +63,8 @@
       <dd id="mp-done-url"></dd>
       <dt id="mp-done-blocks-label" style="display:none;">Blocks</dt>
       <dd id="mp-done-blocks" style="display:none;"></dd>
+      <dt id="mp-done-eds-label" style="display:none;">EDS Preview</dt>
+      <dd id="mp-done-eds" style="display:none;"></dd>
     </dl>
     <div style="height: 16px;"></div>
     <div class="sprinkle-btn-group">
@@ -139,9 +143,10 @@
 </style>
 
 <script>
-var PHASES = ['extraction', 'decomposition', 'blocks', 'assembly'];
-var PHASE_PROGRESS = { extraction: 25, decomposition: 50, blocks: 75, assembly: 90 };
+var PHASES = ['extraction', 'decomposition', 'blocks', 'assembly', 'publishing'];
+var PHASE_PROGRESS = { extraction: 20, decomposition: 40, blocks: 60, assembly: 80, publishing: 95 };
 var currentPreviewUrl = null;
+var currentEdsUrl = null;
 
 var ICON_PENDING = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="currentColor" role="img" aria-label="Pending"><path d="M10 18.75c-4.825 0-8.75-3.925-8.75-8.75S5.175 1.25 10 1.25s8.75 3.925 8.75 8.75-3.925 8.75-8.75 8.75m0-16c-3.998 0-7.25 3.252-7.25 7.25s3.252 7.25 7.25 7.25 7.25-3.252 7.25-7.25S13.998 2.75 10 2.75"/></svg>';
 var ICON_ACTIVE = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20" fill="currentColor" role="img" aria-label="In progress"><circle cx="10" cy="10" r="5"/></svg>';
@@ -235,6 +240,17 @@ function populateDone(data) {
     blocksLabel.style.display = 'none';
     blocksVal.style.display = 'none';
   }
+
+  var edsLabel = document.getElementById('mp-done-eds-label');
+  var edsVal = document.getElementById('mp-done-eds');
+  if (data.edsUrl && edsLabel && edsVal) {
+    edsLabel.style.display = '';
+    edsVal.style.display = '';
+    edsVal.innerHTML = '<a href="' + data.edsUrl + '" target="_blank" style="color: var(--sprinkle-link-color, #4b75ff);">' + data.edsUrl + '</a>';
+  } else if (edsLabel && edsVal) {
+    edsLabel.style.display = 'none';
+    edsVal.style.display = 'none';
+  }
 }
 
 function populateError(data) {
@@ -257,13 +273,13 @@ function startMigration() {
 }
 
 function previewResult() {
-  if (currentPreviewUrl) {
-    slicc.open(currentPreviewUrl);
-  }
+  var url = currentEdsUrl || currentPreviewUrl;
+  if (url) slicc.open(url);
 }
 
 function newMigration() {
   currentPreviewUrl = null;
+  currentEdsUrl = null;
   slicc.setState(null);
   showView('mp-ready');
   loadConfig();
@@ -275,6 +291,7 @@ function handleUpdate(data) {
 
   if (data.phase === 'done') {
     currentPreviewUrl = data.previewUrl || null;
+    currentEdsUrl = data.edsUrl || null;
     populateDone(data);
     markAllDone();
     showView('mp-done');
@@ -302,44 +319,22 @@ function handleUpdate(data) {
   }
 }
 
-function setConfigState(configured) {
-  var btn = document.querySelector('#mp-ready .sprinkle-btn--primary');
-  var hint = document.getElementById('mp-config-hint');
-  var repoEl = document.getElementById('mp-repo');
-  if (!configured) {
-    if (repoEl) repoEl.textContent = 'Not configured';
-    if (btn) btn.disabled = true;
-    if (hint) hint.style.display = '';
-  } else {
-    if (btn) btn.disabled = false;
-    if (hint) hint.style.display = 'none';
-  }
-}
-
 function loadConfig() {
   slicc.readFile('/workspace/skills/migrate-page/migrate-config.json').then(function(raw) {
     var config;
-    try { config = JSON.parse(raw); } catch (e) {
-      setConfigState(false);
-      return;
-    }
-
-    var repoEl = document.getElementById('mp-repo');
-    if (repoEl) repoEl.textContent = config.repo || 'Not configured';
-    setConfigState(!!config.repo);
+    try { config = JSON.parse(raw); } catch (e) { return; }
 
     if (config.currentMigration && !slicc.getState()) {
       restoreState(config.currentMigration);
     }
-  }).catch(function() {
-    setConfigState(false);
-  });
+  }).catch(function() {});
 }
 
 function restoreState(state) {
   slicc.setState(state);
   if (state.phase === 'done') {
     currentPreviewUrl = state.previewUrl || null;
+    currentEdsUrl = state.edsUrl || null;
     populateDone(state);
     markAllDone();
     showView('mp-done');
