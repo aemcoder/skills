@@ -65,6 +65,10 @@
       <dd id="mp-done-blocks" style="display:none;"></dd>
       <dt id="mp-done-eds-label" style="display:none;">EDS Preview</dt>
       <dd id="mp-done-eds" style="display:none;"></dd>
+      <dt id="mp-done-github-label" style="display:none;">GitHub</dt>
+      <dd id="mp-done-github" style="display:none;"></dd>
+      <dt id="mp-done-da-label" style="display:none;">DA Content</dt>
+      <dd id="mp-done-da" style="display:none;"></dd>
     </dl>
     <div style="height: 16px;"></div>
     <div class="sprinkle-btn-group">
@@ -246,10 +250,41 @@ function populateDone(data) {
   if (data.edsUrl && edsLabel && edsVal) {
     edsLabel.style.display = '';
     edsVal.style.display = '';
-    edsVal.innerHTML = '<a href="' + data.edsUrl + '" target="_blank" style="color: var(--sprinkle-link-color, #4b75ff);">' + data.edsUrl + '</a>';
+    edsVal.innerHTML = makeLink(data.edsUrl);
   } else if (edsLabel && edsVal) {
     edsLabel.style.display = 'none';
     edsVal.style.display = 'none';
+  }
+
+  // Derive GitHub and DA URLs from edsUrl
+  var branch = extractBranch(data.edsUrl);
+  showDerivedLink('mp-done-github', branch
+    ? 'https://github.com/aemcoder/vibemigrated/tree/' + branch : null);
+  showDerivedLink('mp-done-da', branch
+    ? 'https://da.live/#/aemcoder/vibemigrated/' + branch : null);
+}
+
+function makeLink(url) {
+  return '<a href="' + url + '" target="_blank" style="color: var(--sprinkle-link-color, #4b75ff);">' + url + '</a>';
+}
+
+function extractBranch(edsUrl) {
+  if (!edsUrl) return null;
+  var m = edsUrl.match(/^https?:\/\/([^-]+)--/);
+  return m ? m[1] : null;
+}
+
+function showDerivedLink(idPrefix, url) {
+  var label = document.getElementById(idPrefix + '-label');
+  var val = document.getElementById(idPrefix);
+  if (!label || !val) return;
+  if (url) {
+    label.style.display = '';
+    val.style.display = '';
+    val.innerHTML = makeLink(url);
+  } else {
+    label.style.display = 'none';
+    val.style.display = 'none';
   }
 }
 
