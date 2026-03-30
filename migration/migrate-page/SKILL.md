@@ -591,6 +591,10 @@ After Phase 4 assembly is verified locally, publish code and content
 for a live EDS preview. This phase is automatic — no user confirmation
 needed.
 
+**IMPORTANT — fstab.yaml:** Do NOT create a `fstab.yaml` in the repo.
+Modern DA-based EDS repos use the default DA content source mapping.
+Adding `fstab.yaml` overrides this and BREAKS content delivery.
+
 ### Step 5.1: Push Code Branch
 
 Push the migration branch to GitHub. This makes blocks, styles, and
@@ -600,34 +604,65 @@ head.html available to the EDS framework at the branch ref:
 bash: cd /shared/vibemigrated && git push origin {branch}
 ```
 
-### Step 5.2: Upload Content to DA
+### Step 5.2: Prepare DA Content
 
-Run the DA upload script. It uploads images, nav, footer, and the
-main page to DA under the `/{branch}/` folder using `aem` CLI
-commands (auth handled by `oauth-token adobe`):
+Convert `.plain.html` files to DA source format. The local preview
+format (div-based blocks, relative image paths) differs from what DA
+expects (table-based blocks, absolute image URLs, full HTML documents).
+
+Run the preparation script via the JavaScript tool:
+
+```javascript
+const script = await fs.readFile('/workspace/skills/migrate-page/scripts/prepare-da-content.js', { encoding: 'utf-8' });
+eval(script);
+const result = await prepareDaContent({
+  projectPath: '/shared/vibemigrated',
+  branch: '{branch}',
+});
+return JSON.stringify(result);
+```
+
+This produces DA-ready files in `/shared/vibemigrated/.migration/da/`:
+- `index.html` — main page with table blocks, absolute image URLs, metadata
+- `nav.html` — navigation fragment
+- `footer.html` — footer fragment
+
+**Three transformations applied:**
+
+1. **Block divs → tables:**
+   `.plain.html`: `<div class="hero"><div>content</div></div>`
+   DA source: `<table><tr><td>hero</td></tr><tr><td>content</td></tr></table>`
+
+2. **Image URLs → absolute aem.page URLs (lowercased):**
+   `.plain.html`: `<img src="/drafts/images/Photo.jpg">`
+   DA source: `<img src="https://main--vibemigrated--aemcoder.aem.page/{branch}/images/photo.jpg">`
+
+3. **Fragment → full HTML document:**
+   Wraps content in `<!DOCTYPE html><html><body><header></header><main>...</main><footer></footer></body></html>`
+
+### Step 5.3: Upload to DA
+
+**Upload order is critical.** DA's HTML-to-Markdown pipeline fetches
+image URLs to generate content hashes. If images aren't uploaded and
+previewed first, all `<img>` tags in the page resolve to
+`src="about:error"`.
+
+Run the upload script:
 
 ```bash
 bash: /workspace/skills/migrate-page/scripts/da-upload.sh {branch} /shared/vibemigrated
 ```
 
-The script uploads to `aemcoder/vibemigrated` DA site:
-- `/{branch}/images/*` — all migration images
-- `/{branch}/nav` — navigation fragment
-- `/{branch}/footer` — footer fragment
-- `/{branch}/index` — main page (with metadata block for nav/footer)
+The script executes this sequence:
+1. Upload images (lowercased filenames, multipart form)
+2. Preview every image (makes them accessible on aem.page CDN)
+3. Verify images return HTTP 200
+4. Upload DA-format HTML (nav, footer, index)
+5. Preview all HTML documents
 
-### Step 5.3: Trigger AEM Preview
+### Step 5.4: Verify EDS Preview
 
-Preview each uploaded document so EDS processes them:
-
-```bash
-aem preview https://{branch}--vibemigrated--aemcoder.aem.page/{branch}/nav
-aem preview https://{branch}--vibemigrated--aemcoder.aem.page/{branch}/footer
-aem preview https://{branch}--vibemigrated--aemcoder.aem.page/{branch}/index
-```
-
-Wait 5 seconds after the last preview trigger for EDS to process,
-then verify the main page loads:
+Wait 5 seconds after uploads complete, then verify the main page loads:
 
 ```bash
 playwright-cli tab-new https://{branch}--vibemigrated--aemcoder.aem.page/{branch}/
@@ -651,7 +686,7 @@ Close the tab:
 playwright-cli tab-close --tab={edsTabId}
 ```
 
-### Step 5.4: Final Report
+### Step 5.5: Final Report
 
 Report to the user with the live EDS preview URL:
 
