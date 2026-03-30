@@ -566,15 +566,16 @@ git add blocks/ styles/ drafts/
 git commit -m "feat: migrate {page-path} from {source-domain}"
 ```
 
-### Step 4.6: Final Summary
+### Step 4.6: Assembly Checkpoint
 
-Report to the user:
-- Number of blocks migrated and their statuses
-- Visual verification results per block (from reports)
-- Brand.css and styles.css: what was updated
-- Assembled page preview URL
-- Any issues, gaps, or incomplete items
-- Path to all reports in `.migration/reports/`
+Before proceeding to Phase 5, verify assembly is complete:
+- All block reports read from `.migration/reports/`
+- `.plain.html` files exist for main page, nav, and footer
+- Preview page loads correctly via `serve`
+- Git commit succeeded
+
+If any issue blocks publishing, report it to the user and stop.
+Otherwise proceed directly to Phase 5.
 
 ---
 
