@@ -20,7 +20,7 @@ create other scoops, so the cone must be the orchestrator.
 ## Triggers
 
 "migrate this page", "convert to EDS", "create EDS blocks from URL".
-User provides a URL and a GitHub repo (owner/repo).
+User provides a URL. The target repo is `aemcoder/vibemigrated` (hardcoded).
 
 ## Sprinkle Trigger
 
@@ -39,15 +39,8 @@ cone the only viable orchestrator.
    ```bash
    sprinkle send migrate-page '{"phase":"error","message":"No page to migrate — navigate to a webpage first"}'
    ```
-3. Read workspace config: `read_file /workspace/skills/migrate-page/migrate-config.json`
-   and parse the `repo` field.
-4. If the file is missing or `repo` is empty, ask the user in chat for
-   the repo, then write the config:
-   ```bash
-   write_file /workspace/skills/migrate-page/migrate-config.json
-   {"repo":"owner/repo-name","currentMigration":null}
-   ```
-5. Start Phase 1 with the extracted URL and repo.
+3. The target repo is `aemcoder/vibemigrated`. No config read needed.
+4. Start Phase 1 with the extracted URL.
 
 ### Progress Reporting
 
@@ -85,21 +78,30 @@ On completion, clear `currentMigration` (set to `null` in config).
 
 ## Phase 1: Extraction
 
-User provides a URL and a GitHub repo (owner/repo).
+User provides a URL. The target repo is `aemcoder/vibemigrated` (hardcoded).
 
 ### Step 1.1: Clone and Branch
 
-Clone the repo and create a migration branch:
+Clone the target EDS repo and create a migration branch:
 
-```
-bash: git clone https://github.com/{owner}/{repo}.git /shared/{repo-name} --depth 1
-bash: cd /shared/{repo-name} && git checkout -b migrate/{page-slug}-{timestamp}
-bash: mkdir -p /shared/{repo-name}/.migration
-```
+~~~
+bash: git clone https://github.com/aemcoder/vibemigrated.git /shared/vibemigrated --depth 1
+bash: cd /shared/vibemigrated && git checkout -b {page-slug}-$(date +%s | tail -c 7)
+~~~
 
-Where `{repo-name}` is the repo portion of owner/repo, `{page-slug}` is derived
-from the URL path (e.g., `/products/widget` → `products-widget`), and
-`{timestamp}` is a short identifier (e.g., `Date.now().toString(36)`).
+Where `{page-slug}` is derived from the URL path (e.g.,
+`/products/widget` -> `products-widget`, homepage -> `home`).
+
+The branch name has NO prefix (no `migrate/`). It is used as:
+1. The Git branch name
+2. The DA content folder path
+3. Part of the preview URL
+
+Store the branch name in a variable `{branch}` for all subsequent steps.
+
+~~~
+bash: mkdir -p /shared/vibemigrated/.migration
+~~~
 
 ### Step 1.2: Navigate to Source Page
 
@@ -141,7 +143,7 @@ playwright-cli eval-file --tab={sourceTabId} /workspace/skills/migrate-page/scri
 Run the visual tree extraction and save directly to file:
 
 ```bash
-playwright-cli eval-file --tab={sourceTabId} /workspace/skills/migrate-page/scripts/visual-tree.js --output=/shared/{repo-name}/.migration/visual-tree.json
+playwright-cli eval-file --tab={sourceTabId} /workspace/skills/migrate-page/scripts/visual-tree.js --output=/shared/vibemigrated/.migration/visual-tree.json
 ```
 
 ### Step 1.7: Full-Page Screenshot
@@ -150,8 +152,8 @@ Capture the page after all preparation. This is the only screenshot used
 by downstream phases (decomposition, visual comparison):
 
 ```bash
-playwright-cli screenshot --tab={sourceTabId} --fullPage=true --max-width=1440 --filename=/shared/{repo-name}/.migration/screenshot.png
-bash: ls -la /shared/{repo-name}/.migration/screenshot.png
+playwright-cli screenshot --tab={sourceTabId} --fullPage=true --max-width=1440 --filename=/shared/vibemigrated/.migration/screenshot.png
+bash: ls -la /shared/vibemigrated/.migration/screenshot.png
 ```
 
 Verify the file exists and has a reasonable size (>10 KB).
@@ -159,13 +161,13 @@ Verify the file exists and has a reasonable size (>10 KB).
 ### Step 1.8: Extract Brand Data
 
 ```bash
-playwright-cli eval-file --tab={sourceTabId} /workspace/skills/migrate-page/scripts/brand-extract.js --output=/shared/{repo-name}/.migration/brand.json
+playwright-cli eval-file --tab={sourceTabId} /workspace/skills/migrate-page/scripts/brand-extract.js --output=/shared/vibemigrated/.migration/brand.json
 ```
 
 ### Step 1.9: Extract Metadata
 
 ```bash
-playwright-cli eval-file --tab={sourceTabId} /workspace/skills/migrate-page/scripts/metadata-extract.js --output=/shared/{repo-name}/.migration/metadata.json
+playwright-cli eval-file --tab={sourceTabId} /workspace/skills/migrate-page/scripts/metadata-extract.js --output=/shared/vibemigrated/.migration/metadata.json
 ```
 
 ### Step 1.10: Scan Block Inventory
@@ -175,14 +177,14 @@ Read the block inventory script and run it via the JavaScript tool:
 ```javascript
 const script = await fs.readFile('/workspace/skills/migrate-page/scripts/block-inventory.js', { encoding: 'utf-8' });
 eval(script);
-const blocks = await scanBlockInventory('/shared/{repo-name}');
-await fs.writeFile('/shared/{repo-name}/.migration/block-inventory.json', JSON.stringify(blocks, null, 2));
+const blocks = await scanBlockInventory('/shared/vibemigrated');
+await fs.writeFile('/shared/vibemigrated/.migration/block-inventory.json', JSON.stringify(blocks, null, 2));
 return JSON.stringify({ blockCount: blocks.length, blocks: blocks.map(b => b.name) });
 ```
 
 ### Extraction Artifacts
 
-After Phase 1, these files exist in `/shared/{repo-name}/.migration/`:
+After Phase 1, these files exist in `/shared/vibemigrated/.migration/`:
 
 | Artifact | Purpose |
 |----------|---------|
@@ -232,7 +234,7 @@ Every page decomposes into exactly 3 fragments:
 
 ### Output
 
-Write `decomposition.json` to `/shared/{repo-name}/.migration/`:
+Write `decomposition.json` to `/shared/vibemigrated/.migration/`:
 
 ```json
 {
@@ -311,7 +313,7 @@ colors, and spacing.
 
 ### 2.5b: Update head.html
 
-Read `/shared/{repo-name}/head.html`. Add font `<link>` tags BEFORE the
+Read `/shared/vibemigrated/head.html`. Add font `<link>` tags BEFORE the
 existing `<script>` tags based on the cascade result:
 
 - Adobe Fonts: `<link rel="stylesheet" href="https://use.typekit.net/{projectId}.css">`
@@ -321,7 +323,7 @@ Write the updated `head.html` back.
 
 ### 2.5c: Generate brand.css
 
-Write `/shared/{repo-name}/styles/brand.css` with brand values from
+Write `/shared/vibemigrated/styles/brand.css` with brand values from
 `brand.json`:
 
 ```css
@@ -341,7 +343,7 @@ html, body { overflow: auto !important; }
 
 ### 2.5d: Update styles.css with @import
 
-Read `/shared/{repo-name}/styles/styles.css`. Add `@import url('brand.css');`
+Read `/shared/vibemigrated/styles/styles.css`. Add `@import url('brand.css');`
 as the **VERY FIRST LINE** (CSS spec requires `@import` before all other
 rules). Also update `:root` variables to match brand values.
 
@@ -387,12 +389,12 @@ Use the JavaScript tool to generate all scoop prompts mechanically.
 This avoids the cone spending tokens generating repetitive prompt text.
 
 ```javascript
-const decomposition = JSON.parse(await fs.readFile('/shared/{repo-name}/.migration/decomposition.json', { encoding: 'utf-8' }));
+const decomposition = JSON.parse(await fs.readFile('/shared/vibemigrated/.migration/decomposition.json', { encoding: 'utf-8' }));
 const script = await fs.readFile('/workspace/skills/migrate-page/scripts/generate-scoop-prompts.js', { encoding: 'utf-8' });
 eval(script);
 // Optional: pass a model ID as 4th argument to use a different model for scoops
 // e.g., 'claude-sonnet-4-6' for faster/cheaper block generation
-const configs = generateScoopConfigs(decomposition, '{sourceUrl}', '/shared/{repo-name}');
+const configs = generateScoopConfigs(decomposition, '{sourceUrl}', '/shared/vibemigrated');
 return JSON.stringify(configs);
 ```
 
@@ -443,7 +445,7 @@ Do not skip any. Phase 4 is not optional — it produces the final deliverables.
 
 ### Step 4.1: Read Reports
 
-Read ALL reports from `/shared/{repo-name}/.migration/reports/`.
+Read ALL reports from `/shared/vibemigrated/.migration/reports/`.
 For each block, check:
 - `status`: success/partial/failed
 - `edsVerification`: did the EDS framework load?
@@ -465,7 +467,7 @@ If anything is missing (Phase 2.5 was skipped or failed), do it now:
 
 ### Step 4.3: Assemble Page Content — MANDATORY
 
-Write the main page to `/shared/{repo-name}/drafts/{page-path}.plain.html`.
+Write the main page to `/shared/vibemigrated/drafts/{page-path}.plain.html`.
 
 Read each block scoop's `.plain.html` file and combine them into sections
 following the decomposition order:
@@ -499,7 +501,7 @@ following the decomposition order:
 
 ### Step 4.4: Create Full Preview Page — MANDATORY
 
-Write `/shared/{repo-name}/drafts/{page-path}-preview.html`:
+Write `/shared/vibemigrated/drafts/{page-path}-preview.html`:
 
 ```html
 <html>
@@ -523,7 +525,7 @@ Write `/shared/{repo-name}/drafts/{page-path}-preview.html`:
 
 Serve and verify:
 ```bash
-serve --entry=drafts/{page-path}-preview.html --project /shared/{repo-name}
+serve --entry=drafts/{page-path}-preview.html --project /shared/vibemigrated
 ```
 
 Capture the **targetId** from the output. All subsequent commands for this
@@ -539,8 +541,8 @@ playwright-cli eval --tab={previewTabId} "JSON.stringify({ blocks: document.quer
 
 Wait until all expected blocks show `status: "loaded"`. Then take the screenshot:
 ```bash
-playwright-cli screenshot --tab={previewTabId} --fullPage=true --max-width=1440 --filename=/shared/{repo-name}/.migration/preview-assembled.png
-bash: ls -la /shared/{repo-name}/.migration/preview-assembled.png
+playwright-cli screenshot --tab={previewTabId} --fullPage=true --max-width=1440 --filename=/shared/vibemigrated/.migration/preview-assembled.png
+bash: ls -la /shared/vibemigrated/.migration/preview-assembled.png
 ```
 
 ### Step 4.5: Git Commit — MANDATORY
