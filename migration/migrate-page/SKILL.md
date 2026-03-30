@@ -62,17 +62,20 @@ Phase transition points:
 | Phase 3 scoop completes | `blocks` | `running` | name1, name2 ({done}/{total}) |
 | Phase 3 complete | `blocks` | `done` | — |
 | Phase 4 starts | `assembly` | `running` | — |
-| Phase 4 complete (success) | `done` | — | set `url` and `previewUrl` |
+| Phase 4 complete | `assembly` | `done` | set `previewUrl` |
+| Phase 5 starts | `publishing` | `running` | — |
+| Phase 5 complete (success) | `done` | — | set `url`, `previewUrl`, and `edsUrl` |
 | Any phase fails | `error` | — | set `message` |
 
 On completion, clear `currentMigration` (set to `null` in config).
 
-## Four Phases
+## Five Phases
 
 1. **Extraction** — cone clones repo, navigates to URL, runs extraction scripts
 2. **Decomposition** — cone classifies visual tree into fragments/sections/blocks
 3. **Block Generation** — cone creates one scoop per block, monitors until all complete
 4. **Assembly** — cone collects results, builds page, commits
+5. **Publishing** — cone pushes code, uploads content to DA, triggers EDS preview
 
 ---
 
@@ -572,6 +575,100 @@ Report to the user:
 - Assembled page preview URL
 - Any issues, gaps, or incomplete items
 - Path to all reports in `.migration/reports/`
+
+---
+
+## Phase 5: Publish to EDS Preview
+
+After Phase 4 assembly is verified locally, publish code and content
+for a live EDS preview. This phase is automatic — no user confirmation
+needed.
+
+### Step 5.1: Push Code Branch
+
+Push the migration branch to GitHub. This makes blocks, styles, and
+head.html available to the EDS framework at the branch ref:
+
+```bash
+bash: cd /shared/vibemigrated && git push origin {branch}
+```
+
+### Step 5.2: Upload Content to DA
+
+Run the DA upload script. It uploads images, nav, footer, and the
+main page to DA under the `/{branch}/` folder using `aem` CLI
+commands (auth handled by `oauth-token adobe`):
+
+```bash
+bash: /workspace/skills/migrate-page/scripts/da-upload.sh {branch} /shared/vibemigrated
+```
+
+The script uploads to `aemcoder/vibemigrated` DA site:
+- `/{branch}/images/*` — all migration images
+- `/{branch}/nav` — navigation fragment
+- `/{branch}/footer` — footer fragment
+- `/{branch}/index` — main page (with metadata block for nav/footer)
+
+### Step 5.3: Trigger AEM Preview
+
+Preview each uploaded document so EDS processes them:
+
+```bash
+aem preview https://{branch}--vibemigrated--aemcoder.aem.page/{branch}/nav
+aem preview https://{branch}--vibemigrated--aemcoder.aem.page/{branch}/footer
+aem preview https://{branch}--vibemigrated--aemcoder.aem.page/{branch}/index
+```
+
+Wait 5 seconds after the last preview trigger for EDS to process,
+then verify the main page loads:
+
+```bash
+playwright-cli tab-new https://{branch}--vibemigrated--aemcoder.aem.page/{branch}/
+```
+
+Capture the **targetId**. Check that the page loaded:
+
+```bash
+playwright-cli eval --tab={edsTabId} "JSON.stringify({ title: document.title, blocks: document.querySelectorAll('[data-block-status]').length })"
+```
+
+Take a screenshot of the live EDS preview:
+
+```bash
+playwright-cli screenshot --tab={edsTabId} --fullPage=true --max-width=1440 --filename=/shared/vibemigrated/.migration/preview-eds.png
+```
+
+Close the tab:
+
+```bash
+playwright-cli tab-close --tab={edsTabId}
+```
+
+### Step 5.4: Final Report
+
+Report to the user with the live EDS preview URL:
+
+- **EDS Preview URL:** `https://{branch}--vibemigrated--aemcoder.aem.page/{branch}/`
+- **DA Content:** `https://da.live/#/aemcoder/vibemigrated/{branch}`
+- **GitHub Branch:** `https://github.com/aemcoder/vibemigrated/tree/{branch}`
+- Number of blocks migrated and their statuses
+- Number of images uploaded
+- Brand.css and styles.css: what was updated
+- Any issues, gaps, or incomplete items
+- Path to all reports in `.migration/reports/`
+
+Send the completion sprinkle with the EDS URL:
+
+```bash
+sprinkle send migrate-page '{"phase":"done","url":"{sourceUrl}","edsUrl":"https://{branch}--vibemigrated--aemcoder.aem.page/{branch}/","previewUrl":"{localPreviewUrl}","blockCount":{N}}'
+```
+
+Update config to clear the current migration:
+
+```bash
+write_file /workspace/skills/migrate-page/migrate-config.json
+{"repo":"aemcoder/vibemigrated","currentMigration":null}
+```
 
 ---
 
