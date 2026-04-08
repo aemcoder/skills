@@ -166,7 +166,8 @@ dl.sprinkle-kv-list dd {
   height: 32px;
   padding: 0 16px;
   border: 1px solid var(--s2-gray-200, #e1e1e1);
-  border-radius: var(--s2-radius-xl, 16px);
+  border-radius: 10px;
+  line-height: 1;
   background: var(--s2-gray-25, #fff);
   color: var(--s2-gray-800, #292929);
   font-size: var(--s2-font-size-100, 14px);
@@ -200,7 +201,6 @@ dl.sprinkle-kv-list dd {
   background: var(--s2-accent, #3b63fb);
   color: var(--s2-gray-25, #fff);
   border-color: transparent;
-  border-radius: var(--s2-radius-pill, 9999px);
   box-shadow: none;
 }
 .sprinkle-btn--primary:hover {
