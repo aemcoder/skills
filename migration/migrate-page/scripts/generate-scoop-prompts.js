@@ -8,10 +8,10 @@
  * @param {object} decomposition - The decomposition.json content (parsed)
  * @param {string} sourceUrl - The source page URL
  * @param {string} projectPath - The EDS project path in VFS (e.g., "/shared/vibemigrated")
- * @param {string} [model] - Optional model ID for scoops. If omitted, no model is set (uses cone's model).
- * @returns {Array<{name: string, model?: string, prompt: string}>}
+ * @param {string} [model='claude-opus-4-6'] - Model ID for scoops. Defaults to Opus 4.6.
+ * @returns {Array<{name: string, model: string, prompt: string}>}
  */
-function generateScoopConfigs(decomposition, sourceUrl, projectPath, model) {
+function generateScoopConfigs(decomposition, sourceUrl, projectPath, model = 'claude-opus-4-6') {
   const configs = [];
 
   for (const fragment of decomposition.fragments) {

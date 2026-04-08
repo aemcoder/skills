@@ -390,8 +390,7 @@ This avoids the cone spending tokens generating repetitive prompt text.
 const decomposition = JSON.parse(await fs.readFile('/shared/{repo-name}/.migration/decomposition.json', { encoding: 'utf-8' }));
 const script = await fs.readFile('/workspace/skills/migrate-page/scripts/generate-scoop-prompts.js', { encoding: 'utf-8' });
 eval(script);
-// Optional: pass a model ID as 4th argument to use a different model for scoops
-// e.g., 'claude-sonnet-4-6' for faster/cheaper block generation
+// Scoops default to claude-opus-4-6. Override with a 4th argument if needed.
 const configs = generateScoopConfigs(decomposition, '{sourceUrl}', '/shared/{repo-name}');
 return JSON.stringify(configs);
 ```
