@@ -92,7 +92,7 @@ User provides a URL and a GitHub repo (owner/repo).
 Clone the repo and create a migration branch:
 
 ```
-bash: git clone https://github.com/{owner}/{repo}.git /shared/{repo-name} --depth 1
+bash: git clone https://github.com/{owner}/{repo}.git /shared/{repo-name}
 bash: cd /shared/{repo-name} && git checkout -b migrate/{page-slug}-{timestamp}
 bash: mkdir -p /shared/{repo-name}/.migration
 ```
