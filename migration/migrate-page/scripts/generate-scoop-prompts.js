@@ -104,5 +104,19 @@ The skill tells you how to read head.html from the project.
 Do NOT inline CSS or JS as a substitute for the EDS framework.`;
 }
 
-// Export for use in slicc's JavaScript tool
+// Export for use when eval'd by another script
 if (typeof module !== 'undefined') module.exports = { generateScoopConfigs };
+
+// CLI: node generate-scoop-prompts.js <migration-dir> [model]
+if (typeof process !== 'undefined' && process.argv?.[2]) {
+  const migrationDir = process.argv[2];
+  const decomposition = JSON.parse(
+    await fs.readFile(migrationDir + '/decomposition.json', { encoding: 'utf-8' })
+  );
+  const projectPath = migrationDir.replace(/\/.migration\/?$/, '');
+  const model = process.argv[3] || 'claude-opus-4-6';
+  const configs = generateScoopConfigs(
+    decomposition, decomposition.url, projectPath, model
+  );
+  console.log(JSON.stringify(configs));
+}

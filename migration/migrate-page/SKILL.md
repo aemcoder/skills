@@ -170,15 +170,14 @@ playwright-cli eval-file --tab={sourceTabId} /workspace/skills/migrate-page/scri
 
 ### Step 1.10: Scan Block Inventory
 
-Read the block inventory script and run it via the JavaScript tool:
+Scan the project's blocks directory and save the inventory:
 
-```javascript
-const script = await fs.readFile('/workspace/skills/migrate-page/scripts/block-inventory.js', { encoding: 'utf-8' });
-eval(script);
-const blocks = await scanBlockInventory('/shared/{repo-name}');
-await fs.writeFile('/shared/{repo-name}/.migration/block-inventory.json', JSON.stringify(blocks, null, 2));
-return JSON.stringify({ blockCount: blocks.length, blocks: blocks.map(b => b.name) });
+```bash
+node /workspace/skills/migrate-page/scripts/block-inventory.js /shared/{repo-name}
 ```
+
+This writes `block-inventory.json` to `.migration/` and prints a summary
+(block count and names) to stdout.
 
 ### Extraction Artifacts
 
@@ -383,19 +382,17 @@ batching operations:
 
 **Step 1 — Generate scoop configs via script** (1 tool call, NO LLM generation):
 
-Use the JavaScript tool to generate all scoop prompts mechanically.
+Run the prompt generator directly. It reads `decomposition.json`, derives
+the source URL and project path, and outputs scoop configs as JSON.
 This avoids the cone spending tokens generating repetitive prompt text.
 
-```javascript
-const decomposition = JSON.parse(await fs.readFile('/shared/{repo-name}/.migration/decomposition.json', { encoding: 'utf-8' }));
-const script = await fs.readFile('/workspace/skills/migrate-page/scripts/generate-scoop-prompts.js', { encoding: 'utf-8' });
-eval(script);
-// Scoops default to claude-opus-4-6. Override with a 4th argument if needed.
-const configs = generateScoopConfigs(decomposition, '{sourceUrl}', '/shared/{repo-name}');
-return JSON.stringify(configs);
+```bash
+node /workspace/skills/migrate-page/scripts/generate-scoop-prompts.js /shared/{repo-name}/.migration
 ```
 
-This returns an array of `{ name, model, prompt }` objects — one per block.
+To override the default model (`claude-opus-4-6`), pass it as a second argument.
+
+Parse the JSON output — an array of `{ name, model, prompt }` objects, one per block.
 
 **Step 2 — Create AND feed ALL scoops in a SINGLE response** (N tool calls, 1 LLM turn):
 

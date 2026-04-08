@@ -57,3 +57,16 @@ async function scanBlockInventory(projectPath) {
 }
 
 if (typeof module !== 'undefined') module.exports = { scanBlockInventory };
+
+// CLI: node block-inventory.js <project-path>
+if (typeof process !== 'undefined' && process.argv && process.argv[2]) {
+  var blocks = await scanBlockInventory(process.argv[2]);
+  await fs.writeFile(
+    process.argv[2] + '/.migration/block-inventory.json',
+    JSON.stringify(blocks, null, 2)
+  );
+  console.log(JSON.stringify({
+    blockCount: blocks.length,
+    blocks: blocks.map(function(b) { return b.name; })
+  }));
+}
