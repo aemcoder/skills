@@ -112,12 +112,15 @@ playwright-cli tab-new {sourceUrl}
 Capture the **targetId** from the output (e.g., `SRC123`). All subsequent
 `playwright-cli` commands for this source tab MUST include `--tab={sourceTabId}`.
 
-### Step 1.3: Dismiss Overlays
+### Step 1.3: Dismiss Overlays (opt-in, skipped by default)
 
-Delegate to the **dismiss-overlays** skill to handle cookie banners, consent
-dialogs, and other overlays on the source page. Pass `{sourceTabId}` as the
-target tab. The skill handles its own visual verification and cleanup —
-no overlay artifacts persist.
+**Skip this step unless the user explicitly requested overlay dismissal**
+(e.g., "dismiss overlays", "handle cookie banners", "remove consent dialogs").
+
+If requested: delegate to the **dismiss-overlays** skill to handle cookie
+banners, consent dialogs, and other overlays on the source page. Pass
+`{sourceTabId}` as the target tab. The skill handles its own visual
+verification and cleanup — no overlay artifacts persist.
 
 ### Step 1.4: Lazy-Load Scroll
 
