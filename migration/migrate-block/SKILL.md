@@ -482,10 +482,13 @@ For each iteration:
 
 ---
 
-## Step 8: Write Report
+## Step 8: Write Report — OPT-IN
 
-**Write the report in TWO passes** to ensure a report exists even if visual
-iterations don't complete (timeout, error, etc.):
+**Skip this step unless the user explicitly requested reports** (e.g.,
+"generate reports", "include reports", "write migration reports").
+
+If requested, write the report in **two passes** to ensure a report exists
+even if visual iterations don't complete (timeout, error, etc.):
 
 **Pass 1 — Write immediately after Step 6c passes** (before visual iterations):
 Write with `"status": "partial"` and the `edsVerification` data. This

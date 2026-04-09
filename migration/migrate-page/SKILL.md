@@ -542,7 +542,12 @@ playwright-cli screenshot --tab={previewTabId} --fullPage=true --max-width=1440 
 bash: ls -la /shared/{repo-name}/.migration/preview-assembled.png
 ```
 
-### Step 4.5: Git Commit — MANDATORY
+### Step 4.5: Git Commit — OPT-IN
+
+**Skip this step unless the user explicitly requested a commit** (e.g.,
+"commit the result", "commit when done", "auto-commit"). If skipped,
+mention in the final summary that changes are uncommitted and ready for
+review.
 
 ```bash
 git add blocks/ styles/ drafts/
