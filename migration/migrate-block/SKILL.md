@@ -550,14 +550,35 @@ Write to `{projectPath}/.migration/reports/{blockName}-report.json`:
 **ALL reports MUST use this exact schema.** Do not add extra top-level keys
 or rename fields.
 
+## Step 9: Notify Cone
+
 **Close the preview tab** before notifying the cone:
 
 ```bash
 playwright-cli tab-close --tab={previewTabId}
 ```
 
-Then use `send_message` to notify the cone with: block name, status,
-iteration count, report path, any blocking issues.
+Then `send_message` to the cone with a **JSON string** in this exact format:
+
+```json
+{
+  "done": true,
+  "blockName": "{blockName}",
+  "status": "success|partial|failed",
+  "iterations": 2,
+  "files": {
+    "css": "blocks/{blockName}/{blockName}.css",
+    "js": "blocks/{blockName}/{blockName}.js",
+    "plainHtml": "drafts/{blockName}.plain.html"
+  },
+  "issues": ["optional list of problems"]
+}
+```
+
+- `done` is always `true` — signals the scoop finished (even on failure)
+- `status`: success (>85% match), partial (50-85%), failed (<50% or framework broken)
+- `files`: actual paths written, relative to project root
+- `issues`: empty array if none; include actionable descriptions if any
 
 ---
 

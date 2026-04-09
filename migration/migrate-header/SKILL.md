@@ -573,11 +573,34 @@ Write to `{projectPath}/.migration/reports/header-report.json`:
 
 **Status thresholds:** success (>85%), partial (50-85%), failed (<50%)
 
+## Step 9: Notify Cone
+
 **Close the preview tab** before notifying the cone:
 
 ```bash
 playwright-cli tab-close --tab={previewTabId}
 ```
 
-Then `send_message` to the cone with: status, header type, iteration count,
-report path, any issues.
+Then `send_message` to the cone with a **JSON string** in this exact format:
+
+```json
+{
+  "done": true,
+  "blockName": "header",
+  "status": "success|partial|failed",
+  "headerType": "single-row|multi-section",
+  "iterations": 3,
+  "files": {
+    "css": "blocks/header/header.css",
+    "js": "blocks/header/header.js",
+    "plainHtml": "drafts/nav.plain.html"
+  },
+  "issues": ["optional list of problems"]
+}
+```
+
+- `done` is always `true` — signals the scoop finished (even on failure)
+- `status`: success (>85% match), partial (50-85%), failed (<50% or framework broken)
+- `headerType`: the detected header layout type
+- `files`: actual paths written, relative to project root
+- `issues`: empty array if none; include actionable descriptions if any
