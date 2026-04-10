@@ -423,13 +423,38 @@ to generate or modify any prompt text.
 
 ### Step 3 — Monitor scoops until all complete
 
-After creating all scoops, the cone waits for each scoop to finish. Scoops
-use `send_message` to notify the cone when done. The cone checks for
-incoming messages and tracks which scoops have reported back.
+Track completion using the scoop configs from Step 1. You know the exact
+count and names of scoops you created.
 
-**Do NOT proceed to Phase 4 until ALL scoops have completed.** If a scoop
-fails or gets stuck, the cone should note the issue and continue once all
-other scoops have reported. Missing block reports will be flagged in Phase 4.
+**Expected message format from each scoop** (JSON string via `send_message`):
+
+```json
+{
+  "done": true,
+  "blockName": "hero",
+  "status": "success|partial|failed",
+  "iterations": 2,
+  "files": { "css": "...", "js": "...", "plainHtml": "..." },
+  "issues": []
+}
+```
+
+**Waiting protocol:**
+
+1. Initialize a checklist of expected scoop names from the configs
+2. As each `send_message` arrives, parse the JSON and mark that scoop done
+3. Record `status`, `files`, and `issues` from each message — you will need
+   `files.plainHtml` in Phase 4 assembly
+4. Continue waiting until every scoop in the checklist has reported back
+
+**Stuck scoop fallback:** If a scoop has not reported back but the others
+have all completed, check whether its `.plain.html` file exists on disk
+(e.g., `ls {projectPath}/drafts/{blockName}.plain.html`). If the file
+exists, treat the scoop as done with `status: "partial"` and note the
+missing message. If the file does not exist, mark it `status: "failed"`.
+
+**Do NOT proceed to Phase 4 until all scoops are accounted for** (either
+via message or fallback check).
 
 ---
 
@@ -440,15 +465,19 @@ Do not skip any. Phase 4 is not optional — it produces the final deliverables.
 
 **Do NOT drop scoops.** Keep them alive for user review.
 
-### Step 4.1: Read Reports
+### Step 4.1: Collect Scoop Results
 
-Read ALL reports from `/shared/{repo-name}/.migration/reports/`.
-For each block, check:
-- `status`: success/partial/failed
-- `edsVerification`: did the EDS framework load?
-- `issues`: any problems to address
+Use the completion messages collected during Phase 3 monitoring. For each
+block, you already have `status`, `files`, and `issues` from the scoop's
+`send_message` JSON.
 
-List any missing reports — every block scoop MUST produce a report.
+If reports were requested and exist in `/shared/{repo-name}/.migration/reports/`,
+read them for additional detail (EDS verification, visual verification,
+design tokens). Otherwise, the completion messages have everything needed
+for assembly.
+
+List any blocks with `status: "failed"` or that required the stuck-scoop
+fallback — flag these in the final summary.
 
 ### Step 4.2: Verify Brand Setup
 
@@ -542,7 +571,12 @@ playwright-cli screenshot --tab={previewTabId} --fullPage=true --max-width=1440 
 bash: ls -la /shared/{repo-name}/.migration/preview-assembled.png
 ```
 
-### Step 4.5: Git Commit — MANDATORY
+### Step 4.5: Git Commit — OPT-IN
+
+**Skip this step unless the user explicitly requested a commit** (e.g.,
+"commit the result", "commit when done", "auto-commit"). If skipped,
+mention in the final summary that changes are uncommitted and ready for
+review.
 
 ```bash
 git add blocks/ styles/ drafts/
