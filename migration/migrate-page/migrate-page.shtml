@@ -417,9 +417,11 @@ function resetAfterCancel() {
         JSON.stringify(config, null, 2)
       );
     })
-    .catch(function() {});
-  showView('mp-ready');
-  loadConfig();
+    .catch(function() {})
+    .then(function() {
+      showView('mp-ready');
+      loadConfig();
+    });
 }
 
 function handleUpdate(data) {
@@ -504,6 +506,8 @@ function restoreState(state) {
   } else if (state.phase === 'error') {
     populateError(state);
     showView('mp-error');
+  } else if (state.phase === 'cancelled') {
+    showView('mp-ready');
   } else {
     populateMigrating(state);
     showView('mp-migrating');
