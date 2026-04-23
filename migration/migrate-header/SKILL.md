@@ -139,6 +139,12 @@ Also detect dropdown types for each nav item:
 
 ## Step 3: Install Header Block
 
+Header block conventions vary between EDS flavors — the default file
+path, fragment path, and section assignment contract (index-based vs
+section-metadata Style values) differ. See "Header block conventions"
+and "Framework entry" in `references/{flavor}.md` before editing or
+creating the header block.
+
 Check if the repo already has a header block:
 
 ```
@@ -424,6 +430,11 @@ Write `{projectPath}/drafts/header-preview.html`:
 </html>
 ```
 
+**Header load timing** varies between flavors — aem-js loads the header
+eagerly; author-kit defers it to `postlcp.js`. Wait for the signals
+listed in "Preview verification (Step 6c)" of `references/{flavor}.md`
+before screenshotting to avoid capturing an empty header.
+
 The EDS header block will automatically load `nav.plain.html` via the
 `<meta name="nav">` tag and render the full header.
 
@@ -443,14 +454,12 @@ target, re-run `serve` to get a new tab and targetId.
 
 ### 6c. Verify EDS Framework
 
-```bash
-playwright-cli eval --tab={previewTabId} "JSON.stringify({ hlx: !!window.hlx, codeBasePath: window.hlx?.codeBasePath, bodyAppear: document.body.classList.contains('appear'), headerBlock: !!document.querySelector('.header.block'), navSections: document.querySelectorAll('.header-section').length })"
-```
+Run the framework verification eval from the "Preview verification (Step
+6c)" section of `references/{flavor}.md`. The reference specifies the
+eval and required results for your flavor.
 
-**Required:** `hlx: true`, `bodyAppear: true`, `headerBlock: true`.
-If `headerBlock` is false, the header fragment didn't load — check that
-`nav.plain.html` exists at `{projectPath}/drafts/nav.plain.html` and
-the `<meta name="nav">` points to `/drafts/nav`.
+If the verification fails, debug before proceeding — do NOT work around
+framework failures by inlining CSS/JS.
 
 ---
 
