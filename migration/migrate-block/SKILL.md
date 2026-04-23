@@ -407,17 +407,9 @@ target, re-run `serve` to get a new tab and targetId.
 
 ### 6c. Verify EDS Framework Loaded
 
-Run this verification BEFORE any visual comparison:
-
-```bash
-playwright-cli eval --tab={previewTabId} "JSON.stringify({ hlx: !!window.hlx, codeBasePath: window.hlx?.codeBasePath, bodyAppear: document.body.classList.contains('appear'), sections: document.querySelectorAll('.section').length, blocks: Array.from(document.querySelectorAll('[data-block-name]')).map(b => ({ name: b.dataset.blockName, status: b.dataset.blockStatus })) })"
-```
-
-**Required results:**
-- `hlx` must be `true`
-- `codeBasePath` must be a string (controls where blocks/styles load from)
-- `bodyAppear` must be `true`
-- Your block must appear in the blocks array with `status: "loaded"`
+Run the framework verification eval from the "Preview verification (Step
+6c)" section of `references/{flavor}.md`. The reference specifies the
+exact eval to run and the required results for your flavor.
 
 **If any check fails: STOP.** Debug the preview HTML. Common causes:
 - Missing `<script>` tags from head.html
@@ -584,13 +576,21 @@ Then `send_message` to the cone with a **JSON string** in this exact format:
 
 ## Footer Block — Special Case
 
-If your block is the footer:
+If your block is the footer, output content to
+`{projectPath}/drafts/footer.plain.html` (not `{blockName}.plain.html`).
 
-- Output content to `{projectPath}/drafts/footer.plain.html`
-- Block CSS/JS goes to `blocks/footer/footer.css` and `blocks/footer/footer.js`
+Footer meta-tag behavior and fragment placement differ between
+flavors — see "Footer meta tag" in `references/{flavor}.md` for the
+flavor-specific steps before writing the preview HTML.
+
+Other rules (shared across flavors):
+
+- Block CSS/JS goes to `blocks/footer/footer.css` and
+  `blocks/footer/footer.js`
 - If the repo already has `blocks/footer/`, use existing code
-- Do NOT use a `footer` class in any inner `<div>` inside footer.plain.html
-  (the EDS framework would try to recursively load the footer block)
+- Do NOT use a `footer` class in any inner `<div>` inside
+  `footer.plain.html` (the EDS framework would try to recursively load
+  the footer block)
 
 ### Footer Fragment DOM Structure
 
@@ -651,92 +651,19 @@ never runs.
 
 ---
 
-## Known EDS Behaviors
+## Flavor-specific EDS behaviors
 
-### Button Auto-Decoration
+Button decoration, full-width block wrappers, card picture contracts,
+icon rendering, and button wrapping conventions vary between EDS
+flavors. See `references/{flavor}.md`:
 
-EDS's `decorateButtons()` (called during `decorateMain()`) automatically
-transforms standalone paragraph links into button elements:
+- "Button decoration"
+- "Full-width blocks"
+- "Card block contract"
+- "Known quirks"
 
-```html
-<!-- Your .plain.html content -->
-<p><a href="/cta">Learn More</a></p>
-
-<!-- After EDS decoration -->
-<p class="button-container"><a href="/cta" class="button">Learn More</a></p>
-```
-
-This turns text links into styled buttons. EDS also applies `text-align: center`
-to `.button` elements.
-
-**IMPORTANT:** Check `{projectPath}/styles/styles.css` for project-level
-button resets before writing your overrides. The project may have rules like
-`main a.button:any-link { ... }` that require matching specificity.
-
-**Safe baseline override** (works against both EDS defaults and project resets):
-
-```css
-/* Reset button to inline link */
-main .{blockName} .button-container { display: inline; }
-main .{blockName} a.button:any-link {
-  background: none; border: none;
-  color: var(--link-color, inherit);
-  font-size: inherit; font-weight: inherit;
-  padding: 0; margin: 0;
-  text-align: left; text-decoration: underline;
-}
-
-/* Or style as bordered CTA */
-main .{blockName} a.button:any-link {
-  background: transparent;
-  border: 2px solid currentColor;
-  border-radius: 4px;
-  padding: 8px 24px;
-  text-align: center; text-decoration: none;
-}
-```
-
-Note: always use `main .{blockName} a.button:any-link` — NOT just
-`.{blockName} a.button` — to match the specificity of project-level resets.
-
-### Full-Width Blocks
-
-EDS wraps sections in `.section > div { max-width: 1200px }`. Heroes,
-banners, and full-bleed blocks get constrained to the center column.
-
-**Fix:** Override the wrapper's max-width in your block CSS:
-
-```css
-.{blockName}-wrapper {
-  max-width: 100% !important;
-  padding: 0 !important;
-}
-```
-
-This is needed for any block that should span the full viewport width.
-
-### Icon Rendering
-
-EDS renders `<span class="icon icon-{name}">` as `<img>` tags pointing
-to `/icons/{name}.svg`. Because they're `<img>` elements (not inline SVG),
-**`fill="currentColor"` does NOT work.**
-
-When creating SVG icons for EDS:
-- Use explicit fill colors: `fill="#ffffff"` or `fill="#000000"`
-- Do NOT use `fill="currentColor"` — it renders as invisible/black
-
-### decorateButtons() Variant Risk
-
-Some projects override `decorateButtons()` in `scripts.js` to require
-`<strong>` or `<em>` wrapper around links for button decoration. Check
-when reading `styles.css` in Step 4:
-
-```
-read_file({ "path": "{projectPath}/scripts/scripts.js" })
-```
-
-Search for `strong` or `em` in the `decorateButtons` function. If found,
-wrap CTA links: `<p><strong><a href="...">CTA text</a></strong></p>`
+Read the relevant sections before writing your block's CSS and
+`.plain.html`.
 
 ---
 
