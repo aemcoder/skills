@@ -118,7 +118,7 @@ If `flavor=unknown` (neither `scripts/aem.js` nor `scripts/ak.js` exists in
 the repo), halt migration:
 
 ```bash
-sprinkle send migrate-page '{"phase":"error","message":"Unknown EDS flavor — scripts/aem.js and scripts/ak.js both missing. Add references/{name}.md across the three skills and re-run."}'
+sprinkle send migrate-page '{"phase":"error","message":"Unknown EDS flavor — scripts/aem.js and scripts/ak.js both missing. Add references/<new-flavor>.md (matching the new boilerplate'\''s entry script) across all three skills and re-run."}'
 ```
 
 Do NOT fall back to `aem-js` silently — the migration would produce broken
@@ -127,7 +127,7 @@ output on an unrecognized boilerplate.
 For `aem-js` or `author-kit`, read the flavor-specific cone reference so
 you apply the right rules during Phase 2.5 and Phase 4:
 
-```
+```bash
 read_file /workspace/skills/migrate-page/references/{flavor}.md
 ```
 
