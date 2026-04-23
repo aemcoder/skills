@@ -101,7 +101,37 @@ Where `{repo-name}` is the repo portion of owner/repo, `{page-slug}` is derived
 from the URL path (e.g., `/products/widget` → `products-widget`), and
 `{timestamp}` is a short identifier (e.g., `Date.now().toString(36)`).
 
-### Step 1.2: Navigate to Source Page
+### Step 1.2: Detect EDS Flavor
+
+Check which EDS boilerplate the project uses. The detected flavor drives
+which reference files the cone and scoops load during subsequent phases.
+
+```bash
+if [ -f /shared/{repo-name}/scripts/ak.js ]; then flavor=author-kit
+elif [ -f /shared/{repo-name}/scripts/aem.js ]; then flavor=aem-js
+else flavor=unknown
+fi
+echo "{\"flavor\":\"$flavor\"}" > /shared/{repo-name}/.migration/flavor.json
+```
+
+If `flavor=unknown` (neither `scripts/aem.js` nor `scripts/ak.js` exists in
+the repo), halt migration:
+
+```bash
+sprinkle send migrate-page '{"phase":"error","message":"Unknown EDS flavor — scripts/aem.js and scripts/ak.js both missing. Add references/{name}.md across the three skills and re-run."}'
+```
+
+Do NOT fall back to `aem-js` silently — the migration would produce broken
+output on an unrecognized boilerplate.
+
+For `aem-js` or `author-kit`, read the flavor-specific cone reference so
+you apply the right rules during Phase 2.5 and Phase 4:
+
+```
+read_file /workspace/skills/migrate-page/references/{flavor}.md
+```
+
+### Step 1.3: Navigate to Source Page
 
 Open the source URL in a new browser tab:
 
@@ -112,7 +142,7 @@ playwright-cli tab-new {sourceUrl}
 Capture the **targetId** from the output (e.g., `SRC123`). All subsequent
 `playwright-cli` commands for this source tab MUST include `--tab={sourceTabId}`.
 
-### Step 1.3: Dismiss Overlays (opt-in, skipped by default)
+### Step 1.4: Dismiss Overlays (opt-in, skipped by default)
 
 **Skip this step unless the user explicitly requested overlay dismissal**
 (e.g., "dismiss overlays", "handle cookie banners", "remove consent dialogs").
@@ -122,7 +152,7 @@ banners, consent dialogs, and other overlays on the source page. Pass
 `{sourceTabId}` as the target tab. The skill handles its own visual
 verification and cleanup — no overlay artifacts persist.
 
-### Step 1.4: Lazy-Load Scroll
+### Step 1.5: Lazy-Load Scroll
 
 Scroll the page top-to-bottom to trigger lazy-loaded images and sections:
 
@@ -130,7 +160,7 @@ Scroll the page top-to-bottom to trigger lazy-loaded images and sections:
 playwright-cli eval-file --tab={sourceTabId} /workspace/skills/migrate-page/scripts/lazy-load-scroll.js
 ```
 
-### Step 1.5: De-Sticky
+### Step 1.6: De-Sticky
 
 Convert `position: fixed` elements to `position: relative` so they don't
 overlap content in the visual tree or full-page screenshot:
@@ -139,7 +169,7 @@ overlap content in the visual tree or full-page screenshot:
 playwright-cli eval-file --tab={sourceTabId} /workspace/skills/migrate-page/scripts/de-sticky.js
 ```
 
-### Step 1.6: Extract Visual Tree
+### Step 1.7: Extract Visual Tree
 
 Run the visual tree extraction and save directly to file:
 
@@ -147,7 +177,7 @@ Run the visual tree extraction and save directly to file:
 playwright-cli eval-file --tab={sourceTabId} /workspace/skills/migrate-page/scripts/visual-tree.js --output=/shared/{repo-name}/.migration/visual-tree.json
 ```
 
-### Step 1.7: Full-Page Screenshot
+### Step 1.8: Full-Page Screenshot
 
 Capture the page after all preparation. This is the only screenshot used
 by downstream phases (decomposition, visual comparison):
@@ -159,19 +189,19 @@ bash: ls -la /shared/{repo-name}/.migration/screenshot.png
 
 Verify the file exists and has a reasonable size (>10 KB).
 
-### Step 1.8: Extract Brand Data
+### Step 1.9: Extract Brand Data
 
 ```bash
 playwright-cli eval-file --tab={sourceTabId} /workspace/skills/migrate-page/scripts/brand-extract.js --output=/shared/{repo-name}/.migration/brand.json
 ```
 
-### Step 1.9: Extract Metadata
+### Step 1.10: Extract Metadata
 
 ```bash
 playwright-cli eval-file --tab={sourceTabId} /workspace/skills/migrate-page/scripts/metadata-extract.js --output=/shared/{repo-name}/.migration/metadata.json
 ```
 
-### Step 1.10: Scan Block Inventory
+### Step 1.11: Scan Block Inventory
 
 Scan the project's blocks directory and save the inventory:
 
@@ -188,6 +218,7 @@ After Phase 1, these files exist in `/shared/{repo-name}/.migration/`:
 
 | Artifact | Purpose |
 |----------|---------|
+| `flavor.json` | Detected EDS boilerplate flavor (aem-js or author-kit) |
 | `screenshot.png` | Full-page screenshot after prep (for decomposition) |
 | `visual-tree.json` | Spatial hierarchy (bounds, backgrounds, selectors) |
 | `brand.json` | Fonts, colors, spacing |
