@@ -299,39 +299,26 @@ Do NOT fetch external resources or add `<script>` tags.
 ## EDS DOM Transformation Reference
 
 When EDS decorates your block, the DOM changes. Your CSS selectors must
-target the **decorated** structure, not the authored structure.
+target the **decorated** structure, not the authored structure. The
+exact decoration chain varies between flavors — see "DOM structure" in
+`references/{flavor}.md` for the authored → decorated tree for your
+flavor.
 
-```
-Authored (.plain.html):            After EDS decoration:
-
-<div>                              <div class="section">
-  <div class="hero">                <div class="hero-wrapper">
-    <div>  ← row 1                     <div class="hero block"
-      <div>cell 1</div>                      data-block-name="hero"
-      <div>cell 2</div>                      data-block-status="loaded">
-    </div>                               <div>  ← row 1 (unchanged)
-  </div>                                   <div>cell 1</div>
-</div>                                     <div>cell 2</div>
-                                         </div>
-                                       </div>
-                                     </div>
-                                   </div>
-```
-
-**Key points:**
-- The block `<div>` gets `.block` class + `data-block-name` + `data-block-status`
+**Key points (shared across flavors):**
+- The block `<div>` gets `.block` class + `data-block-name`
 - A `-wrapper` div is inserted around the block
 - A `.section` div wraps the section
 - Rows and cells inside the block are NOT changed
-- Your `decorate(block)` function receives the `.hero.block` element
+- Your `decorate(block)` function receives the block element
 
-**Common side-effects of `decorateMain()`:**
+**Common side-effects of decoration:**
 - **WARNING: Bare `<img>` and `<picture>` in cells get wrapped in `<p>` tags.**
   Since HTML does not allow `<p>` inside `<p>`, this mangles the DOM if your
   cell already contains `<p>` elements alongside images. **Always put images
   in their own dedicated cell** to avoid this.
-- Standalone `<p><a>` links get `.button` class and `.button-container` wrapper
 - `<blockquote>` content may get wrapped in extra `<p>` tags
+- Button auto-decoration rules vary between flavors — see
+  "Button decoration" in `references/{flavor}.md`.
 
 **CSS selector guide:**
 ```css
@@ -408,8 +395,20 @@ target, re-run `serve` to get a new tab and targetId.
 ### 6c. Verify EDS Framework Loaded
 
 Run the framework verification eval from the "Preview verification (Step
-6c)" section of `references/{flavor}.md`. The reference specifies the
-exact eval to run and the required results for your flavor.
+6c)" section of `references/{flavor}.md`. Every flavor's eval returns
+the same top-level shape:
+
+```json
+{
+  "frameworkLoaded": true,
+  "pageReady": true,
+  "blockDecorated": true,
+  "details": { "<flavor-specific raw fields>": "..." }
+}
+```
+
+Required results: all three top-level booleans must be `true`. The
+flavor reference specifies the eval body and what goes into `details`.
 
 **If any check fails: STOP.** Debug the preview HTML. Common causes:
 - Missing `<script>` tags from head.html
@@ -507,11 +506,10 @@ Write to `{projectPath}/.migration/reports/{blockName}-report.json`:
     { "source": "https://...", "local": "/drafts/images/file.jpg" }
   ],
   "edsVerification": {
-    "hlx": true,
-    "codeBasePath": "/preview/shared/vibemigrated",
-    "bodyAppear": true,
-    "blockLoaded": true,
-    "blockStatus": "loaded"
+    "frameworkLoaded": true,
+    "pageReady": true,
+    "blockDecorated": true,
+    "details": { "<flavor-specific raw fields from the eval>": "..." }
   },
   "visualVerification": {
     "iterationsUsed": 2,
@@ -679,7 +677,7 @@ Read the relevant sections before writing your block's CSS and
 
 | Criterion | Target |
 |-----------|--------|
-| EDS framework verified | hlx=true, bodyAppear=true, block loaded |
+| EDS framework verified | frameworkLoaded=true, pageReady=true, blockDecorated=true |
 | Visual similarity | >= 85% acceptable, >= 95% ideal |
 | Header similarity | >= 85% (interactive states differ) |
 | Max iterations | 3 (5 for header) |

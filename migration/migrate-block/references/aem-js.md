@@ -13,19 +13,64 @@ the first section's blocks load, `aem.js` adds the `appear` class to
 footer. Blocks carry `data-block-status="loading"` while they load and
 `data-block-status="loaded"` once ready — these attributes persist.
 
-## Preview verification (Step 6c)
+## DOM structure
 
-Run this eval to confirm the framework loaded before visual verification:
+When aem.js decorates your block, the DOM changes from the authored
+structure to the decorated structure. Target the decorated structure
+in your CSS.
 
-```bash
-playwright-cli eval --tab={previewTabId} "JSON.stringify({ hlx: !!window.hlx, codeBasePath: window.hlx?.codeBasePath, bodyAppear: document.body.classList.contains('appear'), sections: document.querySelectorAll('.section').length, blocks: Array.from(document.querySelectorAll('[data-block-name]')).map(b => ({ name: b.dataset.blockName, status: b.dataset.blockStatus })) })"
+```
+Authored (.plain.html):            After aem.js decoration:
+
+<div>                              <div class="section">
+  <div class="hero">                <div class="hero-wrapper">
+    <div>  ← row 1                     <div class="hero block"
+      <div>cell 1</div>                      data-block-name="hero"
+      <div>cell 2</div>                      data-block-status="loaded">
+    </div>                               <div>  ← row 1 (unchanged)
+  </div>                                   <div>cell 1</div>
+</div>                                     <div>cell 2</div>
+                                         </div>
+                                       </div>
+                                     </div>
+                                   </div>
 ```
 
-Required results:
-- `hlx` is `true`
-- `codeBasePath` is a non-empty string
-- `bodyAppear` is `true`
-- Your block appears in `blocks` with `status: "loaded"`
+The block `<div>` gets `.block` class + `data-block-name` +
+`data-block-status="loaded"` (which persists after load).
+
+A `-wrapper` div is inserted around the block. A `.section` div wraps
+the section. Rows and cells inside the block are NOT changed.
+
+## Preview verification (Step 6c)
+
+Run this eval to verify the framework loaded. It produces the shared
+top-level shape (`frameworkLoaded`, `pageReady`, `blockDecorated`,
+`details`) described in Step 6c of the main SKILL.md:
+
+```bash
+playwright-cli eval --tab={previewTabId} "(() => {
+  const target = document.querySelector('.{blockName}.block');
+  const blocks = Array.from(document.querySelectorAll('[data-block-name]'))
+    .map(b => ({ name: b.dataset.blockName, status: b.dataset.blockStatus }));
+  return JSON.stringify({
+    frameworkLoaded: !!window.hlx && !!window.hlx.codeBasePath,
+    pageReady: document.body.classList.contains('appear'),
+    blockDecorated: target?.dataset.blockStatus === 'loaded',
+    details: {
+      codeBasePath: window.hlx?.codeBasePath,
+      sections: document.querySelectorAll('.section').length,
+      blocks
+    }
+  });
+})()"
+```
+
+Required: all three top-level booleans must be `true`. If
+`blockDecorated` is `false`, inspect `details.blocks` for your block's
+entry — it may still have `status: "loading"` (wait and retry) or be
+missing entirely (check nav meta, script paths, and that your block
+exists in the `.plain.html`).
 
 If any check fails, stop and debug — do not work around framework
 failures by inlining CSS/JS.

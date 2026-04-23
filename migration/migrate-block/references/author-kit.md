@@ -20,24 +20,73 @@ Key differences from aem-js:
 - `data-block-status` is removed after a block loads — it does NOT
   persist like in aem-js, so polling for `loaded` status returns 0.
 
-## Preview verification (Step 6c)
+## DOM structure
 
-Because `data-block-status` is transient, verify framework readiness
-with these signals instead:
+When ak.js decorates your block, `decorateSections()` calls
+`groupChildren()`, which wraps `<div>` children in
+`<div class="block-content">` and non-`<div>` children in
+`<div class="default-content">`. Blocks are discovered as
+`.block-content > div[class]`.
 
-```bash
-playwright-cli eval --tab={previewTabId} "JSON.stringify({ hlx: !!window.hlx, bodySession: document.body.classList.contains('session'), sections: document.querySelectorAll('.section').length, blockContent: document.querySelectorAll('.block-content').length, decoratedBlock: !!document.querySelector('.{blockName} .{blockName}-inner, .{blockName} [class*=\"-inner\"], .{blockName} [class*=\"-container\"]') })"
+```
+Authored (.plain.html):            After ak.js decoration:
+
+<div>                              <div class="section">
+  <div class="hero">                 <div class="block-content">
+    <div>  ← row 1                     <div class="hero-wrapper">
+      <div>cell 1</div>                    <div class="hero block"
+      <div>cell 2</div>                          data-block-name="hero">
+    </div>                                     <div>  ← row 1 (unchanged)
+  </div>                                         <div>cell 1</div>
+</div>                                           <div>cell 2</div>
+                                               </div>
+                                             </div>
+                                           </div>
+                                         </div>
 ```
 
-Required results:
-- `hlx` is `true`
-- `bodySession` is `true`
-- `sections` is at least 1
-- `blockContent` is at least 1 (confirms `groupChildren` ran)
-- `decoratedBlock` is `true` when your block has internal decoration
+Key differences from aem-js:
+- An extra `<div class="block-content">` layer sits between `.section`
+  and `.{blockName}-wrapper` (added by `groupChildren()`).
+- `data-block-status` is REMOVED after the block finishes loading — it
+  does not persist.
+- `data-block-name` is set during decoration but may also be removed
+  on cleanup.
 
-If `decoratedBlock` is unreliable for your block, fall back to a 2-second
-timeout before screenshotting.
+Rows and cells inside the block are NOT changed.
+
+## Preview verification (Step 6c)
+
+Because `data-block-status` is transient in AK, the `blockDecorated`
+check uses internal decoration markers (elements with class ending in
+`-inner` or `-container`) rather than a block-status attribute:
+
+```bash
+playwright-cli eval --tab={previewTabId} "(() => {
+  const target = document.querySelector('.{blockName}');
+  const decorated = !!target?.querySelector('[class*=\"-inner\"], [class*=\"-container\"]');
+  return JSON.stringify({
+    frameworkLoaded: !!window.hlx,
+    pageReady: document.body.classList.contains('session'),
+    blockDecorated: decorated,
+    details: {
+      bodySession: document.body.classList.contains('session'),
+      sections: document.querySelectorAll('.section').length,
+      blockContent: document.querySelectorAll('.block-content').length,
+      hasTarget: !!target
+    }
+  });
+})()"
+```
+
+Required: all three top-level booleans must be `true`. If
+`blockDecorated` is unreliable for your block (e.g., the block has no
+internal `*-inner` or `*-container` children), either widen the
+selector to match your block's own decoration output or add a 2-second
+hard timeout before screenshotting.
+
+If any check fails, stop and debug — do not work around framework
+failures by inlining CSS/JS.
 
 ## Button decoration
 
