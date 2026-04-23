@@ -12,7 +12,7 @@
  * @param {string} flavor - The EDS boilerplate flavor (e.g., 'aem-js', 'author-kit'). Required.
  * @returns {Array<{name: string, model: string, prompt: string}>}
  */
-function generateScoopConfigs(decomposition, sourceUrl, projectPath, model = 'claude-opus-4-6', flavor = null) {
+function generateScoopConfigs(decomposition, sourceUrl, projectPath, model = 'claude-opus-4-6', flavor) {
   if (!flavor) {
     throw new Error('Flavor is required. Expected .migration/flavor.json with {"flavor":"aem-js"} or {"flavor":"author-kit"}.');
   }
@@ -127,9 +127,17 @@ if (typeof process !== 'undefined' && process.argv?.[2]) {
   const decomposition = JSON.parse(
     await fs.readFile(migrationDir + '/decomposition.json', { encoding: 'utf-8' })
   );
-  const flavorJson = JSON.parse(
-    await fs.readFile(migrationDir + '/flavor.json', { encoding: 'utf-8' })
-  );
+  let flavorJson;
+  try {
+    flavorJson = JSON.parse(
+      await fs.readFile(migrationDir + '/flavor.json', { encoding: 'utf-8' })
+    );
+  } catch {
+    throw new Error(
+      `flavor.json not found at ${migrationDir}/flavor.json. ` +
+      'Create it with {"flavor":"aem-js"} or {"flavor":"author-kit"}.'
+    );
+  }
   const projectPath = migrationDir.replace(/\/.migration\/?$/, '');
   const model = process.argv[3] || 'claude-opus-4-6';
   const configs = generateScoopConfigs(
