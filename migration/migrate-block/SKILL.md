@@ -241,7 +241,7 @@ read_file({ "path": "{projectPath}/styles/styles.css" })
 
 Look for:
 - `max-width` on `.section > div` — if present, full-width blocks need a
-  wrapper override (see "Full-Width Blocks" in Known EDS Behaviors)
+  wrapper override (see "Full-width blocks" in `references/{flavor}.md`)
 - `a.button` rules — note the specificity; your block button overrides must
   match or exceed it (use `main .{blockName} a.button:any-link` as baseline)
 

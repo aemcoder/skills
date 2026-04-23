@@ -113,7 +113,8 @@ constant (`/fragments/nav/footer`). Both steps use safe defaults.
 
 - **`--font-family` variable:** AK uses `--font-family` (singular) instead
   of `--body-font-family` / `--heading-font-family`. Brand setup in Phase
-  2.5 must override this variable specifically — see the cone reference.
+  2.5 must override this variable specifically — see "Brand and styles
+  (Phase 2.5)" in `migrate-page/references/author-kit.md`.
 - **section-metadata as grid container:** AK treats sections as CSS Grid
   containers configured by `section-metadata` (e.g., `layout: bento`,
   `grid: 3`, `gap: s`). For complex layouts, prefer composing with
