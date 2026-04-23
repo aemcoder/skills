@@ -354,45 +354,22 @@ Write the updated `head.html` back.
 
 ### 2.5c: Generate brand.css
 
-Write `/shared/{repo-name}/styles/brand.css` with brand values from
-`brand.json`:
-
-```css
-:root {
-  --heading-font-family: "{resolved heading font}", serif;
-  --body-font-family: "{resolved body font}", sans-serif;
-  --background-color: {brand.colors.background};
-  --text-color: {brand.colors.text};
-  --link-color: {brand.colors.link};
-  --link-hover-color: {brand.colors.linkHover};
-  --section-padding: {brand.spacing.sectionPadding};
-  --nav-height: {brand.spacing.navHeight};
-}
-
-html, body { overflow: auto !important; }
-```
+Write `{projectPath}/styles/brand.css` with brand values from
+`brand.json`. The exact variable names and any flavor-specific cascade
+workarounds are in "Brand and styles (Phase 2.5)" of
+`references/{flavor}.md`. Read that section before writing the file.
 
 ### 2.5d: Update styles.css with @import
 
-Read `/shared/{repo-name}/styles/styles.css`. Add `@import url('brand.css');`
-as the **VERY FIRST LINE** (CSS spec requires `@import` before all other
-rules). Also update `:root` variables to match brand values.
+Add `@import url('brand.css');` as the VERY FIRST LINE of
+`{projectPath}/styles/styles.css`. Some flavors require additional edits
+to `:root` in `styles.css` to work around cascade collisions — see
+"Brand and styles (Phase 2.5)" in `references/{flavor}.md`.
 
-Add a global EDS button reset after `:root`:
-
-```css
-main .button-container { display: inline; }
-main a.button:any-link {
-  background: none; border: none; border-radius: 0;
-  color: var(--link-color); font-size: inherit; font-weight: inherit;
-  padding: 0; margin: 0; text-decoration: underline; white-space: normal;
-}
-```
+Add the global EDS button reset after `:root`. The exact reset rules
+and selector specificity are in `references/{flavor}.md`.
 
 Write the updated `styles.css` back.
-
-Now scoops will preview with correct fonts, colors, spacing, and button
-behavior from the start.
 
 ---
 
@@ -558,16 +535,21 @@ following the decomposition order:
 
 ### Step 4.4: Create Full Preview Page — MANDATORY
 
-Write `/shared/{repo-name}/drafts/{page-path}-preview.html`:
+Write `/shared/{repo-name}/drafts/{page-path}-preview.html`. The exact
+`<meta name="...">` tags and any flavor-specific fragment-placement
+steps (e.g., copying `footer.plain.html` to a fragment path) are in
+"Preview HTML meta tags" of `references/{flavor}.md`. Read that section
+before writing the preview HTML.
+
+Baseline structure (shared across flavors):
 
 ```html
 <html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="nav" content="/drafts/nav">
-  <meta name="footer" content="/drafts/footer">
   {PASTE <script> AND <link> TAGS FROM head.html}
+  {ADD meta tags per references/{flavor}.md}
   <style>html, body { overflow: auto !important; }</style>
 </head>
 <body>
@@ -581,22 +563,23 @@ Write `/shared/{repo-name}/drafts/{page-path}-preview.html`:
 ```
 
 Serve and verify:
+
 ```bash
 serve --entry=drafts/{page-path}-preview.html --project /shared/{repo-name}
 ```
 
-Capture the **targetId** from the output. All subsequent commands for this
-preview tab MUST include `--tab={previewTabId}`.
+Capture the **targetId** and **preview URL** from the output.
 
-Wait for all blocks to load before screenshotting. The page has header
-(fragment load) + multiple content blocks + footer (fragment load) — these
-load asynchronously. Verify with:
+All subsequent commands for this preview tab MUST include `--tab={previewTabId}`.
 
-```bash
-playwright-cli eval --tab={previewTabId} "JSON.stringify({ blocks: document.querySelectorAll('[data-block-status=\"loaded\"]').length, appear: document.body.classList.contains('appear') })"
-```
+Wait for all blocks to load before screenshotting. The signal set
+differs between flavors — see "Preview load-wait verification (Phase
+4.4)" in `references/{flavor}.md` for the exact eval and required
+values. Apply a 2-second hard timeout as a fallback if the eval's
+signals don't converge.
 
-Wait until all expected blocks show `status: "loaded"`. Then take the screenshot:
+Once the load-wait eval passes, take the screenshot:
+
 ```bash
 playwright-cli screenshot --tab={previewTabId} --fullPage=true --max-width=1440 --filename=/shared/{repo-name}/.migration/preview-assembled.png
 bash: ls -la /shared/{repo-name}/.migration/preview-assembled.png
