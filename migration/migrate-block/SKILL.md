@@ -359,7 +359,7 @@ Write to `{projectPath}/drafts/{blockName}-preview.html`:
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="nav" content="/drafts/nav">
-  <meta name="footer" content="/drafts/footer">
+  {ADD <meta name="footer"> ONLY if your flavor supports it — see "Footer meta tag" in references/{flavor}.md}
   {PASTE ALL <script> AND <link> TAGS FROM head.html CONTENT BELOW}
   <style>html, body { overflow: auto !important; }</style>
 </head>

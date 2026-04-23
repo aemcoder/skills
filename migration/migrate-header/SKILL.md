@@ -416,7 +416,7 @@ Write `{projectPath}/drafts/header-preview.html`:
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="nav" content="/drafts/nav">
-  <meta name="footer" content="/drafts/footer">
+  {ADD <meta name="footer"> only if flavor supports it — see migrate-block/references/{flavor}.md "Footer meta tag"}
   {PASTE <script> AND <link> TAGS FROM head.html}
   <style>html, body { overflow: auto !important; }</style>
 </head>
