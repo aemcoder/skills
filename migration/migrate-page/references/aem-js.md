@@ -44,7 +44,7 @@ main a.button:any-link {
 
 ## Preview HTML meta tags
 
-Include all three:
+Include these meta tags:
 
 ```html
 <meta name="nav" content="/drafts/nav">
