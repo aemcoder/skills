@@ -5,13 +5,19 @@ Instructions for developing and maintaining skills in this repository.
 ## Repository Structure
 
 ```
-migration/
+skills/migration/
   migrate-page/SKILL.md      Cone-only: orchestrates full page migration
   migrate-block/SKILL.md     Scoop: migrates a single block with visual verification
   migrate-header/SKILL.md    Scoop: migrates header/nav with EDS header block pattern
   dismiss-overlays/SKILL.md  Reference: overlay dismissal patterns
 docs/specs/                  Design docs and implementation plans
 ```
+
+Skills live under a top-level `skills/` directory (Anthropic skills convention),
+with `migration/` as a category subdir. Install commands target
+`--path skills/migration`. Slicc's `upskill` flattens the inner skill folders
+into `/workspace/skills/<name>/` at runtime — so internal references like
+`/workspace/skills/migrate-page/scripts/...` are unaffected by the source layout.
 
 ## Slicc Browser Automation Conventions
 
@@ -74,7 +80,7 @@ the query parameter) so project mode stays active.
 
 - Skills are SKILL.md files with YAML frontmatter (`name`, `description`, `allowed-tools`)
 - Slicc discovers skills at `/workspace/skills/{name}/SKILL.md` (one level deep)
-- Installation via `upskill aemcoder/skills --path migration --all`
+- Installation via `upskill aemcoder/skills --path skills/migration --all`
 - Skills reference Slicc shell commands (`playwright-cli`, `serve`, `bash`) not raw APIs
 - Wrap `eval` calls in IIFEs to avoid variable redeclaration across calls
 - Use `fs.fetchToFile(url, path)` for binary downloads, never `fs.writeFile()` with binary data
@@ -84,5 +90,5 @@ the query parameter) so project mode stays active.
 Once slicc PR #197 lands, install skills from a non-default branch:
 
 ```bash
-upskill aemcoder/skills@fix/my-branch --path migration --all
+upskill aemcoder/skills@fix/my-branch --path skills/migration --all
 ```

@@ -11,14 +11,14 @@ verifies with visual comparison.
 ### Installation
 
 ```
-upskill aemcoder/skills --path migration --all
+upskill aemcoder/skills --path skills/migration --all
 ```
 
 Or install individual skills:
 
 ```
-upskill aemcoder/skills --path migration --skill migrate-page
-upskill aemcoder/skills --path migration --skill migrate-block
+upskill aemcoder/skills --path skills/migration --skill migrate-page
+upskill aemcoder/skills --path skills/migration --skill migrate-block
 ```
 
 ### Usage
