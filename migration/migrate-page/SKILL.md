@@ -101,7 +101,37 @@ Where `{repo-name}` is the repo portion of owner/repo, `{page-slug}` is derived
 from the URL path (e.g., `/products/widget` → `products-widget`), and
 `{timestamp}` is a short identifier (e.g., `Date.now().toString(36)`).
 
-### Step 1.2: Navigate to Source Page
+### Step 1.2: Detect EDS Flavor
+
+Check which EDS boilerplate the project uses. The detected flavor drives
+which reference files the cone and scoops load during subsequent phases.
+
+```bash
+if [ -f /shared/{repo-name}/scripts/ak.js ]; then flavor=author-kit
+elif [ -f /shared/{repo-name}/scripts/aem.js ]; then flavor=aem-js
+else flavor=unknown
+fi
+echo "{\"flavor\":\"$flavor\"}" > /shared/{repo-name}/.migration/flavor.json
+```
+
+If `flavor=unknown` (neither `scripts/aem.js` nor `scripts/ak.js` exists in
+the repo), halt migration:
+
+```bash
+sprinkle send migrate-page '{"phase":"error","message":"Unknown EDS flavor — scripts/aem.js and scripts/ak.js both missing. Add references/<new-flavor>.md (matching the new boilerplate'\''s entry script) across all three skills and re-run."}'
+```
+
+Do NOT fall back to `aem-js` silently — the migration would produce broken
+output on an unrecognized boilerplate.
+
+For `aem-js` or `author-kit`, read the flavor-specific cone reference so
+you apply the right rules during Phase 2.5 and Phase 4:
+
+```bash
+read_file /workspace/skills/migrate-page/references/{flavor}.md
+```
+
+### Step 1.3: Navigate to Source Page
 
 Open the source URL in a new browser tab:
 
@@ -112,7 +142,7 @@ playwright-cli tab-new {sourceUrl}
 Capture the **targetId** from the output (e.g., `SRC123`). All subsequent
 `playwright-cli` commands for this source tab MUST include `--tab={sourceTabId}`.
 
-### Step 1.3: Dismiss Overlays (opt-in, skipped by default)
+### Step 1.4: Dismiss Overlays (opt-in, skipped by default)
 
 **Skip this step unless the user explicitly requested overlay dismissal**
 (e.g., "dismiss overlays", "handle cookie banners", "remove consent dialogs").
@@ -122,7 +152,7 @@ banners, consent dialogs, and other overlays on the source page. Pass
 `{sourceTabId}` as the target tab. The skill handles its own visual
 verification and cleanup — no overlay artifacts persist.
 
-### Step 1.4: Lazy-Load Scroll
+### Step 1.5: Lazy-Load Scroll
 
 Scroll the page top-to-bottom to trigger lazy-loaded images and sections:
 
@@ -130,7 +160,7 @@ Scroll the page top-to-bottom to trigger lazy-loaded images and sections:
 playwright-cli eval-file --tab={sourceTabId} /workspace/skills/migrate-page/scripts/lazy-load-scroll.js
 ```
 
-### Step 1.5: De-Sticky
+### Step 1.6: De-Sticky
 
 Convert `position: fixed` elements to `position: relative` so they don't
 overlap content in the visual tree or full-page screenshot:
@@ -139,7 +169,7 @@ overlap content in the visual tree or full-page screenshot:
 playwright-cli eval-file --tab={sourceTabId} /workspace/skills/migrate-page/scripts/de-sticky.js
 ```
 
-### Step 1.6: Extract Visual Tree
+### Step 1.7: Extract Visual Tree
 
 Run the visual tree extraction and save directly to file:
 
@@ -147,7 +177,7 @@ Run the visual tree extraction and save directly to file:
 playwright-cli eval-file --tab={sourceTabId} /workspace/skills/migrate-page/scripts/visual-tree.js --output=/shared/{repo-name}/.migration/visual-tree.json
 ```
 
-### Step 1.7: Full-Page Screenshot
+### Step 1.8: Full-Page Screenshot
 
 Capture the page after all preparation. This is the only screenshot used
 by downstream phases (decomposition, visual comparison):
@@ -159,19 +189,19 @@ bash: ls -la /shared/{repo-name}/.migration/screenshot.png
 
 Verify the file exists and has a reasonable size (>10 KB).
 
-### Step 1.8: Extract Brand Data
+### Step 1.9: Extract Brand Data
 
 ```bash
 playwright-cli eval-file --tab={sourceTabId} /workspace/skills/migrate-page/scripts/brand-extract.js --output=/shared/{repo-name}/.migration/brand.json
 ```
 
-### Step 1.9: Extract Metadata
+### Step 1.10: Extract Metadata
 
 ```bash
 playwright-cli eval-file --tab={sourceTabId} /workspace/skills/migrate-page/scripts/metadata-extract.js --output=/shared/{repo-name}/.migration/metadata.json
 ```
 
-### Step 1.10: Scan Block Inventory
+### Step 1.11: Scan Block Inventory
 
 Scan the project's blocks directory and save the inventory:
 
@@ -188,6 +218,7 @@ After Phase 1, these files exist in `/shared/{repo-name}/.migration/`:
 
 | Artifact | Purpose |
 |----------|---------|
+| `flavor.json` | Detected EDS boilerplate flavor (aem-js or author-kit) |
 | `screenshot.png` | Full-page screenshot after prep (for decomposition) |
 | `visual-tree.json` | Spatial hierarchy (bounds, backgrounds, selectors) |
 | `brand.json` | Fonts, colors, spacing |
@@ -323,45 +354,22 @@ Write the updated `head.html` back.
 
 ### 2.5c: Generate brand.css
 
-Write `/shared/{repo-name}/styles/brand.css` with brand values from
-`brand.json`:
-
-```css
-:root {
-  --heading-font-family: "{resolved heading font}", serif;
-  --body-font-family: "{resolved body font}", sans-serif;
-  --background-color: {brand.colors.background};
-  --text-color: {brand.colors.text};
-  --link-color: {brand.colors.link};
-  --link-hover-color: {brand.colors.linkHover};
-  --section-padding: {brand.spacing.sectionPadding};
-  --nav-height: {brand.spacing.navHeight};
-}
-
-html, body { overflow: auto !important; }
-```
+Write `{projectPath}/styles/brand.css` with brand values from
+`brand.json`. The exact variable names and any flavor-specific cascade
+workarounds are in "Brand and styles (Phase 2.5)" of
+`references/{flavor}.md`. Read that section before writing the file.
 
 ### 2.5d: Update styles.css with @import
 
-Read `/shared/{repo-name}/styles/styles.css`. Add `@import url('brand.css');`
-as the **VERY FIRST LINE** (CSS spec requires `@import` before all other
-rules). Also update `:root` variables to match brand values.
+Add `@import url('brand.css');` as the VERY FIRST LINE of
+`{projectPath}/styles/styles.css`. Some flavors require additional edits
+to `:root` in `styles.css` to work around cascade collisions — see
+"Brand and styles (Phase 2.5)" in `references/{flavor}.md`.
 
-Add a global EDS button reset after `:root`:
-
-```css
-main .button-container { display: inline; }
-main a.button:any-link {
-  background: none; border: none; border-radius: 0;
-  color: var(--link-color); font-size: inherit; font-weight: inherit;
-  padding: 0; margin: 0; text-decoration: underline; white-space: normal;
-}
-```
+Add the global EDS button reset after `:root`. The exact reset rules
+and selector specificity are in `references/{flavor}.md`.
 
 Write the updated `styles.css` back.
-
-Now scoops will preview with correct fonts, colors, spacing, and button
-behavior from the start.
 
 ---
 
@@ -527,16 +535,21 @@ following the decomposition order:
 
 ### Step 4.4: Create Full Preview Page — MANDATORY
 
-Write `/shared/{repo-name}/drafts/{page-path}-preview.html`:
+Write `/shared/{repo-name}/drafts/{page-path}-preview.html`. The exact
+`<meta name="...">` tags and any flavor-specific fragment-placement
+steps (e.g., copying `footer.plain.html` to a fragment path) are in
+"Preview HTML meta tags" of `references/{flavor}.md`. Read that section
+before writing the preview HTML.
+
+Baseline structure (shared across flavors):
 
 ```html
 <html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="nav" content="/drafts/nav">
-  <meta name="footer" content="/drafts/footer">
   {PASTE <script> AND <link> TAGS FROM head.html}
+  {ADD meta tags per references/{flavor}.md}
   <style>html, body { overflow: auto !important; }</style>
 </head>
 <body>
@@ -550,22 +563,23 @@ Write `/shared/{repo-name}/drafts/{page-path}-preview.html`:
 ```
 
 Serve and verify:
+
 ```bash
 serve --entry=drafts/{page-path}-preview.html --project /shared/{repo-name}
 ```
 
-Capture the **targetId** from the output. All subsequent commands for this
-preview tab MUST include `--tab={previewTabId}`.
+Capture the **targetId** and **preview URL** from the output.
 
-Wait for all blocks to load before screenshotting. The page has header
-(fragment load) + multiple content blocks + footer (fragment load) — these
-load asynchronously. Verify with:
+All subsequent commands for this preview tab MUST include `--tab={previewTabId}`.
 
-```bash
-playwright-cli eval --tab={previewTabId} "JSON.stringify({ blocks: document.querySelectorAll('[data-block-status=\"loaded\"]').length, appear: document.body.classList.contains('appear') })"
-```
+Wait for all blocks to load before screenshotting. The signal set
+differs between flavors — see "Preview load-wait verification (Phase
+4.4)" in `references/{flavor}.md` for the exact eval and required
+values. Apply a 2-second hard timeout as a fallback if the eval's
+signals don't converge.
 
-Wait until all expected blocks show `status: "loaded"`. Then take the screenshot:
+Once the load-wait eval passes, take the screenshot:
+
 ```bash
 playwright-cli screenshot --tab={previewTabId} --fullPage=true --max-width=1440 --filename=/shared/{repo-name}/.migration/preview-assembled.png
 bash: ls -la /shared/{repo-name}/.migration/preview-assembled.png

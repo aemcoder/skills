@@ -2,16 +2,21 @@
  * Generate scoop creation configs for page migration.
  *
  * Usage (in slicc JavaScript tool):
- *   const configs = generateScoopConfigs(decomposition, sourceUrl, projectPath);
+ *   const configs = generateScoopConfigs(decomposition, sourceUrl, projectPath, 'claude-opus-4-6', 'author-kit');
  *   // Returns array of { name, model, prompt } ready for scoop_scoop
  *
  * @param {object} decomposition - The decomposition.json content (parsed)
  * @param {string} sourceUrl - The source page URL
  * @param {string} projectPath - The EDS project path in VFS (e.g., "/shared/vibemigrated")
  * @param {string} [model='claude-opus-4-6'] - Model ID for scoops. Defaults to Opus 4.6.
+ * @param {string} flavor - The EDS boilerplate flavor (e.g., 'aem-js', 'author-kit'). Required.
  * @returns {Array<{name: string, model: string, prompt: string}>}
  */
-function generateScoopConfigs(decomposition, sourceUrl, projectPath, model = 'claude-opus-4-6') {
+function generateScoopConfigs(decomposition, sourceUrl, projectPath, model = 'claude-opus-4-6', flavor) {
+  if (!flavor) {
+    throw new Error('Flavor is required. Expected .migration/flavor.json with {"flavor":"aem-js"} or {"flavor":"author-kit"}.');
+  }
+
   const configs = [];
 
   for (const fragment of decomposition.fragments) {
@@ -36,11 +41,11 @@ function generateScoopConfigs(decomposition, sourceUrl, projectPath, model = 'cl
         let prompt;
 
         if (isHeader) {
-          prompt = buildHeaderPrompt(block, sourceUrl, projectPath, bounds);
+          prompt = buildHeaderPrompt(block, sourceUrl, projectPath, bounds, flavor);
         } else if (isFooter) {
-          prompt = buildFooterPrompt(block, sourceUrl, projectPath, bounds);
+          prompt = buildFooterPrompt(block, sourceUrl, projectPath, bounds, flavor);
         } else {
-          prompt = buildBlockPrompt(block, sourceUrl, projectPath, bounds);
+          prompt = buildBlockPrompt(block, sourceUrl, projectPath, bounds, flavor);
         }
 
         const config = { name: scoopName, prompt };
@@ -53,7 +58,16 @@ function generateScoopConfigs(decomposition, sourceUrl, projectPath, model = 'cl
   return configs;
 }
 
-function buildBlockPrompt(block, sourceUrl, projectPath, bounds) {
+function flavorContext(flavor, skillName) {
+  return `
+## Flavor Context
+This project uses the ${flavor} EDS boilerplate. After reading the skill,
+ALSO read /workspace/skills/${skillName}/references/${flavor}.md. It
+overrides the skill's defaults — most notably framework entry, preview
+verification, button decoration, and footer/card contracts.`;
+}
+
+function buildBlockPrompt(block, sourceUrl, projectPath, bounds, flavor) {
   return `You are migrating a single block to EDS.
 
 ## Parameters
@@ -67,10 +81,10 @@ function buildBlockPrompt(block, sourceUrl, projectPath, bounds) {
 ## Instructions
 Read /workspace/skills/migrate-block/SKILL.md and follow every step.
 The skill tells you how to read head.html from the project.
-Do NOT inline CSS or JS as a substitute for the EDS framework.`;
+Do NOT inline CSS or JS as a substitute for the EDS framework.${flavorContext(flavor, 'migrate-block')}`;
 }
 
-function buildHeaderPrompt(block, sourceUrl, projectPath, bounds) {
+function buildHeaderPrompt(block, sourceUrl, projectPath, bounds, flavor) {
   return `You are migrating the website header/navigation to EDS.
 
 ## Parameters
@@ -83,10 +97,10 @@ function buildHeaderPrompt(block, sourceUrl, projectPath, bounds) {
 Read /workspace/skills/migrate-header/SKILL.md and follow it exactly.
 This is a HEADER migration, not a regular block. Follow the header skill
 exactly — it handles nav.plain.html generation, section-metadata styles,
-dropdown detection, and header-specific CSS patterns.`;
+dropdown detection, and header-specific CSS patterns.${flavorContext(flavor, 'migrate-header')}`;
 }
 
-function buildFooterPrompt(block, sourceUrl, projectPath, bounds) {
+function buildFooterPrompt(block, sourceUrl, projectPath, bounds, flavor) {
   return `You are migrating a single block to EDS.
 
 ## Parameters
@@ -101,7 +115,7 @@ function buildFooterPrompt(block, sourceUrl, projectPath, bounds) {
 ## Instructions
 Read /workspace/skills/migrate-block/SKILL.md and follow every step.
 The skill tells you how to read head.html from the project.
-Do NOT inline CSS or JS as a substitute for the EDS framework.`;
+Do NOT inline CSS or JS as a substitute for the EDS framework.${flavorContext(flavor, 'migrate-block')}`;
 }
 
 // Export for use when eval'd by another script
@@ -113,10 +127,21 @@ if (typeof process !== 'undefined' && process.argv?.[2]) {
   const decomposition = JSON.parse(
     await fs.readFile(migrationDir + '/decomposition.json', { encoding: 'utf-8' })
   );
+  let flavorJson;
+  try {
+    flavorJson = JSON.parse(
+      await fs.readFile(migrationDir + '/flavor.json', { encoding: 'utf-8' })
+    );
+  } catch {
+    throw new Error(
+      `flavor.json not found at ${migrationDir}/flavor.json. ` +
+      'Create it with {"flavor":"aem-js"} or {"flavor":"author-kit"}.'
+    );
+  }
   const projectPath = migrationDir.replace(/\/.migration\/?$/, '');
   const model = process.argv[3] || 'claude-opus-4-6';
   const configs = generateScoopConfigs(
-    decomposition, decomposition.url, projectPath, model
+    decomposition, decomposition.url, projectPath, model, flavorJson.flavor
   );
   console.log(JSON.stringify(configs));
 }
