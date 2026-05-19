@@ -19,7 +19,7 @@ section summarizing what happened in each phase. Include:
 
 ## 6.2 — Update the project's `learnings.md`
 
-Create or append to `experiments/projects/<NNN>-<slug>/learnings.md`.
+Create or append to `<projectsDir>/<NNN>-<slug>/learnings.md`.
 Each entry is dated `## YYYY-MM-DD — short title` with sections:
 - Context (one paragraph)
 - Visible symptom (if a bug)

@@ -19,7 +19,7 @@ sub-agents — see the skill repo's roadmap.)
 
 ## Output layout
 
-Under `experiments/projects/<NNN>-<slug>/output/`:
+Under `<projectsDir>/<NNN>-<slug>/output/`:
 
 ```
 templates/<template>.html              ← <main> with [data-slot] markers
@@ -201,7 +201,7 @@ Run these checks. If any fail, fix the affected artifact and re-run
 the check.
 
 ```bash
-PROJ="experiments/projects/${NNN}-${SLUG}"
+PROJ="${PROJECTS_DIR}/${NNN}-${SLUG}"
 
 # 1) Template has <main> and all sections have unique first-classes
 node -e '

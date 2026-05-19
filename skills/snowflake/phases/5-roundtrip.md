@@ -64,7 +64,7 @@ initial-scroll state, sticky elements leave gaps, `.anim-enter`
 elements are `opacity:0`. Capture per-section:
 
 ```bash
-PROJ="experiments/projects/${NNN}-${SLUG}"
+PROJ="${PROJECTS_DIR}/${NNN}-${SLUG}"
 mkdir -p "$PROJ/diff"
 
 for class in $SECTION_CLASSES; do
@@ -100,7 +100,7 @@ git add \
   scripts/${TEMPLATE_NAME}-animations.js \
   scripts/${TEMPLATE_NAME}-*.js \
   drafts/${TEMPLATE_NAME}-${PAGE_SLUG}.html \
-  experiments/projects/${NNN}-${SLUG}/
+  ${PROJECTS_DIR}/${NNN}-${SLUG}/
 
 # If asset strategy was vendor:
 [ "$ASSET_STRATEGY" = "vendor" ] && git add assets/
@@ -125,7 +125,7 @@ OWNER=${OWNER_REPO%/*}
 REPO=${OWNER_REPO#*/}
 
 curl -X PUT -H "Authorization: Bearer $TOKEN" \
-  -F "data=@experiments/projects/${NNN}-${SLUG}/output/da/${PAGE_SLUG}.html;type=text/html" \
+  -F "data=@${PROJECTS_DIR}/${NNN}-${SLUG}/output/da/${PAGE_SLUG}.html;type=text/html" \
   "https://admin.da.live/source/${OWNER}/${REPO}/${DA_ROOT#/}/${PAGE_SLUG}.html" \
   | tee /tmp/da-put.json
 ```
@@ -199,7 +199,7 @@ Expect:
   Generate self-check 3.9).
 - `consoleErrors` === 0
 
-Capture screenshots into `experiments/projects/${NNN}-${SLUG}/diff/`
+Capture screenshots into `${PROJECTS_DIR}/${NNN}-${SLUG}/diff/`
 with a `production-` prefix.
 
 ### 5.2.6 — If something is broken

@@ -79,6 +79,7 @@ The skill ships with:
 ```
 SKILL.md                       ← this file (entry point)
 phases/
+  0-prereq.md                  ← substrate install / version check
   1-capture.md                 ← phase 1 prompt
   2-analyze.md                 ← phase 2 prompt
   3-generate.md                ← phase 3 prompt
@@ -90,6 +91,16 @@ knowledge/
   architecture.md              ← overlay engine design + slot writer reference
   eds-da-mechanics.md          ← EDS pipeline and DA admin API reference
   learnings.md                 ← cross-project findings (5 runs distilled)
+substrate/
+  VERSION                      ← bundled substrate semver
+  MANIFEST.json                ← what install-substrate.mjs writes where
+  scripts/scripts.js           ← overlay engine
+  scripts/delayed.js           ← per-template animations loader
+  styles/styles.css            ← lifecycle visibility
+  blocks/header/{header.js,header.css}
+  blocks/footer/{footer.js,footer.css}
+  head.html                    ← minimal head
+install-substrate.mjs          ← idempotent substrate installer (used by phase 0)
 scripts/
   transform-da-to-eds.mjs      ← Node script: DA divs-with-class → drafts HTML
 examples/
@@ -112,26 +123,84 @@ containing this `SKILL.md` file. Conventions per host:
 Node scripts inside `scripts/` self-locate via `import.meta.url` and
 don't need the env var.
 
-## The six phases (sequential)
+## The `.snowflake/` directory convention
+
+The skill writes all per-repo state, project artifacts, and project-
+specific knowledge under a hidden `.snowflake/` directory at the
+target repo's root:
+
+```
+.snowflake/
+├── config.json                ← repo-level config (substrate version,
+│                                DA root default, branch prefix, etc.)
+├── knowledge/                 ← OPTIONAL — project-specific overrides
+│   ├── methodology.md         ← layered on top of bundled methodology
+│   ├── learnings.md           ← repo-local findings (not yet promoted)
+│   └── architecture.md        ← repo-specific substrate notes
+├── projects/
+│   └── <NNN>-<slug>/          ← per-run folder
+│       ├── state.json
+│       ├── notes.md
+│       ├── learnings.md
+│       ├── input/
+│       ├── output/
+│       └── diff/
+└── .backup/<timestamp>/       ← originals from substrate install
+```
+
+**Knowledge resolution order** at any phase (most-specific first):
+1. `.snowflake/knowledge/<file>.md` (project-specific)
+2. `<SKILL_DIR>/knowledge/<file>.md` (bundled, canonical)
+
+This lets a repo carry findings that aren't yet generic enough to
+PR upstream. Whether those eventually get promoted to the skill is
+the user's call.
+
+**Config-driven paths.** Some repos (e.g. the snowflake R&D repo
+itself) predate this convention and keep projects under
+`experiments/projects/`. Override via `.snowflake/config.json`:
+
+```json
+{
+  "projectsDir": "experiments/projects",
+  "daRoot": "/some-root",
+  "branchPrefix": "sf-overlay-exp-"
+}
+```
+
+Phases fall back to `.snowflake/projects/` when the config is absent.
+
+## The seven phases (sequential)
 
 Each phase is described in its own file under `phases/`. The
 assistant reads the phase prompt, executes its steps, writes any
 state transitions, and proceeds to the next phase.
 
+**Phase 0** (Prerequisites) runs once per repo. It installs the
+overlay substrate if `.snowflake/config.json` is absent or its
+`substrateVersion` is stale. On subsequent invocations the phase
+sees the config and skips silently.
+
 State for a single run lives in:
 ```
-experiments/projects/<NNN>-<slug>/state.json
+<projectsDir>/<NNN>-<slug>/state.json
 ```
 relative to the target repo's root (found via
-`git rev-parse --show-toplevel`). The skill creates this on Capture
-and updates it at each phase boundary. Phases check state.json on
-start and skip work that's already done — reruns are safe.
+`git rev-parse --show-toplevel`). `<projectsDir>` is
+`.snowflake/projects` by default or the override from
+`.snowflake/config.json`. The skill creates this on Capture and
+updates it at each phase boundary. Phases check state.json on start
+and skip work that's already done — reruns are safe.
 
 ### Phase summaries (full instructions in `phases/`)
 
+0. **Prerequisites** — confirm (or install) the overlay substrate;
+   write `.snowflake/config.json` with the installed version. Runs
+   once per repo. See `phases/0-prereq.md`.
+
 1. **Capture** — fetch source HTML and referenced external assets;
-   set up the project folder under `experiments/projects/NNN-<slug>/`.
-   See `phases/1-capture.md`.
+   set up the project folder under
+   `<projectsDir>/<NNN>-<slug>/`. See `phases/1-capture.md`.
 
 2. **Analyze** — structural map of the page; identify header/footer
    boundaries, section list, slot opportunities, head-level links to

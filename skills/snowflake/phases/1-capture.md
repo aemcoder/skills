@@ -12,13 +12,23 @@ project folder so the rest of the run is self-contained.
 If any are missing, ask the user and write them into state.json
 (see below) before doing any fetches.
 
+## Project folder location
+
+Resolve where projects live. Default is `.snowflake/projects/`, but
+the repo may override via `.snowflake/config.json` `projectsDir`:
+
+```bash
+cd "$(git rev-parse --show-toplevel)"
+PROJECTS_DIR=$(jq -r '.projectsDir // ".snowflake/projects"' \
+  .snowflake/config.json 2>/dev/null || echo ".snowflake/projects")
+mkdir -p "$PROJECTS_DIR"
+```
+
 ## State file
 
 Compute the project number `NNN`:
 ```bash
-cd "$(git rev-parse --show-toplevel)"
-mkdir -p experiments/projects
-NNN=$(ls experiments/projects 2>/dev/null \
+NNN=$(ls "$PROJECTS_DIR" 2>/dev/null \
   | grep -E '^[0-9]+-' \
   | sed -E 's/^([0-9]+)-.*/\1/' \
   | sort -n | tail -1)
@@ -29,7 +39,7 @@ Derive a `slug` from the source URL (kebab-case, ≤30 chars, no
 spaces). For `https://example.com/products/promo` use `example-com-promo`
 or similar — ask the user if ambiguous.
 
-Project folder: `experiments/projects/<NNN>-<slug>/`. Create:
+Project folder: `${PROJECTS_DIR}/<NNN>-<slug>/`. Create:
 ```
 input/        ← source HTML + external assets
 output/       ← (created in Generate)
@@ -61,7 +71,8 @@ slug isn't already a good template name.
 ## Fetch the source
 
 ```bash
-curl -fsS "$SOURCE_URL" -o "experiments/projects/${NNN}-${SLUG}/input/index.html"
+PROJ="${PROJECTS_DIR}/${NNN}-${SLUG}"
+curl -fsS "$SOURCE_URL" -o "${PROJ}/input/index.html"
 ```
 
 Validate: file size > 0, response was HTML (look for `<!doctype html`
@@ -82,7 +93,7 @@ Local/same-host external assets are saved so the project is self-
 contained.
 
 ```bash
-INPUT="experiments/projects/${NNN}-${SLUG}/input"
+INPUT="${PROJ}/input"
 # Extract candidate external assets
 grep -oE '<(link|script)[^>]*(href|src)="[^"]+"' "$INPUT/index.html" \
   | grep -oE '(href|src)="[^"]+"' \

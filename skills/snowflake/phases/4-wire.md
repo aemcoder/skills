@@ -9,7 +9,7 @@ Run from the target repo's root:
 
 ```bash
 cd "$(git rev-parse --show-toplevel)"
-PROJ="experiments/projects/${NNN}-${SLUG}"
+PROJ="${PROJECTS_DIR}/${NNN}-${SLUG}"
 
 # 1) Copy artifacts to deployed paths
 mkdir -p "fragments/${TEMPLATE_NAME}"

@@ -11,7 +11,7 @@ making decisions.** Don't re-derive things that are documented.
 
 ## What to inspect in the source
 
-For the HTML at `experiments/projects/<NNN>-<slug>/input/index.html`:
+For the HTML at `<projectsDir>/<NNN>-<slug>/input/index.html`:
 
 1. **Header boundary** — everything from `<body>` start until the
    first content section. Often broader than just `<header>`:

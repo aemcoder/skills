@@ -1,0 +1,40 @@
+/*
+ * Minimal EDS lifecycle CSS for overlay-driven pages.
+ * The bulk of styling lives in /styles/<template>.css, loaded
+ * dynamically by the overlay engine after it resolves the template
+ * name. Boilerplate typography/button/icon styles were removed
+ * because each template carries its own design system inline.
+ */
+
+body {
+  display: none;
+}
+
+body.appear {
+  display: block;
+}
+
+/* Section visibility lifecycle used by aem.js decorateSections when
+   running on non-overlay pages. Harmless on overlay pages because the
+   overlay skips decorateSections entirely. */
+main .section[data-section-status="loading"],
+main .section[data-section-status="initialized"] {
+  display: none;
+}
+
+/* Header/footer block visibility flag from aem.js block lifecycle.
+   Allows the empty <header>/<footer> placeholders to stay invisible
+   until our static fragments are fetched and injected.
+   Uses direct-child (>) so we only target the EDS block wrapper —
+   NOT any nested .header / .footer elements the fetched fragment
+   might contain (Patagonia, run #003, had <header class="header">
+   inside the wrapper and the descendant selector hid it). */
+header > .header,
+footer > .footer {
+  visibility: hidden;
+}
+
+header > .header[data-block-status="loaded"],
+footer > .footer[data-block-status="loaded"] {
+  visibility: visible;
+}
