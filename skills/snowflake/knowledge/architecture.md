@@ -1,0 +1,242 @@
+# Architecture — Static-to-EDS Overlay
+
+Status: **validated end-to-end by run #001 (Semrush home, cinematic
+Stardust variant).** Structural and visible-text DOM equivalence
+confirmed: 885/885 elements in identical order, all visible text
+byte-identical. Update this file as further experiments confirm,
+refute, or refine each piece.
+
+## Problem statement
+
+AI codegen tools (Stardust, Mobirise, Relume, Lovable, v0, etc.) produce
+polished static HTML+CSS+JS sites. They are great for launch but painful
+for non-technical authors to update. We want to keep the generated DOM
+exactly as-is while making the editable parts (texts and images)
+authorable in Document Authoring.
+
+Constraint: this must work for arbitrary static input, not one specific
+generator's output.
+
+## Solution shape
+
+Every artifact is **template-keyed** so multiple runs coexist in
+one EDS repo without colliding (refactor done on
+[sf-overlay-exp-002](../projects/) branch).
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│  ONE-TIME CONVERTER  (per static page → five kinds of artifact)      │
+│                                                                      │
+│  static page.html ─┬─► /fragments/<template>/header.html  (code bus) │
+│                    ├─► /fragments/<template>/footer.html  (code bus) │
+│                    ├─► /templates/<template>.html         (code bus) │
+│                    │     ↳ original <main> with [data-slot]          │
+│                    │       markers where texts and images sat        │
+│                    ├─► /styles/<template>.css             (code bus) │
+│                    ├─► /scripts/<template>-animations.js  (optional) │
+│                    └─► DA doc (pushed via admin API)                 │
+│                          ↳ divs-with-class shape, body fragment      │
+│                          ↳ one <div class="blockname"> per block     │
+│                          ↳ rows: slot-name | value (paired divs)     │
+│                          ↳ <div class="metadata"> in <main> for       │
+│                            template/title/og:* meta tags              │
+└──────────────────────────────────────────────────────────────────────┘
+
+                      AT REQUEST TIME (browser)
+
+  GET /<path>  →  pipeline serves DA-stored body (divs-with-class)
+                  with <meta name="template"> populated from the
+                  Metadata block
+                       │
+                       ▼
+       scripts.js loadEager — overlay step:
+         1. resolveTemplateName():
+              <meta name="template"> || body[data-template] || null
+         2. readBlockSlots(main): walk DA-shape divs →
+              { blockClassName: { slotName: html, ... } }
+         3. start loadCSS('/styles/<template>.css') and
+            fetch('/templates/<template>.html') in parallel
+         4. applySlotsToTemplate(newMain, slots): for each
+              section[class], find [data-slot] elements and
+              writeSlot() with element-typed semantics
+              (text→innerHTML, img→src/alt, a→href+innerHTML)
+         5. main.innerHTML = newMain.innerHTML
+         6. main.dataset.overlay = templateName  ← sentinel
+         7. await cssLoaded
+         8. body.appear → first paint
+                       │
+                       ▼
+       loadLazy:
+         - blocks/header/header.js reads main.dataset.overlay,
+           fetches /fragments/<template>/header.html
+         - blocks/footer/footer.js — same for footer
+         - main.dataset.overlay set → skip standard loadSections
+                       │
+                       ▼
+       loadDelayed:
+         - if main.dataset.overlay set: load CDN motion deps in
+           parallel (Promise.allSettled), then attempt
+           /scripts/<template>-animations.js (404 is silent —
+           templates without animations don't need it)
+                       │
+                       ▼
+       Final rendered DOM == original static page DOM ✅
+```
+
+## Path conventions
+
+| Artifact                | Path                                          |
+|-------------------------|-----------------------------------------------|
+| Template HTML           | `/templates/<template>.html`                  |
+| Page-scoped CSS         | `/styles/<template>.css`                      |
+| Header fragment         | `/fragments/<template>/header.html`           |
+| Footer fragment         | `/fragments/<template>/footer.html`           |
+| Animation engine        | `/scripts/<template>-animations.js`           |
+| Local test (drafts)     | `/drafts/<page-slug>.html` (post-pipeline shape) |
+| DA content              | `/<da-root>/<page-slug>.html`                 |
+
+Nothing in `head.html` references a specific template anymore. The
+overlay engine resolves the template at runtime and loads everything
+scoped under that name.
+
+## Where decisions live
+
+| Decision                     | Who decides         | Encoded as                          |
+|------------------------------|---------------------|-------------------------------------|
+| Which template a page uses   | Author (via DA)     | `<meta name="template">` in DA doc  |
+| Page structure / classes     | Original generator  | `/templates/<template>.html`        |
+| Header & footer markup       | Original generator  | `/fragments/<template>/header.html` |
+| Editable text/image values   | Author              | DA block-table rows                 |
+| Block grouping (semantics)   | Converter (LLM)     | `<div class="blockname">` in DA     |
+| Slot naming                  | Converter (LLM)     | `data-slot` in template, row key    |
+
+## Why this shape
+
+- **EDS-native.** Templates and fragments are plain HTML files served by
+  the code bus. No build step, no edge worker, no extra infra.
+- **Single hook point.** Everything custom happens inside `loadEager`,
+  before `body.appear` flips. EDS's body-hidden-until-`appear`
+  invariant gives us a free no-flicker window. (Verified run #001.)
+- **EDS decoration is bypassed on overlay main**, not interleaved with
+  it. Standard `decorateSections` / `decorateBlocks` assume an
+  EDS-shape main (`main > div > div.classname`) and would mis-decorate
+  our template (`main > section.classname`). The overlay sets
+  `main.dataset.overlay = <name>` as the sentinel; `loadEager` /
+  `loadLazy` skip EDS decoration when it's present.
+- **Header/footer fragments are raw HTML, fetched directly.** The
+  block decorators in `blocks/header/header.js` and
+  `blocks/footer/footer.js` were rewritten to `fetch` the static
+  fragment and inject it (no DA-shaped table parsing).
+- **Cleanly portable to edge.** If we later want `curl` and view-source
+  to match the original DOM too, the same merge function moves into a
+  Cloudflare worker / pipeline transform with minimal change.
+
+## DOM-equality contract
+
+For the experiment phase: equality is checked **on the rendered DOM
+after `loadEager` completes**, not on the initial HTML response.
+EDS hides `<body>` until decoration completes, so users see no
+intermediate state; humans rendering the page get pixel-perfect
+parity; only `curl` / view-source see the EDS-flavored HTML, which is
+acceptable for the experiment.
+
+If a future requirement demands raw-HTML parity (SEO crawlers without
+JS, view-source inspection workflows, etc.), promote to a
+publish-time / edge-merge implementation. The merge logic is identical.
+
+## Slot semantics
+
+Five writer cases in `writeSlot()` (dispatch by target element).
+Each branch returns early; cases are checked in this order:
+
+- **Image slots**: `[data-slot]` on `<img>`. Runtime parses an
+  `<img>` from the cell value and copies its `src`/`alt`.
+  (Verified run #001.)
+- **Picture slots**: `[data-slot]` on `<picture>`. Runtime parses
+  a `<picture>` from the cell and replaces the template element
+  entirely with it. (Verified run #001.)
+- **Link slots**: `[data-slot]` on `<a>`. Runtime parses an `<a>`
+  from the cell and copies `href` + `innerHTML`. Falls back to
+  setting `innerHTML = value` if the cell has no `<a>`.
+  (Verified run #001.)
+- **Background-image slots** (added run #004): `[data-slot]` on
+  any element with an inline `style="background-image:url(…)"`.
+  Runtime parses an `<img>` from the cell, extracts its `src`,
+  and writes it back into `el.style.backgroundImage`, preserving
+  any other inline styles on the element. Use for CSS-driven
+  photos without restructuring source markup. Bonus: EDS Media
+  Bus rewrites the `<img>` URLs in DA cells to optimised paths
+  (`./media_<sha>.jpg?width=…&format=…&optimize=…`), so overlay
+  pages get image optimisation for free.
+- **Text slots** (default fall-through): any other element with
+  `[data-slot]`. Runtime sets `el.innerHTML = value`. Preserves
+  inline HTML the pipeline keeps (`<strong>`/`<em>`/`<a>`/`<img>`/
+  `<picture>`/`<h*>`/`<p>`); avoid `<b>`/`<i>`/`<u>`/`<mark>`/
+  `<br>`/`<span class>` per the preserve-list rules in
+  `methodology.md` Generate phase.
+
+- **`data-slot-skip="placeholder"`**: not a slot. Used to mark
+  generator-emitted placeholder UIs (e.g. Stardust 0.3.0's
+  `data-placeholder="true"` elements, 0.2.0's
+  `<span class="placeholder-tag">` markers) that should stay
+  visible in the rendered DOM but never appear as authorable
+  rows in DA.
+
+## Repeating items
+
+Run #001 used **flat indexed slot names** for repeating children:
+`card-1.label`, `card-1.tagline`, `card-2.label`, `card-2.tagline`,
+etc. This works but doesn't let authors add/remove items.
+
+**Open question:** is a repeating-table pattern worth it? Probably
+yes when:
+- the section has structurally identical items (e.g. stat cards)
+- authors are expected to actually add/remove (not just edit copy)
+
+Run #001 had only one block where this would have mattered
+(`stories-carousel` — 11 testimonials, of which Stardust marked
+10 as placeholders, so only 1 was authored anyway). Reconsider in
+run #2 with a page where real repetition exists.
+
+## Resolved design questions (from initial draft)
+
+1. **Slot granularity** — only text in headings/paragraphs/buttons/
+   links + `<img>`/`<picture>`. `aria-label`, `title`, `alt` deferred
+   (might become per-attribute slots in run #2). Form-input
+   placeholders deferred.
+2. **Block boundary detection** — for run #001 the LLM used semantic
+   `<section>` tags as boundaries (this input was richly tagged).
+   Run #2 needs a less-tagged input to validate genuine LLM
+   segmentation.
+3. **Repeated structures** — flat indexed naming for now. Repeating
+   tables to be revisited (see above).
+4. **Slot uniqueness** — block-scoped, no namespacing. Same slot name
+   ("title", "eyebrow") appears in multiple blocks; the runtime
+   matches by `section[class]` first, then `[data-slot]` within.
+5. **Asset handling** — not exercised in run #001 (input only had
+   placeholder image cards). To be answered in a run with real
+   images.
+6. **CSS strategy** — extracted the original inline `<style>` to a
+   separate file (`/styles/home.css`), referenced from `head.html`.
+   Working hypothesis: per-template CSS file is right.
+7. **Multi-page sites** — not exercised yet.
+8. **`<head>` content** — extracted to `head.html` (CSP, viewport,
+   our scripts), plus DA metadata via `<meta>` tags converted from
+   the Metadata block table.
+
+## Update log
+
+- **2026-05-18** (post-run-#001 prod-debug + refactor for run #002) —
+  refactored all hardcoded asset paths to be template-keyed
+  (`/fragments/<template>/...`, `/scripts/<template>-animations.js`,
+  CSS loaded dynamically by the overlay engine instead of from
+  `head.html`). Pipeline gotchas surfaced and documented:
+  DA-source tables don't auto-convert to div-with-class; footer
+  Metadata table is ignored, must be a `<div class="metadata">`
+  block in `<main>`; inline `<span class="...">` is stripped.
+- **2026-05-14** (run #001 reflect) — validated overlay-runs-and-EDS-
+  decoration-is-skipped pattern. Updated diagram and "Why this
+  shape." Added Slot semantics section. Documented per-`<style>`-block
+  CSS extraction approach. Several design questions resolved.
+- *(initial draft, pre-run)* — design sketched from EDS + DA docs and
+  reading the boilerplate `scripts.js` / `aem.js`. Nothing validated.

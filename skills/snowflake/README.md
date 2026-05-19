@@ -1,0 +1,100 @@
+# snowflake
+
+A skill for converting AI-generated static HTML pages (Stardust,
+Mobirise, Relume, Lovable, v0, Figma-derived hand-coded, etc.) into
+Adobe Edge Delivery Services pages using the **overlay pattern**.
+
+The overlay pattern preserves the original DOM byte-for-byte. Only
+the text and image content becomes authorable in Document Authoring.
+Header and footer remain static repository fragments. The page CSS
+and any animation JavaScript ship per-template under the EDS code
+bus.
+
+This skill encodes the 6-phase methodology distilled from 5 R&D
+iterations against varied generator outputs and bespoke pages.
+
+## What's included
+
+```
+skills/snowflake/
+├── SKILL.md                       Entry point (agent reads first)
+├── phases/
+│   ├── 1-capture.md
+│   ├── 2-analyze.md
+│   ├── 3-generate.md
+│   ├── 4-wire.md
+│   ├── 5-roundtrip.md
+│   └── 6-reflect.md
+├── knowledge/
+│   ├── methodology.md             Canonical phase rules
+│   ├── architecture.md            Overlay engine + slot writer reference
+│   ├── eds-da-mechanics.md        EDS pipeline + DA admin API reference
+│   └── learnings.md               Cross-project findings (5 runs)
+├── scripts/
+│   └── transform-da-to-eds.mjs    DA divs-with-class → drafts HTML
+├── examples/
+│   └── README.md                  Pointers to worked examples
+├── HOST-NOTES.md                  Per-host adapter notes (Slicc, Claude Code, generic shell)
+└── README.md                      You are here
+```
+
+## Prerequisites
+
+The target EDS repo must already have the **overlay substrate** in
+place: `scripts/scripts.js` with `applyTemplateOverlay`, the
+`writeSlot` slot writers, the `decorateMain` skip path for overlay
+pages, and the `blocks/header/header.js` / `blocks/footer/footer.js`
+fetch decorators. See `knowledge/architecture.md` §"Solution shape".
+
+If the substrate isn't there, the skill won't help — install it
+first. (A future skill could bootstrap the substrate; not in this
+version.)
+
+## Limitations of v1
+
+This is the minimum-viable version. It runs the 6 phases
+sequentially, no parallel fan-out at Generate. Future-work items
+identified in `aemcoder/snowflake`'s run #005 timing report:
+
+- Subagent fan-out at Generate (~4-6 min wall-clock savings)
+- Generate-time validators (catches nested `[data-slot]` and
+  non-absolute DA cell `<img>` URLs before round-trip)
+- Spec-mode Analyze (structured `decisions.json` schema validation)
+- Round-trip failure-triage subagent (Opus + extended thinking)
+
+These are tracked separately.
+
+## Installation
+
+See `HOST-NOTES.md` for the install command and configuration per
+host (Slicc, Claude Code, generic shell).
+
+## Contributing
+
+The methodology and learnings in `knowledge/` are deliberately
+bundled with the skill, not referenced from external sources. This
+keeps the skill portable and stable.
+
+Users running snowflake against new sources accumulate
+project-specific learnings in their own repos (under
+`experiments/projects/NNN-<slug>/learnings.md` and their repo's
+`experiments/knowledge/learnings.md`). When a finding is generic
+enough to benefit other snowflake users — a new pipeline behavior,
+a new slot writer pattern, a class of bug worth catching — please
+raise a PR to this skill repo with the finding promoted into
+`knowledge/learnings.md` (and any corresponding rule into
+`knowledge/methodology.md`).
+
+The convention from `aemcoder/snowflake`: cross-project findings
+are dated `## YYYY-MM-DD — short title` at the top of
+`learnings.md`. Each entry has Context + (optional) Visible symptom
++ Fix + Generic rule.
+
+## Status
+
+**v1 — minimum viable.** Bundles the methodology and architecture
+distilled across 5 runs. Single-sequence (no parallelism). Designed
+to run on any host that provides bash + node + git + curl +
+playwright-cli.
+
+Open this skill's roadmap and known issues in the upstream PR.
