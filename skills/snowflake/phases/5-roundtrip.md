@@ -94,6 +94,48 @@ done
 kill $DEV_PID 2>/dev/null || true
 ```
 
+## 5.1.1 — DOM-equality check (local)
+
+After the structural checks and screenshots pass, run a deterministic
+DOM comparison between the original source and the rendered overlay.
+This is what makes the "1:1 with the source" claim auditable rather
+than something we take on faith.
+
+```bash
+node "<SKILL_DIR>/scripts/dom-equality.mjs" \
+  --source        "$SOURCE_URL" \
+  --rendered      "http://localhost:3000/drafts/${TEMPLATE_NAME}-${PAGE_SLUG}.html" \
+  --report        "$PROJ/diff/dom-equality-local.md" \
+  --source-scope  body \
+  --rendered-scope body
+```
+
+(Use `--scope body` shorthand if the source and rendered share the
+same scope. Use separate flags when they don't — the source may
+lack a `<main>` while the rendered template synthesizes one.)
+
+The script captures four dimensions on each page (after waiting for
+the overlay engine to apply on the rendered side):
+- Element count
+- Tag+class sequence (positional)
+- Visible text (whitespace-normalised)
+- Image src list (Media Bus rewrites are normalised — `./media_<sha>.<ext>`
+  is expected, not a regression)
+
+Output is a markdown report. Exit 0 on PASS, 1 on FAIL.
+
+**Interpreting the report:**
+- **PASS** — overlay is 1:1 with the source. Move on.
+- **FAIL** with small deltas — usually expected wrapper-element diffs
+  (EDS injects `<header class="header-wrapper">` around the fetched
+  header fragment; the substrate synthesizes `<main>` if the source
+  lacks one; dev-tool markup gets stripped). Compare to a known-good
+  prior run as a baseline.
+- **FAIL** with large deltas, or a first-divergence inside a slot
+  block — investigate. The first divergence in tagSequence and the
+  first-divergent-character in visibleText are usually the smoking
+  gun.
+
 ## 5.2 — Production round-trip
 
 This produces a feature-branch preview URL that loads the deployed
@@ -241,6 +283,28 @@ Expect:
 
 Capture screenshots into `${PROJECTS_DIR}/${NNN}-${SLUG}/diff/`
 with a `production-` prefix.
+
+### 5.2.5.1 — DOM-equality check (production)
+
+Same comparison as 5.1.1, but against the production preview URL.
+On production, Media Bus rewrites `<img>` URLs in DA-cell content;
+the script normalises those (`./media_<sha>.<ext>` matches any
+source path).
+
+```bash
+node "<SKILL_DIR>/scripts/dom-equality.mjs" \
+  --source        "$SOURCE_URL" \
+  --rendered      "$PAGE" \
+  --report        "$PROJ/diff/dom-equality-production.md" \
+  --source-scope  body \
+  --rendered-scope body
+```
+
+Compare against the local report from 5.1.1 — the two should produce
+the same shape of differences. Production-only differences usually
+mean Code Sync timing (template/CSS not yet served), a Media Bus
+URL that escaped normalisation, or font CORS on a cross-origin
+source.
 
 ### 5.2.6 — If something is broken
 

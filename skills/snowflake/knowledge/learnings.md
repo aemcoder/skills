@@ -16,6 +16,146 @@ Categories to look for as the list grows:
 
 ---
 
+## 2026-05-19 — substrate `footer > .footer { visibility: hidden }` leaks into fragment inner divs
+
+The substrate lifecycle CSS uses `footer > .footer { visibility: hidden }` to hide
+the EDS footer block wrapper until JS decoration completes. The selector is
+`footer > .footer` — a direct-child combinator.
+
+**The leak:** When a footer FRAGMENT uses `<footer>` as its root element (a
+common pattern — the source page's `<footer>` tag is preserved verbatim in the
+fragment), the DOM structure becomes:
+
+```html
+<footer>                          <!-- EDS landmark -->
+  <div class="footer block">      <!-- EDS wrapper, matched by footer > .footer -->
+    <footer>                      <!-- fragment root, also a <footer> element -->
+      <div class="footer">        <!-- inner nav div, matched by footer > .footer ! -->
+```
+
+The inner `<div class="footer">` is a direct child of the fragment's `<footer>`
+element. That `<footer>` element is itself a `<footer>` tag. So `footer > .footer`
+ALSO matches the inner nav div, making it `visibility: hidden` permanently (it
+has no `data-block-status` attribute to trigger the override rule).
+
+**Visual symptom:** Footer navigation columns are invisible. The legal text / copyright
+row (if not a `.footer` element) is visible. Structurally the DOM is complete.
+
+**Fix in page CSS:** Add `visibility: visible` to the scoped inner-nav rule:
+```css
+footer[data-section="footer"] > .footer {
+  visibility: visible; /* counteract substrate footer > .footer { visibility: hidden } */
+  ...
+}
+```
+
+**Substrate fix (recommended):** Change the substrate rule from
+`footer > .footer { visibility: hidden }` to
+`footer > .footer.block { visibility: hidden }`.
+The `.block` qualifier limits it to EDS block wrappers only, which is the intent.
+
+Observed: polestar-a (footer nav entirely invisible without this fix).
+
+---
+
+## 2026-05-19 — `writeSlot()` heading-in-heading nesting creates empty DOM elements
+
+When a DA cell value contains a heading element (`<h2>text</h2>`) and the
+template slot target is also a heading (`<h2 data-slot="title">`), calling
+`el.innerHTML = value` causes the browser's HTML parser to auto-close the
+outer `<h2>` before opening the inner one. Result: an empty `<h2>` in the
+rendered DOM, followed by the authored heading outside the template hierarchy.
+
+**Visual symptom:** Empty `<h2>` elements appear in the DOM with no content.
+Accessibility tree is polluted. Layout may shift.
+
+**Fix in `writeSlot()`:** Detect when target is a heading element and value
+contains a same-tag heading; unwrap inner heading content:
+```js
+if (/^H[1-6]$/.test(el.tagName)) {
+  const tmp = document.createElement('div');
+  tmp.innerHTML = value;
+  const inner = tmp.querySelector(el.tagName.toLowerCase());
+  el.innerHTML = inner ? inner.innerHTML : value;
+  return;
+}
+```
+
+Observed: lovesac-a (4 empty headings in DOM from slot values that contained
+`<h2>` elements as wrappers around the authored text).
+
+---
+
+## 2026-05-19 — Inner CSS class repeated as section first-class collides with layout rules (5 occurrences)
+
+The CSS class collision pattern from heathrow run-001 (`phases`/`phased-expansion`)
+recurred 4 more times in the batch run. Pattern:
+
+1. Source has `<section class="ugc-grid section">` (Glossier)
+2. CSS has `.ugc-grid { display: grid; grid-template-columns: repeat(3,1fr) }`
+3. Grid applies to outer section → inner div gets 1-column width → content collapses
+
+Affected pages and their collision classes:
+| Page | Collision class | Fix |
+|---|---|---|
+| heathrow | `phases` | → `phased-expansion` |
+| glossier | `ugc-grid` | → `ugc` |
+| aman | `audience-grid` | → `section` (removed first-class) |
+| lovesac | `lifestyle-grid` | → removed from section |
+
+**The rule MUST be enforced during the Analyze phase:** For every candidate
+section first-class, grep the page CSS for that class name. If it appears as a
+CSS selector with layout properties (display, grid, flex, width, height,
+visibility), it CANNOT be the section first-class. Choose a different
+discriminator.
+
+This is now the **most common single source of post-conversion layout bugs**.
+It should be added to the Generate phase self-check (step 3.9) as:
+
+```bash
+# 6) No section first-class appears as a CSS selector with layout properties
+for cls in $(grep -oE 'class="[^"]+' output/templates/<tpl>.html \
+  | grep '<section' | awk '{print $1}'); do
+  grep -q "\.${cls}[[:space:]]*{" output/styles/<tpl>.css \
+    && echo "COLLISION: $cls appears in CSS — rename section first-class"
+done
+```
+
+---
+
+## 2026-05-19 — DA block class must exactly match template section's first class (including vendor prefix)
+
+The overlay engine's `readBlockSlots` keys slots by `block.className.split(/\s+/)[0]` from
+the DA post-pipeline HTML. `applySlotsToTemplate` matches by
+`section.className.split(/\s+/)[0]` from the template. If the source uses prefixed
+class names (e.g. Lemonade's `ds-hero`, `ds-valueprops`), the DA block div's class must
+carry that same prefix — not a stripped form like `hero`.
+
+**Concrete failure:** DA block `<div class="hero">` + template `<section class="ds-hero">` →
+no match → slots silently not applied, template defaults displayed for all slots in that section.
+
+**Fix:** Derive DA block class names from the template section's actual first class, not
+from the block's semantic label or the `data-section` attribute.
+
+## 2026-05-19 — DA Media Bus rejects SVGs over ~40KB during preview POST (409)
+
+The DA pipeline validates SVG sizes when converting DA HTML to Markdown at `POST preview`
+time. SVGs over ~40KB cause a 409 `AEM_BACKEND_FETCH_FAILED` with "Images N have failed
+validation". This is enforced even for publicly-reachable images.
+
+**Asymmetry:** Template/fragment HTML fetches SVGs via the browser directly — no size cap.
+DA cell `<img>` SVG references go through Media Bus html2md conversion — 40KB cap applies.
+
+**Lemonade example sizes that failed:** home-left (45KB), home-right (76KB), press logos
+(251KB), bundle card illustrations (81–158KB), pizza diagram (176KB).
+
+**Fix:** Omit over-limit SVG image slots from the DA doc. The template default values
+display those images at runtime (browser fetches SVG directly from CDN, no cap). Only
+include DA image slots for SVGs under 40KB and for any PNG/WEBP/AVIF images.
+
+**Pre-flight check to add:** During Analyze phase, for each image slot candidate, HEAD the
+URL and note content-length. Flag any SVG ≥ 40KB as "template-default-only" in decisions.json.
+
 ## 2026-05-19 — Don't put `data-slot` on a container that has nested `data-slot` children
 
 The slot writer for every element type (`<a>`, `<picture>`, default

@@ -103,6 +103,7 @@ substrate/
 install-substrate.mjs          ← idempotent substrate installer (used by phase 0)
 scripts/
   transform-da-to-eds.mjs      ← Node script: DA divs-with-class → drafts HTML
+  dom-equality.mjs             ← Node script: compare source vs rendered DOM
 examples/
   README.md                    ← pointers to worked examples (closed iterations)
 HOST-NOTES.md                  ← per-host adapter notes (not loaded by agent)

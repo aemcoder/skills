@@ -98,8 +98,9 @@ MINUS `<script>` tags and any stripped dev-tool markup. Save as
 
 Concatenate the source's inline `<style>` blocks (line ranges in
 `decisions.json["inlineStyleLines"]`) into a single file at
-`styles/<template>.css`. Apply asset path rewrites to any
-`url(...)` references inside.
+`styles/<template>.css`. **Strip the `<style>` and `</style>`
+wrapper lines — emit only the inner content.** Apply asset path
+rewrites to any `url(...)` references inside.
 
 If `decisions.json["externalLibs"][i].strategy === "vendor"` and the
 lib includes a CSS file: copy it to
@@ -230,6 +231,18 @@ grep -cE "<table|<span class|<br>|<b>|<i>|<u>|<mark>" "$PROJ/output/da/"*.html
 # 5) DA cell <img> URLs are absolute
 grep -oE "<img[^>]*src=\"[^\"]+\"" "$PROJ/output/da/"*.html \
   | grep -vE "src=\"https?://" && echo "FAIL: non-absolute DA img" || echo "OK"
+
+# 6) No section first-class collides with a CSS layout rule
+#    This is the most common post-conversion layout bug — inner CSS class
+#    used as section first-class picks up grid/flex rules meant for inner div.
+grep -oE 'class="[^"]*"' "$PROJ/output/templates/"*.html \
+  | grep -oE '^[a-z][a-z0-9-]+' \
+  | sort -u \
+  | while IFS= read -r cls; do
+      if grep -qE "\.${cls}[[:space:]]*\{" "$PROJ/output/styles/"*.css 2>/dev/null; then
+        echo "WARN: section first-class '$cls' appears as CSS selector — verify no layout collision"
+      fi
+    done || echo "OK: no first-class CSS collisions detected"
 ```
 
 ## Update state and finish

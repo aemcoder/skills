@@ -31,7 +31,8 @@ skills/snowflake/
 │   ├── eds-da-mechanics.md        EDS pipeline + DA admin API reference
 │   └── learnings.md               Cross-project findings (5 runs)
 ├── scripts/
-│   └── transform-da-to-eds.mjs    DA divs-with-class → drafts HTML
+│   ├── transform-da-to-eds.mjs    DA divs-with-class → drafts HTML
+│   └── dom-equality.mjs           Source vs rendered DOM comparison
 ├── examples/
 │   └── README.md                  Pointers to worked examples
 ├── HOST-NOTES.md                  Per-host adapter notes (Slicc, Claude Code, generic shell)
