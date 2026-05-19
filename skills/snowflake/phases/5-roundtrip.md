@@ -9,6 +9,16 @@ If a condition appears that suggests skipping (e.g. local-only
 source assets, perceived blockers), surface it to the user as a
 question — don't decide unilaterally.
 
+## Knowledge to load
+
+Round-trip failures often map to known gotchas. Before driving the
+browser, skim (using the override-then-bundled resolution from
+`SKILL.md`):
+- `learnings.md` — the entries on Media Bus URL handling, CORS for
+  fonts, scroll-animation screenshot quirks, asset hosting modes
+- `eds-da-mechanics.md` — for the pipeline shape and admin API
+  details if you need to dig into a failure
+
 ## 5.1 — Local round-trip
 
 ```bash
@@ -92,11 +102,11 @@ artifacts from code-bus and the DA-stored content from content-bus.
 ### 5.2.1 — Create the run branch
 
 The branch name is `${BRANCH_PREFIX}${NNN}` where `BRANCH_PREFIX`
-comes from `.snowflake/config.json` (default: `snowflake/`):
+comes from `.snowflake/config.json` (default: `snowflake-`):
 
 ```bash
-BRANCH_PREFIX=$(jq -r '.branchPrefix // "snowflake/"' \
-  .snowflake/config.json 2>/dev/null || echo "snowflake/")
+BRANCH_PREFIX=$(jq -r '.branchPrefix // "snowflake-"' \
+  .snowflake/config.json 2>/dev/null || echo "snowflake-")
 BRANCH="${BRANCH_PREFIX}${NNN}"
 
 git checkout -b "$BRANCH"
@@ -116,6 +126,14 @@ git add \
 git commit -m "snowflake #${NNN} — ${SLUG} overlay"
 git push -u origin "$BRANCH"
 ```
+
+The default `snowflake-` (hyphen) keeps the branch name identical
+to the aem.page hostname segment and the admin.hlx.page URL
+segment — no encoding gymnastics. If your repo uses a slash-style
+convention (`snowflake/001`), set `branchPrefix` accordingly in
+`.snowflake/config.json`; you'll then need to translate slashes
+to dashes when constructing the aem.page hostname (AEM Code Sync
+flattens slashes). See the note at 5.2.3.
 
 ### 5.2.2 — Push DA doc
 
@@ -143,31 +161,34 @@ Expected response: JSON with `previewUrl` field.
 ### 5.2.3 — Trigger preview
 
 ```bash
-# admin.hlx.page expects a branch-name component; we strip a trailing
-# "/" from BRANCH_PREFIX so "snowflake/" + "001" sits under the
-# branch's URL host as a single segment.
-BRANCH_URL_SAFE=$(echo "$BRANCH" | tr '/' '-')
-
 curl -X POST -H "Authorization: Bearer $TOKEN" \
-  "https://admin.hlx.page/preview/${OWNER}/${REPO}/${BRANCH_URL_SAFE}/${DA_ROOT#/}/${PAGE_SLUG}"
+  "https://admin.hlx.page/preview/${OWNER}/${REPO}/${BRANCH}/${DA_ROOT#/}/${PAGE_SLUG}"
 ```
 
 Expected: HTTP 200 with JSON containing `preview.status: 200` and a
 `preview.url` matching
-`https://${BRANCH_URL_SAFE}--${REPO}--${OWNER}.aem.page/${DA_ROOT}/${PAGE_SLUG}`.
+`https://${BRANCH}--${REPO}--${OWNER}.aem.page/${DA_ROOT}/${PAGE_SLUG}`.
 
-**Note on branch naming and aem.page hosts.** AEM Code Sync resolves
-the branch host by replacing `/` in branch names with `-` in the
-hostname. So a branch `snowflake/001` is served at
-`snowflake-001--<repo>--<owner>.aem.page`. The `BRANCH_URL_SAFE`
-substitution above does that translation.
+**Branch names with slashes.** AEM Code Sync flattens `/` to `-` in
+the aem.page hostname (so a branch `feature/001` is served at
+`feature-001--<repo>--<owner>.aem.page`) but expects the literal
+branch in the admin.hlx.page URL. If you've configured a slash-style
+`branchPrefix`, compute both forms:
+
+```bash
+BRANCH_HOST=$(echo "$BRANCH" | tr '/' '-')   # for aem.page hostname
+# $BRANCH (literal) for admin.hlx.page URL
+```
+
+…and substitute accordingly below. The default `branchPrefix` uses
+a hyphen so no translation is needed.
 
 ### 5.2.4 — Wait for code-bus to deploy
 
 Code Sync usually takes a few seconds:
 
 ```bash
-PROD_BASE="https://${BRANCH_URL_SAFE}--${REPO}--${OWNER}.aem.page"
+PROD_BASE="https://${BRANCH}--${REPO}--${OWNER}.aem.page"
 for i in $(seq 1 30); do
   code=$(curl -s -o /dev/null -w "%{http_code}" "$PROD_BASE/templates/${TEMPLATE_NAME}.html")
   [ "$code" = "200" ] && break

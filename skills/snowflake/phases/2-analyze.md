@@ -5,9 +5,17 @@ needs. Decisions are written as both human prose (in `notes.md`) and
 a machine-readable artifact (`decisions.json`) — Generate reads the
 latter so it doesn't have to re-parse the prose.
 
-**Read `<SKILL_DIR>/knowledge/methodology.md` §2 (Analyze) and
-relevant entries from `<SKILL_DIR>/knowledge/learnings.md` before
-making decisions.** Don't re-derive things that are documented.
+## Knowledge to load
+
+Before making decisions, load (using the override-then-bundled
+resolution from `SKILL.md`):
+- `methodology.md` §2 (Analyze) — the canonical rules
+- `learnings.md` — at minimum skim for entries about structural
+  patterns, generator-specific quirks, and known disambiguator rules
+
+Resolution: check `.snowflake/knowledge/<file>.md` first (project
+override), then `<SKILL_DIR>/knowledge/<file>.md` (bundled).
+Don't re-derive things that are documented.
 
 ## What to inspect in the source
 

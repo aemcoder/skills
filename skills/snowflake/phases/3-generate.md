@@ -3,15 +3,21 @@
 Goal: produce the 5 deployable artifacts and the DA-source body
 fragment, written to the project's `output/` folder.
 
-**Before writing anything, re-read**:
-- `<SKILL_DIR>/knowledge/methodology.md` §3 (Generate) — the
-  authoritative rules
-- `<SKILL_DIR>/knowledge/architecture.md` §"Slot semantics" — all
-  five slot writer cases the engine supports
-- `<SKILL_DIR>/knowledge/learnings.md` — at minimum the entries for
-  "container vs. children", "Media Bus absolute URLs", "`<br>`
-  stripping", "non-`<section>` blocks must be rewritten", and
-  whatever else applies to the patterns in `decisions.json`.
+## Knowledge to load
+
+Before writing anything, load (using the override-then-bundled
+resolution from `SKILL.md`):
+- `methodology.md` §3 (Generate) — the authoritative rules
+- `architecture.md` §"Slot semantics" — all five slot writer cases
+  the engine supports
+- `learnings.md` — at minimum the entries for "container vs.
+  children", "Media Bus absolute URLs", "`<br>` stripping",
+  "non-`<section>` blocks must be rewritten", plus whatever else
+  applies to the patterns in `decisions.json`
+
+Resolution at each lookup: check `.snowflake/knowledge/<file>.md`
+first (project override), then `<SKILL_DIR>/knowledge/<file>.md`
+(bundled). Project overrides win on conflict.
 
 This phase is sequential in this version of the skill. (A future
 version may fan out the mechanical extractions across parallel

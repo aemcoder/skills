@@ -46,25 +46,30 @@ doesn't match the bundled VERSION:
    ```
 
    Read the output. The installer compares every bundled substrate
-   file byte-for-byte against the target repo. There are three
+   file byte-for-byte against the target repo. There are four
    outcomes:
    - **No-op** — all bundled files already exist byte-identical in
      the repo at the bundled version. Substrate is current; phase 0
      is done.
-   - **Fresh install** — substrate is not present (no marker in
-     `scripts/scripts.js`). Installer is ready to install.
+   - **Fresh install (clean)** — none of the targeted files exist,
+     or all are empty. Vanilla EDS boilerplate. Installer proceeds.
+   - **Fresh install (custom code detected)** — marker absent but
+     one or more targeted files exist with non-empty custom content.
+     The user likely has their own work there (e.g. a hand-rolled
+     overlay engine that doesn't use `applyTemplateOverlay`). The
+     installer refuses without `--force` and lists the affected
+     files. With `--force`, the originals are backed up and replaced.
    - **Drift** — substrate is partially present (marker found) but
      one or more files differ from the bundled version. Installer
      refuses without `--force` and lists the diverging files. Common
      causes: a hand-customized substrate, an older version installed
      before snowflake existed, an interrupted install.
 
-   For drift: investigate the named files first. If the divergence
-   is intentional (e.g., the repo's substrate is ahead of the
-   bundled one), don't `--force` — pin the version in
-   `.snowflake/config.json` manually. If the divergence is unintended
-   (you want the bundled version), `--force` is safe; originals get
-   backed up.
+   For drift or custom-code cases: investigate the named files first.
+   If the divergence is intentional (the repo's substrate is ahead
+   of the bundled one, or the custom code is the user's own engine),
+   don't `--force`. If the divergence is unintended (you want the
+   bundled version), `--force` is safe; originals get backed up.
 
 3. **Install:**
 

@@ -159,7 +159,7 @@ be overridden by writing to `.snowflake/config.json` directly:
 {
   "projectsDir": ".snowflake/projects",
   "daRoot": "/marketing",
-  "branchPrefix": "snowflake/",
+  "branchPrefix": "snowflake-",
   "trunkBranch": "main",
   "tagPrefix": "snowflake-"
 }

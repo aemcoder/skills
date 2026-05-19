@@ -96,8 +96,8 @@ When the user gives the explicit go-ahead, run:
 
 ```bash
 # Resolve branch + trunk + tag conventions from config (with defaults)
-BRANCH_PREFIX=$(jq -r '.branchPrefix // "snowflake/"' \
-  .snowflake/config.json 2>/dev/null || echo "snowflake/")
+BRANCH_PREFIX=$(jq -r '.branchPrefix // "snowflake-"' \
+  .snowflake/config.json 2>/dev/null || echo "snowflake-")
 TRUNK=$(jq -r '.trunkBranch // "main"' \
   .snowflake/config.json 2>/dev/null || echo "main")
 TAG_PREFIX=$(jq -r '.tagPrefix // "snowflake-"' \

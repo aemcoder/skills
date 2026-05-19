@@ -153,7 +153,36 @@ if (markerPresent && !allFilesMatchBundle) {
 }
 
 if (!markerPresent) {
-  log(`substrate not detected — fresh install`);
+  // Distinguish "vanilla boilerplate" from "user has custom code".
+  // If any of the manifest.replace destination files exist with
+  // unique content (not matching bundled, not matching empty), the
+  // user likely has their own work in those files. Warn before
+  // overwriting; backups happen either way.
+  const customizedFiles = [];
+  for (const entry of manifest.replace) {
+    const installed = readMaybe(join(REPO_ROOT, entry.dst));
+    const bundled = readMaybe(join(SUBSTRATE_DIR, entry.src));
+    if (installed !== null && installed !== bundled && installed.trim().length > 0) {
+      // File exists, isn't ours, isn't empty
+      customizedFiles.push(entry.dst);
+    }
+  }
+  if (customizedFiles.length > 0 && !FORCE) {
+    console.error(`[snowflake] no substrate marker found, but ${customizedFiles.length} file(s) targeted for replacement exist with custom content:`);
+    customizedFiles.forEach((f) => console.error(`[snowflake]   - ${f}`));
+    console.error(`[snowflake]`);
+    console.error(`[snowflake] The installer would overwrite these files. Originals will be`);
+    console.error(`[snowflake] backed up to .snowflake/.backup/<timestamp>/, but please verify`);
+    console.error(`[snowflake] you don't have important work in them.`);
+    console.error(`[snowflake]`);
+    console.error(`[snowflake] Re-run with --force to proceed.`);
+    process.exit(2);
+  }
+  if (customizedFiles.length > 0 && FORCE) {
+    warn(`overwriting ${customizedFiles.length} customized file(s); originals backed up`);
+  } else {
+    log(`substrate not detected — fresh install (vanilla or minimal boilerplate)`);
+  }
 }
 
 if (DRY_RUN) log(`(dry-run — no files will be modified)`);

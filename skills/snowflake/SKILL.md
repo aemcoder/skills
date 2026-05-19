@@ -163,12 +163,20 @@ the user's call.
 {
   "projectsDir": ".snowflake/projects",
   "daRoot": "/marketing",
-  "branchPrefix": "snowflake/"
+  "branchPrefix": "snowflake-",
+  "trunkBranch": "main",
+  "tagPrefix": "snowflake-"
 }
 ```
 
 Phases fall back to the defaults shown above when the config or any
-field is absent.
+field is absent. **Recommended:** keep `branchPrefix` ending in `-`
+(hyphen, not `/` slash). With a hyphen the branch name is identical
+to the aem.page hostname segment and admin.hlx.page URL segment —
+no translation needed. Slash-style prefixes work but require
+flattening `/` → `-` when constructing aem.page hostnames (AEM
+Code Sync does this automatically for hostnames but admin.hlx.page
+URLs need the literal branch).
 
 ## The seven phases (sequential)
 
