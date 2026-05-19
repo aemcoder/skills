@@ -156,19 +156,19 @@ This lets a repo carry findings that aren't yet generic enough to
 PR upstream. Whether those eventually get promoted to the skill is
 the user's call.
 
-**Config-driven paths.** Some repos (e.g. the snowflake R&D repo
-itself) predate this convention and keep projects under
-`experiments/projects/`. Override via `.snowflake/config.json`:
+**Config-driven paths.** A repo can override defaults via
+`.snowflake/config.json`:
 
 ```json
 {
-  "projectsDir": "experiments/projects",
-  "daRoot": "/some-root",
-  "branchPrefix": "sf-overlay-exp-"
+  "projectsDir": ".snowflake/projects",
+  "daRoot": "/marketing",
+  "branchPrefix": "snowflake/"
 }
 ```
 
-Phases fall back to `.snowflake/projects/` when the config is absent.
+Phases fall back to the defaults shown above when the config or any
+field is absent.
 
 ## The seven phases (sequential)
 
@@ -210,7 +210,7 @@ and skip work that's already done — reruns are safe.
 3. **Generate** — produce the 5 deployable artifacts (template HTML,
    header fragment, footer fragment, page CSS, page animations JS)
    plus the DA-source body fragment. Outputs go to
-   `experiments/projects/NNN-<slug>/output/`. See `phases/3-generate.md`.
+   `<projectsDir>/<NNN>-<slug>/output/`. See `phases/3-generate.md`.
 
 4. **Wire** — copy artifacts to the EDS-served paths (`templates/`,
    `fragments/<tpl>/`, `styles/`, `scripts/`), build the local-test
@@ -247,18 +247,36 @@ Maintainers extending this skill should keep it host-agnostic. See
   / daemon.
 - Browser interaction: **`playwright-cli` only**. No host-bundled
   browser tools.
-- State files: project-relative paths (under `experiments/projects/`),
-  never `<SKILL_DIR>` or `/workspace`.
+- State files: project-relative paths (under `.snowflake/projects/`
+  by default, or `${PROJECTS_DIR}` from config), never `<SKILL_DIR>`
+  or `/workspace`.
 - Subagent fan-out: out of scope in this version. The skill is fully
   sequential.
 - Idempotency: every phase checks state.json on start. Reruns are
   safe.
 
+## Loading knowledge in each phase
+
+Whenever a phase prompt says "read `<SKILL_DIR>/knowledge/<file>.md`",
+the assistant follows this resolution order (most-specific first):
+
+1. **Project-specific override:** if
+   `.snowflake/knowledge/<file>.md` exists in the target repo, read
+   it. This is the project's layered context.
+2. **Bundled, canonical:** read
+   `<SKILL_DIR>/knowledge/<file>.md`. Always present in the bundle.
+
+When the two contain overlapping rules, **the project override
+wins** for that project. Treat the override as additions and
+corrections, not a replacement of the bundled file.
+
+Every phase prompt assumes this procedure; phases don't re-state it.
+
 ## Reading order for first invocation
 
 1. This file (you're reading it).
 2. `knowledge/methodology.md` (canonical phase rules — every phase
-   needs this).
+   needs this), with the override resolution above.
 3. `knowledge/architecture.md` (overlay engine and slot writer
    semantics — Generate phase needs this most).
 4. `knowledge/learnings.md` (cross-project findings — Generate and
@@ -266,4 +284,4 @@ Maintainers extending this skill should keep it host-agnostic. See
    referenced by individual phase prompts).
 5. The phase prompt for the current phase.
 
-Then start at Phase 1.
+Then start at Phase 0.

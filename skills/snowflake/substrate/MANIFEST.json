@@ -2,7 +2,8 @@
   "substrateVersion": "1.0.0",
   "marker": {
     "file": "scripts/scripts.js",
-    "needle": "STATIC-TO-EDS OVERLAY ENGINE"
+    "needle": "function applyTemplateOverlay",
+    "_comment": "Tied to a function name in the engine, not a comment — more durable across substrate refactors. Renaming applyTemplateOverlay is a breaking change anyway."
   },
   "replace": [
     {

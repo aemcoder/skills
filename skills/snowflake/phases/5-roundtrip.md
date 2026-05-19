@@ -5,8 +5,9 @@ both locally (dev server) and on production preview
 (branch host).
 
 **Production round-trip is the default**, not an option to skip.
-If a condition appears that suggests skipping, surface it to the
-user as a question — don't decide unilaterally. (Run #005 lesson.)
+If a condition appears that suggests skipping (e.g. local-only
+source assets, perceived blockers), surface it to the user as a
+question — don't decide unilaterally.
 
 ## 5.1 — Local round-trip
 
@@ -90,8 +91,15 @@ artifacts from code-bus and the DA-stored content from content-bus.
 
 ### 5.2.1 — Create the run branch
 
+The branch name is `${BRANCH_PREFIX}${NNN}` where `BRANCH_PREFIX`
+comes from `.snowflake/config.json` (default: `snowflake/`):
+
 ```bash
-git checkout -b sf-overlay-exp-${NNN}
+BRANCH_PREFIX=$(jq -r '.branchPrefix // "snowflake/"' \
+  .snowflake/config.json 2>/dev/null || echo "snowflake/")
+BRANCH="${BRANCH_PREFIX}${NNN}"
+
+git checkout -b "$BRANCH"
 git add \
   templates/${TEMPLATE_NAME}.html \
   fragments/${TEMPLATE_NAME}/ \
@@ -105,8 +113,8 @@ git add \
 # If asset strategy was vendor:
 [ "$ASSET_STRATEGY" = "vendor" ] && git add assets/
 
-git commit -m "Run #${NNN} — ${SLUG} overlay"
-git push -u origin sf-overlay-exp-${NNN}
+git commit -m "snowflake #${NNN} — ${SLUG} overlay"
+git push -u origin "$BRANCH"
 ```
 
 ### 5.2.2 — Push DA doc
@@ -135,20 +143,31 @@ Expected response: JSON with `previewUrl` field.
 ### 5.2.3 — Trigger preview
 
 ```bash
+# admin.hlx.page expects a branch-name component; we strip a trailing
+# "/" from BRANCH_PREFIX so "snowflake/" + "001" sits under the
+# branch's URL host as a single segment.
+BRANCH_URL_SAFE=$(echo "$BRANCH" | tr '/' '-')
+
 curl -X POST -H "Authorization: Bearer $TOKEN" \
-  "https://admin.hlx.page/preview/${OWNER}/${REPO}/sf-overlay-exp-${NNN}/${DA_ROOT#/}/${PAGE_SLUG}"
+  "https://admin.hlx.page/preview/${OWNER}/${REPO}/${BRANCH_URL_SAFE}/${DA_ROOT#/}/${PAGE_SLUG}"
 ```
 
 Expected: HTTP 200 with JSON containing `preview.status: 200` and a
 `preview.url` matching
-`https://sf-overlay-exp-${NNN}--${REPO}--${OWNER}.aem.page/${DA_ROOT}/${PAGE_SLUG}`.
+`https://${BRANCH_URL_SAFE}--${REPO}--${OWNER}.aem.page/${DA_ROOT}/${PAGE_SLUG}`.
+
+**Note on branch naming and aem.page hosts.** AEM Code Sync resolves
+the branch host by replacing `/` in branch names with `-` in the
+hostname. So a branch `snowflake/001` is served at
+`snowflake-001--<repo>--<owner>.aem.page`. The `BRANCH_URL_SAFE`
+substitution above does that translation.
 
 ### 5.2.4 — Wait for code-bus to deploy
 
 Code Sync usually takes a few seconds:
 
 ```bash
-PROD_BASE="https://sf-overlay-exp-${NNN}--${REPO}--${OWNER}.aem.page"
+PROD_BASE="https://${BRANCH_URL_SAFE}--${REPO}--${OWNER}.aem.page"
 for i in $(seq 1 30); do
   code=$(curl -s -o /dev/null -w "%{http_code}" "$PROD_BASE/templates/${TEMPLATE_NAME}.html")
   [ "$code" = "200" ] && break

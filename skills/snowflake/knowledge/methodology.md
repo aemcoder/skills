@@ -1,11 +1,11 @@
 # Methodology — How to Run a Conversion Project
 
-Operational guide for the 6-step loop. Each project (one folder under
-`experiments/projects/`) executes this loop once per input page.
+Operational guide for the 6-step loop. Each project executes this loop
+once per input page.
 
-Before you start: read `experiments/knowledge/architecture.md` for the
-overlay design and `experiments/knowledge/learnings.md` for accumulated
-gotchas. Don't re-discover what's been documented.
+Before you start: read `architecture.md` for the overlay design and
+`learnings.md` for accumulated gotchas. Don't re-discover what's been
+documented.
 
 ## The phases
 
@@ -25,8 +25,8 @@ gotchas. Don't re-discover what's been documented.
 Goal: project is self-contained — the input can be re-analyzed without
 network access.
 
-- Create `experiments/projects/NNN-<slug>/` (next sequence number).
-  Slug names the source: e.g. `002-relume-pricing`.
+- Create a project directory with a slug that names the source: e.g.
+  `relume-pricing`.
 - Save the HTML at `input/<page-slug>.html`. If the source references
   external CSS/JS files, save those alongside. Inline CSS/JS stays in
   the file.
@@ -90,12 +90,10 @@ relative paths like `assets/photos/foo.jpg`, `url(./images/bar.png)`,
 serving host (`localhost:3000/drafts/...` or
 `<branch>--<repo>--<owner>.aem.page/<da-root>/...`) — where they
 404. Rewrite them all to absolute URLs pointing back to the source
-host (e.g.
-`https://paolomoz.github.io/stardust-site/samples/<site>/assets/...`).
+host (e.g. `https://<source-host>/path/to/assets/...`).
 This applies to template HTML, fragment HTML, DA cell values
 referencing images, and any CSS `url()` references. Asset migration
 to DA's `/media/` is explicitly out of scope unless the user asks.
-(Discovered in run #004 — first source we hit with relative paths.)
 
 **Don't forget head-level `<link>` resources.** The source page's
 `<head>` often has more than just inline `<style>` — font preconnects,
@@ -117,8 +115,6 @@ The overlay engine lifts any top-level `<link>` it finds in the
 template into `document.head` at runtime. Without these, font stacks
 that name third-party fonts (Mona Sans, Inter, etc.) silently
 fall back to system-ui — visually subtle, semantically wrong.
-Discovered in run #002 when the converted Vanguard page rendered
-with system-ui where the original used Mona Sans.
 
 ### Template wrapping and section uniqueness
 
@@ -128,8 +124,6 @@ Two transformations the template needs that aren't slot-related:
    overlay engine `querySelector('main')`s the parsed template.
    When the source's body-level sections aren't already wrapped
    in `<main>`, wrap them in one when writing the template file.
-   (Discovered in run #003 — Patagonia's sections were direct
-   `<body>` children.)
 
 2. **Ensure each `<section>`'s first class is unique** within
    the template. The overlay engine matches DA blocks to template
@@ -147,8 +141,6 @@ Two transformations the template needs that aren't slot-related:
       section (`<p class="label">`, `<span class="eyebrow">`, etc).
    4. Last resort: positional `section-N`.
 
-   (Discovered in run #003, generalised in run #004.)
-
    Example:
    ```diff
    - <section class="section" data-section="activity-tile-grid">
@@ -157,9 +149,8 @@ Two transformations the template needs that aren't slot-related:
 
 ### Critical rules for the DA doc
 
-These are the lessons from run #001 — DO NOT re-derive them empirically.
-See `experiments/knowledge/learnings.md` 2026-05-18 entries for the
-gory details.
+These rules are the foundation of a working DA doc. DO NOT re-derive
+them empirically. See `learnings.md` for the underlying mechanics.
 
 1. **Use divs-with-class shape, NOT tables.** The EDS pipeline does
    NOT auto-convert DA-source `<table><th>BlockName</th></table>`
@@ -198,15 +189,14 @@ gory details.
 
 3. **No inline `<span class="...">`, `<b>`, `<i>`, `<u>`, `<mark>`,
    `<br>` in cell content.** The pipeline's markdown-ish normaliser
-   strips anything not on its preserve list. **Preserve list
-   (empirical, 4 runs):** `<strong>`, `<em>`, `<a>`, `<img>`,
-   `<picture>`, `<h1>`-`<h6>`, `<p>`. Use `<strong>`/`<em>` for
-   inline emphasis; for typography accents inside titles, use
-   `<strong>` or restructure to put the class on the parent
-   element instead. For line breaks inside a slot value, restructure
-   to two `<p>` tags (or two slots) rather than `<br>`.
-   (Run #001 lost `<span class="accent">`; run #002 lost `<b>`;
-   run #004 confirmed `<br>` strips.)
+   strips anything not on its preserve list. **Preserve list:**
+   `<strong>`, `<em>`, `<a>`, `<img>`, `<picture>`, `<h1>`-`<h6>`,
+   `<p>`. (The preserve list is empirical, accumulated across multiple
+   conversion runs.) Use `<strong>`/`<em>` for inline emphasis; for
+   typography accents inside titles, use `<strong>` or restructure
+   to put the class on the parent element instead. For line breaks
+   inside a slot value, restructure to two `<p>` tags (or two slots)
+   rather than `<br>`.
 
 4. **`<img>` URLs in DA cells MUST be absolute.** The EDS Media Bus
    processes `<img src>` values in DA-source HTML and only handles
@@ -223,7 +213,7 @@ gory details.
    Note the asymmetry with template/fragment HTML refs, which CAN be
    root-relative — the browser resolves those against the rendered
    page host (= code-bus host) so `/assets/...` works there. The DA
-   pipeline is what's stricter, not the browser. (Run #005 discovery.)
+   pipeline is what's stricter, not the browser.
 
 ### Slot rules in the template
 
@@ -242,10 +232,9 @@ gory details.
   it as the element's `background-image` URL, preserving other
   inline styles. Use this for CSS-driven photos (hero backdrops,
   card tiles where the image is the container's background, etc.)
-  without restructuring the source's markup. (Added in run #004 —
-  unblocks Heathrow's 6 pillar-card photos. The pipeline's Media
+  without restructuring the source's markup. The pipeline's Media
   Bus also picks up the `<img>` in the DA cell and serves an
-  optimised version via `./media_<sha>.jpg?width=…&format=…&optimize=…`.)
+  optimised version via `./media_<sha>.jpg?width=…&format=…&optimize=…`.
 - Placeholder pass-through: `<el data-slot-skip="placeholder">…</el>`.
   Never a slot; rendered as-is.
 
@@ -253,7 +242,7 @@ Slot names are kebab-case. Repeating items get indexed names:
 `card-1.title`, `card-2.title`. Names are scoped to their block —
 the same name can repeat across blocks.
 
-### Container-vs-children slot rule (added run #005)
+### Container-vs-children slot rule
 
 **Never put `[data-slot]` on an element that has nested `[data-slot]`
 children.** The slot writer for every element type overwrites the
@@ -271,7 +260,7 @@ decorative icon, NO nested `[data-slot]`) is fine. The icon is lost
 when DA cell value is applied, but that's acceptable for button-style
 CTAs. The trigger is **nested `[data-slot]`**, not "any inner content".
 
-### Rewrite non-`<section>` blocks to `<section>` in the template (added run #005)
+### Rewrite non-`<section>` blocks to `<section>` in the template
 
 If a logical section in the source uses any tag OTHER than `<section>`
 (common for `<div class="hero-…">`, scroll wrappers, etc.), rewrite the
@@ -283,8 +272,8 @@ This complements the existing rule about synthesizing `<main>`.
 
 ## 4. Wire
 
-Goal: deploy artifacts to the template-keyed paths and verify run #1's
-work (or prior runs') is untouched.
+Goal: deploy artifacts to the template-keyed paths and verify prior
+runs' work is untouched.
 
 - Copy from `output/` to the EDS-served paths:
 
@@ -299,8 +288,8 @@ work (or prior runs') is untouched.
 - Run the transformer to produce the local-test file:
 
   ```bash
-  node experiments/knowledge/tools/transform-da-to-eds.mjs \
-    experiments/projects/<NNN-slug>/output/da/<page>.html \
+  node tools/transform-da-to-eds.mjs \
+    <project>/output/da/<page>.html \
     drafts/<page>.html
   ```
 
@@ -334,10 +323,10 @@ write a per-tag count table + a tag+class sequence diff in
 
 **Screenshot strategy.** For pages with `position: sticky`,
 scroll-driven JS, or IntersectionObserver `.anim-enter`-style
-animations (run #005 Adobe BizPro Hub), `fullPage: true` screenshots
-are misleading — the snapshot is taken in initial-scroll state where
-sticky elements leave empty space and `.anim-enter` siblings are
-`opacity: 0`. Default to **per-section viewport screenshots**: call
+animations, `fullPage: true` screenshots are misleading — the snapshot
+is taken in initial-scroll state where sticky elements leave empty
+space and `.anim-enter` siblings are `opacity: 0`. Default to
+**per-section viewport screenshots**: call
 `section.scrollIntoView({ block: 'start' })`, wait 400-800ms for
 animations to settle, then capture. Save each as
 `diff/local-<sectionName>.jpg`.
@@ -345,13 +334,12 @@ animations to settle, then capture. Save each as
 **Local-only source caveat.** If the source URL is on a private host
 (`localhost`, `127.0.0.1`, intranet IP), the production preview host
 cannot reach the source's assets. Three options, in order of
-preference based on what's been validated:
+preference:
 
-1. **Vendor the referenced assets under `/assets/` in the repo**
-   (run #005 path, proven end-to-end). Same paths work locally and
-   on production via code-bus. Same-origin so no CORS issues for
-   fonts. Trade-off is repo size (38 MB / 72 files in run #005).
-   Mechanical steps:
+1. **Vendor the referenced assets under `/assets/` in the repo.**
+   Same paths work locally and on production via code-bus. Same-origin
+   so no CORS issues for fonts. Trade-off is repo size. Mechanical
+   steps:
    - `cp -R <source-assets-dir> ./assets/`
    - Remove `.DS_Store`s and unreferenced files
    - Rename any directory containing spaces (AEM CLI 404s on
@@ -366,15 +354,13 @@ preference based on what's been validated:
 3. **Skip production round-trip.** Lowest effort; ask the user first
    rather than deciding unilaterally.
 
-Discovered + validated in run #005.
-
 **Production round-trip:**
 
 - PUT the DA doc:
   ```bash
   TOKEN=$(jq -r .access_token .hlx/.da-token.json)
   curl -X PUT -H "Authorization: Bearer $TOKEN" \
-    -F "data=@experiments/projects/<NNN>/output/da/<page>.html;type=text/html" \
+    -F "data=@<project>/output/da/<page>.html;type=text/html" \
     https://admin.da.live/source/<org>/<repo>/<da-root>/<page>.html
   ```
 - POST preview (on whichever branch carries the overlay code):
@@ -395,19 +381,18 @@ branch is.
 Goal: feed the next run.
 
 - Append to `notes.md` for everything that happened.
-- Update `learnings.md` (the per-project one) for findings tied to
-  this source.
-- Promote anything generic to `experiments/knowledge/learnings.md`.
+- Update the per-project `learnings.md` for findings tied to this
+  source.
+- Promote anything generic to the cross-project `learnings.md`.
   Test for promotion: "would the next project, from a different
   generator and different page, benefit from knowing this?" If yes,
   it goes in the cross-project learnings.
-- If a finding contradicts something in
-  `experiments/knowledge/architecture.md` or `eds-da-mechanics.md`,
-  update those docs in the same commit.
-- If you discover a generic tool worth keeping, move it to
-  `experiments/knowledge/tools/` with a README.
+- If a finding contradicts something in `architecture.md` or
+  `eds-da-mechanics.md`, update those docs in the same commit.
+- If you discover a generic tool worth keeping, move it to a shared
+  `tools/` directory with a README.
 
-## Honesty rules (carryover from the README)
+## Honesty rules
 
 - Mark every claim **[verified]** or **[assumed]**.
 - Negative findings matter as much as positives — write down what

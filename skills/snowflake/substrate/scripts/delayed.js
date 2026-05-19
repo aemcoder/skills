@@ -1,9 +1,9 @@
 /**
  * Delayed phase — non-LCP-critical work that can wait.
  * For overlay pages, this loads the template's animation engine
- * if one is shipped. Templates without animations (e.g. the static
- * Vanguard sample in run #002) simply skip — we HEAD-probe the
- * expected URL first so a missing engine doesn't log a console 404.
+ * if one is shipped. Templates without animations skip silently —
+ * we HEAD-probe the expected URL first so a missing engine doesn't
+ * log a console 404 and doesn't pull CDN dependencies.
  */
 const main = document.querySelector('main');
 const template = main?.dataset?.overlay;

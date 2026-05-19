@@ -95,17 +95,34 @@ ready-for-close, lists what would happen on close, and waits.
 When the user gives the explicit go-ahead, run:
 
 ```bash
-git checkout sf-overlay-exp-${NNN}
-git tag iter-${NNN}-close
-git checkout sf-overlay-exp  # or the integration trunk name in the target repo
-git merge --ff-only sf-overlay-exp-${NNN}
-git push origin sf-overlay-exp
-git push origin sf-overlay-exp-${NNN}
-git push origin iter-${NNN}-close
+# Resolve branch + trunk + tag conventions from config (with defaults)
+BRANCH_PREFIX=$(jq -r '.branchPrefix // "snowflake/"' \
+  .snowflake/config.json 2>/dev/null || echo "snowflake/")
+TRUNK=$(jq -r '.trunkBranch // "main"' \
+  .snowflake/config.json 2>/dev/null || echo "main")
+TAG_PREFIX=$(jq -r '.tagPrefix // "snowflake-"' \
+  .snowflake/config.json 2>/dev/null || echo "snowflake-")
+
+BRANCH="${BRANCH_PREFIX}${NNN}"
+TAG="${TAG_PREFIX}${NNN}-close"
+
+git checkout "$BRANCH"
+git tag "$TAG"
+git checkout "$TRUNK"
+git merge --ff-only "$BRANCH"
+git push origin "$TRUNK"
+git push origin "$BRANCH"
+git push origin "$TAG"
 
 # Update the project README's Status section to:
-#   "Closed YYYY-MM-DD (tag iter-NNN-close)"
+#   "Closed YYYY-MM-DD (tag $TAG)"
 ```
+
+The defaults match a typical EDS site repo (`main` as trunk,
+`snowflake/NNN` as run branches, `snowflake-NNN-close` as closure
+tags). The R&D project the skill was distilled from used different
+conventions; if a repo wants those, set them in
+`.snowflake/config.json`.
 
 Then update state.json one last time: `state.phase = "closed"`,
 `state.phaseStatus = "complete"`, `state.closedAt = "<timestamp>"`.

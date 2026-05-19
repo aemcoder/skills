@@ -40,29 +40,39 @@ skills/snowflake/
 
 ## Prerequisites
 
-The target EDS repo must already have the **overlay substrate** in
-place: `scripts/scripts.js` with `applyTemplateOverlay`, the
-`writeSlot` slot writers, the `decorateMain` skip path for overlay
-pages, and the `blocks/header/header.js` / `blocks/footer/footer.js`
-fetch decorators. See `knowledge/architecture.md` §"Solution shape".
+The target EDS repo must have the **overlay substrate** in place:
+`scripts/scripts.js` with `applyTemplateOverlay`, the `writeSlot`
+slot writers, the `decorateMain` skip path for overlay pages, and
+the `blocks/header/header.js` / `blocks/footer/footer.js` fetch
+decorators. See `knowledge/architecture.md` for the design.
 
-If the substrate isn't there, the skill won't help — install it
-first. (A future skill could bootstrap the substrate; not in this
-version.)
+**The skill installs this for you.** `phases/0-prereq.md` drives an
+idempotent installer (`install-substrate.mjs`) that brings a vanilla
+`adobe/aem-boilerplate` clone up to overlay-capable. Run it once per
+target repo:
+
+```bash
+node <SKILL_DIR>/install-substrate.mjs --dry-run   # inspect plan
+node <SKILL_DIR>/install-substrate.mjs             # apply
+```
+
+Overwritten files are backed up to `.snowflake/.backup/<timestamp>/`.
+Subsequent runs of the skill detect the installed substrate via
+`.snowflake/config.json` and skip Phase 0 silently.
+
+See `HOST-NOTES.md` for per-host details (Slicc, Claude Code,
+generic shell).
 
 ## Limitations of v1
 
-This is the minimum-viable version. It runs the 6 phases
-sequentially, no parallel fan-out at Generate. Future-work items
-identified in `aemcoder/snowflake`'s run #005 timing report:
+This is the minimum-viable version. It runs the 6 conversion phases
+sequentially, no parallel fan-out. Future-work items:
 
 - Subagent fan-out at Generate (~4-6 min wall-clock savings)
 - Generate-time validators (catches nested `[data-slot]` and
   non-absolute DA cell `<img>` URLs before round-trip)
 - Spec-mode Analyze (structured `decisions.json` schema validation)
 - Round-trip failure-triage subagent (Opus + extended thinking)
-
-These are tracked separately.
 
 ## Installation
 
@@ -71,24 +81,23 @@ host (Slicc, Claude Code, generic shell).
 
 ## Contributing
 
-The methodology and learnings in `knowledge/` are deliberately
-bundled with the skill, not referenced from external sources. This
-keeps the skill portable and stable.
+The methodology, architecture, and learnings in `knowledge/` are
+deliberately bundled with the skill, not referenced from external
+sources. This keeps the skill portable and stable.
 
 Users running snowflake against new sources accumulate
 project-specific learnings in their own repos (under
-`experiments/projects/NNN-<slug>/learnings.md` and their repo's
-`experiments/knowledge/learnings.md`). When a finding is generic
-enough to benefit other snowflake users — a new pipeline behavior,
-a new slot writer pattern, a class of bug worth catching — please
-raise a PR to this skill repo with the finding promoted into
-`knowledge/learnings.md` (and any corresponding rule into
-`knowledge/methodology.md`).
+`.snowflake/projects/<NNN>-<slug>/learnings.md` and optionally
+`.snowflake/knowledge/learnings.md` for the repo-level pile).
+When a finding is generic enough to benefit other snowflake users
+— a new pipeline behavior, a new slot writer pattern, a class of
+bug worth catching — please raise a PR to this skill repo with the
+finding promoted into `knowledge/learnings.md` (and any
+corresponding rule into `knowledge/methodology.md`).
 
-The convention from `aemcoder/snowflake`: cross-project findings
-are dated `## YYYY-MM-DD — short title` at the top of
-`learnings.md`. Each entry has Context + (optional) Visible symptom
-+ Fix + Generic rule.
+Convention for `learnings.md` entries: dated `## YYYY-MM-DD — short
+title` at the top of the file. Each entry: brief context, observable
+symptom (if a bug), the rule.
 
 ## Status
 

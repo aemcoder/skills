@@ -45,12 +45,26 @@ doesn't match the bundled VERSION:
    node <SKILL_DIR>/install-substrate.mjs --dry-run
    ```
 
-   Read the output. If the marker is already present in
-   `scripts/scripts.js` but no `.snowflake/config.json` exists (drift
-   case), the dry-run will refuse without `--force`. That's the right
-   default — it usually means another version of the substrate was
-   hand-installed earlier and the user should reconcile manually
-   before the skill overwrites it.
+   Read the output. The installer compares every bundled substrate
+   file byte-for-byte against the target repo. There are three
+   outcomes:
+   - **No-op** — all bundled files already exist byte-identical in
+     the repo at the bundled version. Substrate is current; phase 0
+     is done.
+   - **Fresh install** — substrate is not present (no marker in
+     `scripts/scripts.js`). Installer is ready to install.
+   - **Drift** — substrate is partially present (marker found) but
+     one or more files differ from the bundled version. Installer
+     refuses without `--force` and lists the diverging files. Common
+     causes: a hand-customized substrate, an older version installed
+     before snowflake existed, an interrupted install.
+
+   For drift: investigate the named files first. If the divergence
+   is intentional (e.g., the repo's substrate is ahead of the
+   bundled one), don't `--force` — pin the version in
+   `.snowflake/config.json` manually. If the divergence is unintended
+   (you want the bundled version), `--force` is safe; originals get
+   backed up.
 
 3. **Install:**
 

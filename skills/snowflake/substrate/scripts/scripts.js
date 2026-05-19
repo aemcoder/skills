@@ -92,10 +92,10 @@ function writeSlot(el, value) {
   // Background-image slot: target element has an inline
   // style="background-image:url(...)". DA cell carries an <img>;
   // extract its src and replace just the background-image URL,
-  // preserving any other inline styles on the element. Lets static
-  // pages that use CSS-driven photos (run #004 Heathrow's
-  // pillar-card__photo, run #003 Patagonia's tile/cat anchors)
-  // expose those images as DA slots without restructuring markup.
+  // preserving any other inline styles on the element. Lets pages
+  // with CSS-driven photos (hero backdrops, card tiles where the
+  // image is the container's background) expose those images as DA
+  // slots without restructuring source markup.
   if (el.style && el.style.backgroundImage) {
     const img = parseFirst(value, 'img');
     if (img) {

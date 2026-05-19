@@ -27,8 +27,9 @@ main .section[data-section-status="initialized"] {
    until our static fragments are fetched and injected.
    Uses direct-child (>) so we only target the EDS block wrapper —
    NOT any nested .header / .footer elements the fetched fragment
-   might contain (Patagonia, run #003, had <header class="header">
-   inside the wrapper and the descendant selector hid it). */
+   itself might contain (sources that wrap their nav in
+   <header class="header"> would otherwise stay permanently hidden
+   under a descendant selector). */
 header > .header,
 footer > .footer {
   visibility: hidden;

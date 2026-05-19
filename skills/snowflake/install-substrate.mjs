@@ -39,7 +39,7 @@
  */
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync, copyFileSync } from 'node:fs';
-import { dirname, join, relative } from 'node:path';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execSync } from 'node:child_process';
 
@@ -79,18 +79,40 @@ log(`bundled substrate version: ${bundledVersion}`);
 
 // ---------------------------------------------------------------------------
 // 3. Detect current substrate state
+//
+// Robust detection: compare every file in manifest.replace against the
+// bundled version (byte-identical check). If all match: installed at
+// the bundled version. If any differ but the marker comment is present:
+// drift. If marker absent: fresh install.
+//
+// Falls back to the marker-comment check if file reads fail.
 // ---------------------------------------------------------------------------
 
-const markerPath = join(REPO_ROOT, manifest.marker.file);
-let installedVersion = null;
-let markerPresent = false;
+import { readFileSync as _readSync } from 'node:fs';
 
-if (existsSync(markerPath)) {
-  const content = readFileSync(markerPath, 'utf8');
-  markerPresent = content.includes(manifest.marker.needle);
+function readMaybe(path) {
+  try { return _readSync(path, 'utf8'); } catch { return null; }
+}
+
+const markerFilePath = join(REPO_ROOT, manifest.marker.file);
+const markerFileContent = readMaybe(markerFilePath);
+const markerPresent = markerFileContent !== null
+  && markerFileContent.includes(manifest.marker.needle);
+
+let allFilesMatchBundle = true;
+let driftedFiles = [];
+for (const entry of manifest.replace) {
+  const bundled = readMaybe(join(SUBSTRATE_DIR, entry.src));
+  const installed = readMaybe(join(REPO_ROOT, entry.dst));
+  if (bundled === null) die(`bundle missing: ${entry.src}`);
+  if (installed === null || installed !== bundled) {
+    allFilesMatchBundle = false;
+    if (installed !== null) driftedFiles.push(entry.dst);
+  }
 }
 
 const configPath = join(REPO_ROOT, '.snowflake', 'config.json');
+let installedVersion = null;
 if (existsSync(configPath)) {
   try {
     const cfg = JSON.parse(readFileSync(configPath, 'utf8'));
@@ -100,23 +122,38 @@ if (existsSync(configPath)) {
   }
 }
 
-if (markerPresent) {
-  if (installedVersion === bundledVersion) {
-    log(`substrate v${bundledVersion} already installed — no-op`);
-    process.exit(0);
+// Decision tree
+if (markerPresent && allFilesMatchBundle) {
+  log(`substrate v${bundledVersion} already installed (byte-identical) — no-op`);
+  process.exit(0);
+}
+
+if (markerPresent && !allFilesMatchBundle) {
+  // Substrate is here, but some files diverge from bundled. Either
+  // (a) the user customized substrate, (b) an older version is installed,
+  // (c) the user partially patched. All three are "drift".
+  console.error(`[snowflake] substrate marker present in ${manifest.marker.file} but ${driftedFiles.length} file(s) differ from the bundled v${bundledVersion}:`);
+  driftedFiles.forEach((f) => console.error(`[snowflake]   - ${f}`));
+  if (installedVersion && installedVersion !== bundledVersion) {
+    console.error(`[snowflake] .snowflake/config.json reports v${installedVersion} (bundled is v${bundledVersion}).`);
+  } else if (!installedVersion) {
+    console.error(`[snowflake] .snowflake/config.json is absent — substrate was likely installed before snowflake was wired up, or by hand.`);
   }
-  if (installedVersion && installedVersion !== bundledVersion && !FORCE) {
-    console.error(`[snowflake] substrate is at v${installedVersion}, bundled is v${bundledVersion}`);
-    console.error(`[snowflake] re-run with --force to overwrite, or update the bundled version`);
+  if (!FORCE) {
+    console.error(`[snowflake]`);
+    console.error(`[snowflake] Options:`);
+    console.error(`[snowflake]   1. Investigate the diffs (compare files in <SKILL_DIR>/substrate/ to the repo)`);
+    console.error(`[snowflake]      and reconcile by hand, then write .snowflake/config.json yourself with`);
+    console.error(`[snowflake]      { "substrateVersion": "${bundledVersion}" }.`);
+    console.error(`[snowflake]   2. Re-run with --force to overwrite the diverging files. Originals will be`);
+    console.error(`[snowflake]      backed up to .snowflake/.backup/<timestamp>/.`);
     process.exit(2);
   }
-  if (!installedVersion) {
-    warn(`marker present in ${manifest.marker.file} but no .snowflake/config.json — treating as drift`);
-    if (!FORCE) {
-      console.error(`[snowflake] re-run with --force to install at v${bundledVersion}`);
-      process.exit(2);
-    }
-  }
+  log(`--force given — overwriting diverged files`);
+}
+
+if (!markerPresent) {
+  log(`substrate not detected — fresh install`);
 }
 
 if (DRY_RUN) log(`(dry-run — no files will be modified)`);
@@ -205,7 +242,6 @@ const snowflakeDir = join(REPO_ROOT, '.snowflake');
 const configOut = {
   substrateVersion: bundledVersion,
   installedAt: new Date().toISOString(),
-  installedFrom: relative(REPO_ROOT, SKILL_DIR) || SKILL_DIR,
 };
 if (DRY_RUN) {
   log(`would write .snowflake/config.json: ${JSON.stringify(configOut)}`);

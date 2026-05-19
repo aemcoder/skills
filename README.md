@@ -62,6 +62,23 @@ migrating into EDS-shape markup isn't desirable.
 upskill aemcoder/skills --path skills/snowflake
 ```
 
+### One-time substrate install per target repo
+
+`snowflake` requires an overlay-pattern substrate (modified
+`scripts/scripts.js`, lifecycle CSS, header/footer fetch decorators)
+on top of a vanilla `adobe/aem-boilerplate` repo. The skill bundles
+an idempotent installer that handles this on first invocation:
+
+```bash
+node <SKILL_DIR>/install-substrate.mjs
+```
+
+Drives off `substrate/MANIFEST.json`; backs up overwritten files;
+stamps `.snowflake/config.json` with the installed version.
+Subsequent invocations skip the install. See
+`skills/snowflake/phases/0-prereq.md` for the full procedure and
+`skills/snowflake/HOST-NOTES.md` for per-host wiring.
+
 ### Portability
 
 Unlike the migration skills, `snowflake` is designed to run on any

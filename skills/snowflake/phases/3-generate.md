@@ -186,7 +186,7 @@ The metadata block MUST be inside `<main>` (not in `<footer>`), or
 the pipeline ignores it and standard EDS decoration falls back —
 breaking the overlay.
 
-Cell content rules (run #001-#005 empirical):
+Cell content rules (empirical, accumulated across many runs):
 - Preserve list: `<strong>`, `<em>`, `<a>`, `<img>`, `<picture>`,
   `<h1>`-`<h6>`, `<p>`. Everything else is stripped.
 - For `<br>` line breaks in the source, either drop them (slot value

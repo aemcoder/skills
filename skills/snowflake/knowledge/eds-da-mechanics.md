@@ -160,7 +160,7 @@ the folder if missing. The asset is content-addressed in EDS's Media
 Bus (same `media_<sha>.<ext>` URL across branches once previewed),
 so it's branch-independent and dedupes naturally.
 
-For migration-driven runs in this project, prefer
+For migration-driven runs, prefer
 `/media/<site-slug>/<filename>` so images don't collide across
 projects.
 
@@ -251,9 +251,9 @@ page URL on an EDS site returns the raw HTML body (sections + blocks)
 (or directly: HTML files in the repo are served as-is).
 
 ### `.hlxignore`
-**[verified, this repo]** Same syntax as `.gitignore`; matched paths
-are not delivered by EDS. Our `experiments/*` entry keeps experiment
-artifacts off the public site.
+Same syntax as `.gitignore`; matched paths are not delivered by EDS.
+Useful for keeping experiment artifacts, scratch directories, or
+internal docs off the public site.
 
 ### `head.html` size budget
 **[assumed, per keeping-it-100 docs]** Aggregate resources before LCP
@@ -261,30 +261,29 @@ should stay under 100 KB to keep Lighthouse at 100. Our overlay adds
 one template fetch per page load — needs measurement.
 
 ### Dev server: `aem up --html-folder drafts` serves verbatim
-**[verified, run #001]** The local dev server does **not** run the
+The local dev server does **not** run the
 EDS pipeline on drafts content. Tables stay as tables, `head.html`
 is not injected, metadata-block → `<meta>` conversion doesn't
 happen. Drafts is for *raw post-pipeline content*, not DA-shape
 content. Practical implication: when round-tripping locally, the
-DA doc must be pre-transformed to post-pipeline shape (see
-`experiments/projects/001-.../output/transform-da-to-eds.mjs`).
+DA doc must be pre-transformed to post-pipeline shape.
 
 ### `/templates/<name>.html` served as raw HTML by EDS code bus
-**[verified, run #001]** Putting `templates/home.html` in the repo
+Putting `templates/home.html` in the repo
 makes it fetchable at `/templates/home.html` with no decoration —
 the EDS pipeline only decorates *content* (DA / Word / GDrive
 backends), not arbitrary code-bus files. A plain `fetch()` returns
 the file's bytes verbatim. Same applies to `/fragments/*.html`.
 
 ### `header-wrapper` / `footer-wrapper` lifecycle classes
-**[verified, run #001]** EDS's `loadHeader` / `loadFooter` wrap the
+EDS's `loadHeader` / `loadFooter` wrap the
 async-loaded fragment content in `<div class="header-wrapper">` /
 `<div class="footer-wrapper">`. The original page's header/footer
 markup ends up nested inside that wrapper. CSS class selectors keep
 working; CSS `body > .gnav` direct-child selectors would NOT.
 
 ### `body { display: none } / body.appear { display: block }`
-**[verified, run #001]** This pair, in `styles/styles.css`, is the
+This pair, in `styles/styles.css`, is the
 EDS no-flicker contract. The body is hidden until `scripts.js`
 adds the `appear` class at the end of `loadEager`. Our overlay
 runs inside `loadEager` so the user never sees the

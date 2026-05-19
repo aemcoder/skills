@@ -7,7 +7,7 @@ project folder so the rest of the run is self-contained.
 
 - **Source URL** (string, e.g. `https://example.com/path/to/page`).
 - **Target EDS repo** (owner/repo). Used by later phases.
-- **DA root** (e.g. `/sf-overlay-exp-005`). Used by later phases.
+- **DA root** (e.g. `/marketing` or `/snowflake/<NNN>`). Used by later phases.
 
 If any are missing, ask the user and write them into state.json
 (see below) before doing any fetches.

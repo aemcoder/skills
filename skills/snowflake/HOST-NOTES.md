@@ -110,6 +110,65 @@ agent's text output IS the progress.
 
 ---
 
+## The substrate installer (all hosts)
+
+A target EDS repo can be a vanilla `adobe/aem-boilerplate` clone OR
+a repo already partially modified by an earlier overlay attempt. The
+skill ships an idempotent installer that brings either to the
+expected overlay-substrate state:
+
+```bash
+node <SKILL_DIR>/install-substrate.mjs [--dry-run] [--force]
+```
+
+The installer is pure Node (built-ins only) and uses
+`import.meta.url` to self-locate the bundled `substrate/` directory
+— it works regardless of where the skill is mounted on a given host.
+
+It is driven by `<SKILL_DIR>/substrate/MANIFEST.json` (declarative)
+and stamps `.snowflake/config.json` with the installed version on
+success. Files it overwrites are backed up to
+`.snowflake/.backup/<timestamp>/`.
+
+Phase 0 of the skill (see `phases/0-prereq.md`) drives this
+installer. Subsequent invocations see the matching version in
+`.snowflake/config.json` and skip Phase 0 silently.
+
+## The `.snowflake/` directory (all hosts)
+
+All per-repo state, project artifacts, and project-specific
+knowledge live under `.snowflake/` at the target repo's root:
+
+```
+.snowflake/
+├── config.json                ← substrate version + repo defaults
+├── knowledge/                 ← OPTIONAL project-specific overrides
+├── projects/<NNN>-<slug>/     ← per-run state, notes, learnings,
+│                                input/output/diff artifacts
+└── .backup/<timestamp>/       ← substrate-install rollback
+```
+
+Phase prompts resolve knowledge with
+`.snowflake/knowledge/<file>.md` first, then bundled
+`<SKILL_DIR>/knowledge/<file>.md`. Project-specific overrides win.
+
+Defaults are set in `<SKILL_DIR>/substrate/MANIFEST.json` and can
+be overridden by writing to `.snowflake/config.json` directly:
+
+```json
+{
+  "projectsDir": ".snowflake/projects",
+  "daRoot": "/marketing",
+  "branchPrefix": "snowflake/",
+  "trunkBranch": "main",
+  "tagPrefix": "snowflake-"
+}
+```
+
+A maintainer extending the skill should treat `.snowflake/` as the
+single source of truth for any per-repo state, NEVER write to the
+skill bundle, NEVER write to `/workspace`.
+
 ## DA token & GitHub auth (all hosts)
 
 The skill expects:

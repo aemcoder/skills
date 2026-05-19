@@ -16,9 +16,9 @@ For the HTML at `<projectsDir>/<NNN>-<slug>/input/index.html`:
 1. **Header boundary** — everything from `<body>` start until the
    first content section. Often broader than just `<header>`:
    announcement banners, mega-navs, sticky breadcrumbs all belong
-   here. Some sources have no `<header>` tag (run #005 used
-   `<div class="nav-wrap">` instead). The fragment name stays "header"
-   regardless.
+   here. Some sources have no `<header>` tag at all and use a
+   `<div class="nav-wrap">` or similar instead — the fragment name
+   stays "header" regardless of the source tag.
 
 2. **Footer boundary** — everything from the last content section to
    `</body>` (minus scripts). Often includes sticky CTAs, modal
