@@ -123,6 +123,76 @@ done
 
 ---
 
+## 2026-05-19 — Page CSS `section, header, footer { padding }` leaks into EDS landmark `<header>`/`<footer>`
+
+**Bug:** A common pattern in source pages is to set section padding with a
+generic selector like:
+
+```css
+section, header, footer { padding: var(--section-padding) var(--spacing-lg); }
+```
+
+In the SOURCE page this is fine — the source's own `<header>`/`<footer>` use
+specific class overrides (`.promo-strip`, `.site-header`) with class-level
+padding that wins on specificity. But in the converted EDS page, the EDS
+landmark `<header>` and `<footer>` elements have NO such overriding class —
+they're just bare `<header>` / `<footer>` wrapping the fetched fragment. The
+generic rule fires on them with full force, adding (typically) 128px+ of
+vertical padding the source never had. The hero ends up pushed down ~200px.
+
+**Symptom:** Hero / first-visible content sits much lower than in source.
+First-fold CTAs may end up below the viewport.
+
+**Substrate fix** (in `styles/styles.css`):
+
+```css
+body > header,
+body > footer {
+  padding: 0;
+  margin: 0;
+}
+```
+
+Specificity `(0,0,2)` for `body > header` wins over plain `header (0,0,1)`,
+no `!important` needed. Only resets the EDS landmark wrappers — inner
+fragment elements (`.promo-strip`, `.site-header`, `.site-footer`) keep
+their own padding from page CSS unchanged.
+
+Observed: frescopa-a refresh (hero pushed down 199px; CTAs below the fold).
+
+---
+
+## 2026-05-19 — `writeSlot` heading-in-heading nesting creates empty DOM elements [PROMOTED to substrate v1.0.3]
+
+When a DA cell value contains a heading element (`<h2>text</h2>`) and the
+template slot target is also a heading (`<h2 data-slot="title">`), calling
+`el.innerHTML = value` causes the browser's HTML parser to auto-close the
+outer `<h2>` before opening the inner one. Result: an empty `<h2>` in the
+rendered DOM, followed by the authored heading outside the template hierarchy.
+
+Originally fixed at the branch level for lovesac-a (run 016). The fix lived
+on the branch only — the substrate kept producing the bug on fresh runs.
+Surfaced again on frescopa-a refresh (substrate v1.0.2 installed; empty h1
+in hero). Now promoted to substrate v1.0.3 — `writeSlot` adds a heading
+branch that unwraps the inner heading's `innerHTML` before assigning.
+
+```js
+if (/^H[1-6]$/.test(tagName)) {
+  const tmp = document.createElement('div');
+  tmp.innerHTML = value;
+  const inner = tmp.querySelector(tagName.toLowerCase());
+  el.innerHTML = inner ? inner.innerHTML : value;
+  return;
+}
+```
+
+**Lesson learned:** branch-level patches don't survive `snowflake refresh`
+(which resets the branch to vanilla main). If a fix is generic enough to
+recur, promote to the substrate immediately — don't leave it on a single
+branch. Refreshes are the canary that surfaces missed promotions.
+
+---
+
 ## 2026-05-19 — `writeSlot` dispatch: background-image check must come before the `<a>` (link) check
 
 **Bug:** When a slot target is `<a data-slot="X" style="background-image:url(...)">`, the

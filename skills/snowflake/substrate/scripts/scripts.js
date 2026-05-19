@@ -109,6 +109,19 @@ function writeSlot(el, value) {
     }
     return;
   }
+  // Heading slots: if the DA cell value is wrapped in a same-tag heading
+  // (e.g. <h1>...</h1> for a <h1 data-slot>), setting innerHTML directly
+  // triggers the browser's auto-close — the parser ends the outer <h1>
+  // before opening the inner one, producing an empty template <h1>
+  // followed by an orphaned <h1> sibling. Unwrap the inner heading's
+  // content and use that as innerHTML to keep a single clean heading.
+  if (/^H[1-6]$/.test(tagName)) {
+    const tmp = document.createElement('div');
+    tmp.innerHTML = value;
+    const inner = tmp.querySelector(tagName.toLowerCase());
+    el.innerHTML = inner ? inner.innerHTML : value;
+    return;
+  }
   // Default: text / inline-HTML slot
   el.innerHTML = value;
 }

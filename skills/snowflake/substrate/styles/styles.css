@@ -39,3 +39,17 @@ header > .header[data-block-status="loaded"],
 footer > .footer[data-block-status="loaded"] {
   visibility: visible;
 }
+
+/* Reset padding/margin on the EDS landmark <header>/<footer> elements.
+   Page CSS often uses generic selectors like `section, header, footer`
+   to set section padding — that rule incorrectly leaks into the EDS
+   landmarks (which wrap our fragments). The source page's <header>
+   was usually a SPECIFIC class like .promo-strip / .site-header with
+   class-level padding overrides; the EDS landmark <header> has no
+   such class so the generic rule wins. body > selector specificity
+   (0,0,2) wins over plain header (0,0,1) without !important. */
+body > header,
+body > footer {
+  padding: 0;
+  margin: 0;
+}
