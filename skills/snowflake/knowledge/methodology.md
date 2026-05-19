@@ -392,6 +392,61 @@ Goal: feed the next run.
 - If you discover a generic tool worth keeping, move it to a shared
   `tools/` directory with a README.
 
+## Refresh mode — re-running an already-closed run
+
+Once a run is closed and published, you may want to re-render it under a
+newer skill substrate (to demonstrate skill improvements, fix bugs found
+later, etc.). The skill supports this but doesn't prescribe a single
+strategy — pick the one that fits the repo's intent:
+
+### A. Archive-tag + rolling branch (simplest)
+
+Rename the existing close tag with a date suffix (e.g.
+`sd-foo-a-close` → `sd-foo-a-close-2026-05-19`), reset the branch tip to
+trunk, run phases 0–6 fresh, re-tag `sd-foo-a-close` at the new commit.
+DA's PUT auto-versions the doc; the 5.2.2a labeled snapshot adds an
+explicit "Before refresh" entry. Only the latest version stays reachable
+at the active branch URL. Old states are archived in git and DA versions.
+
+### B. Snapshot-by-clone (live A/B comparison)
+
+Before refreshing, clone the branch to a dated branch
+(`sd-foo-a` → `sd-foo-a-2026-05-19`) AND copy the DA path to a dated DA
+path (`/foo/a` → `/foo/a-2026-05-19`). Both versions stay live at
+separate URLs. The active branch resets and refreshes; the snapshot
+branch is immutable. Good for demo collections where you want to show
+"how this evolved." Branch count grows with each refresh — manageable
+if refreshes are quarterly, less so if daily.
+
+### C. Accumulating-files on one branch
+
+Each refresh adds versioned template / CSS / DA paths to the same branch
+(e.g. `templates/foo-2026-05-19.html`, `/foo/a-2026-05-19`). One branch
+per demo, but file count accumulates over time. Useful when branch
+proliferation is undesirable but A/B-ability is required.
+
+### Naming conventions (recommended)
+
+For all three modes, use **ISO date** as the version suffix:
+`<base>-YYYY-MM-DD` for branches, DA paths, and (mode A only) close tags.
+Same-day collisions get a `-N` counter starting at 2:
+`<base>-2026-05-19-2`, `<base>-2026-05-19-3`.
+
+Repos with strong opinions on naming (version numbers, semantic-version
+of substrate, etc.) document the override in
+`.snowflake/knowledge/methodology.md`.
+
+### Git tag "rename" pattern (for modes that rename close tags)
+
+```bash
+git tag NEW OLD            # create new tag at same commit
+git tag -d OLD             # delete old tag locally
+git push origin NEW :OLD   # push new, delete old on remote
+```
+
+Not atomic on remote but reliable. Verify with
+`git ls-remote origin 'refs/tags/<branch>-*'` after.
+
 ## Honesty rules
 
 - Mark every claim **[verified]** or **[assumed]**.

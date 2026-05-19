@@ -123,6 +123,32 @@ done
 
 ---
 
+## 2026-05-19 — `writeSlot` dispatch: background-image check must come before the `<a>` (link) check
+
+**Bug:** When a slot target is `<a data-slot="X" style="background-image:url(...)">`, the
+`writeSlot()` function dispatches on `tagName === 'A'` (link branch) before reaching the
+background-image branch. The link handler copies `href + innerHTML` from the DA cell, which
+is an `<img>` element. This replaces the entire inner tile structure (label, CTA, etc.)
+with just `<img>`, silently wiping all nested `[data-slot]` children.
+
+**Symptom:** Section appears empty or loses inner content. Activity labels, card captions,
+tile CTAs all gone despite being present in the template and DA cells.
+
+**Fix** (substrate `writeSlot`):
+```js
+// Guard the <a> branch so background-image tiles fall through
+if (tagName === 'A' && !(el.style && el.style.backgroundImage)) {
+  ...link handler...
+  return;
+}
+// background-image branch now catches <a> tiles correctly
+if (el.style && el.style.backgroundImage) { ... }
+```
+
+Observed: patagonia-a (activity tile grid — 6 tiles with `<a data-slot="tile-N.bg">`).
+
+---
+
 ## 2026-05-19 — DA block class must exactly match template section's first class (including vendor prefix)
 
 The overlay engine's `readBlockSlots` keys slots by `block.className.split(/\s+/)[0]` from

@@ -192,10 +192,39 @@ OWNER_REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner)
 OWNER=${OWNER_REPO%/*}
 REPO=${OWNER_REPO#*/}
 
+# 5.2.2a — Create a labeled DA version BEFORE the PUT (if the file already exists)
+#
+# DA's PUT replaces the document wholesale — see the 2026-05-19 learning
+# "DA admin PUT replaces the entire doc — clobbers author edits". To make
+# every PUT recoverable, create a labeled version of the current DA content
+# first. POST /versionsource returns 201 if a snapshot was created, 404 if
+# the file doesn't exist yet (first PUT — nothing to snapshot, safe to skip).
+LABEL="Before snowflake run ${NNN} (${TEMPLATE_NAME})"
+curl -sS -X POST -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d "{\"label\":\"${LABEL}\"}" \
+  "https://admin.da.live/versionsource/${OWNER}/${REPO}/${DA_ROOT#/}/${PAGE_SLUG}.html" \
+  -w "%{http_code}\n" -o /dev/null
+# Acceptable responses: 201 (snapshot created), 404 (no prior file).
+# 401 = token issue; investigate before continuing.
+
+# 5.2.2b — Push the new DA content
 curl -X PUT -H "Authorization: Bearer $TOKEN" \
   -F "data=@${PROJECTS_DIR}/${NNN}-${SLUG}/output/da/${PAGE_SLUG}.html;type=text/html" \
   "https://admin.da.live/source/${OWNER}/${REPO}/${DA_ROOT#/}/${PAGE_SLUG}.html" \
   | tee /tmp/da-put.json
+```
+
+**Why the version-before-PUT.** DA also creates auto-versions on every PUT
+(labeled `Published` or `Collab Parse`), so the prior state is technically
+still reachable. The explicit labeled snapshot makes it discoverable in the
+DA editor's History tab and explicit about provenance — "this is the state
+just before snowflake refreshed me, restore-point if needed."
+
+**To list existing versions** for a path:
+```bash
+curl -sS -H "Authorization: Bearer $TOKEN" \
+  "https://admin.da.live/versionlist/${OWNER}/${REPO}/${DA_ROOT#/}/${PAGE_SLUG}.html"
 ```
 
 Expected response: JSON with `previewUrl` field.

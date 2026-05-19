@@ -1,5 +1,5 @@
 {
-  "substrateVersion": "1.0.1",
+  "substrateVersion": "1.0.2",
   "marker": {
     "file": "scripts/scripts.js",
     "needle": "function applyTemplateOverlay",

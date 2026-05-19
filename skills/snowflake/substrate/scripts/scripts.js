@@ -79,7 +79,10 @@ function writeSlot(el, value) {
     if (newPic) el.replaceWith(newPic);
     return;
   }
-  if (tagName === 'A') {
+  // Background-image slots on <a> must be handled before the link branch —
+  // otherwise the link writer replaces the inner tile structure with just
+  // the DA cell's <img>, wiping nested [data-slot] children (e.g. tile labels).
+  if (tagName === 'A' && !(el.style && el.style.backgroundImage)) {
     const a = parseFirst(value, 'a');
     if (a) {
       el.href = a.getAttribute('href');
