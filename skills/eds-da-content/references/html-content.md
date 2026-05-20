@@ -209,7 +209,7 @@ targets. It adds CSS classes and data attributes to the enclosing section
 <table>
   <tr><td>Section Metadata</td></tr>
   <tr><td>Style</td><td>dark, center</td></tr>
-  <tr><td>Background</td><td>/media/bg.jpg</td></tr>
+  <tr><td>Background</td><td>https://content.da.live/{org}/{repo}/media/bg.jpg</td></tr>
 </table>
 ```
 
@@ -229,21 +229,29 @@ determined by which `<div>` (inside `<main>`) the table sits inside.
 Placing a Section Metadata table in the wrong section silently applies
 the styles to the wrong section. `[verified]`
 
+### URL values in data attributes
+
+When a Section Metadata value is consumed by block JS or CSS as an asset URL
+(e.g., `data-background` used as `background-image: url(...)`), the same
+full-URL rule from §9 applies — use `https://content.da.live/...` or an
+external URL, never a repo-relative path. The pipeline does not rewrite
+data-attribute values. `[verified]`
+
 ### HTML output example
 
 For the table above inside a section, the section `<div>` becomes:
 
 ```html
-<div class="section dark center" data-background="/media/bg.jpg">
+<div class="section dark center" data-background="https://content.da.live/{org}/{repo}/media/bg.jpg">
   <!-- section contents -->
 </div>
 ```
 
 ## 5. Page Metadata block
 
-A single block at the **end of the document** (last element in `<footer>` or
-the last `<main>` section, depending on convention). Maps to `<head>` meta
-tags at delivery.
+A single block placed as the **last element of the last section inside
+`<main>`**. Maps to `<head>` meta tags at delivery. Do not place it inside
+`<footer>` — `<footer>` is typically empty (see §1). `[verified]`
 
 ```html
 <table>
@@ -387,12 +395,15 @@ that need to change without code deploys, DA `/media` is the right choice.
   serve directly. Use sparingly for in-page navigation; prefer the
   `aem.page` / `aem.live` form for branch independence at delivery.
 
+### Discouraged forms (links only — for images see §9)
+
+- Repo-relative paths without a host (`/path/to/page`) — these work in
+  DA HTML for same-site links, but the pipeline rewrites `aem.page`-form
+  URLs to relative anyway, so it's simpler and more copy-paste-friendly
+  to use the full form.
+
 ### Forbidden forms
 
-- Repo-relative paths without a host (`/path/to/page`) — these do work
-  in DA HTML for same-site links, but the pipeline rewrites
-  `aem.page`-form URLs to relative anyway, so it's simpler and more
-  copy-paste-friendly to use the full form.
 - Document-relative paths (`./page`, `../page`) — resolve against the
   editor URL (`da.live/edit#/...`), break in production. `[verified]`
 
@@ -491,6 +502,7 @@ delivery:
   <source type="image/png" srcset="./media_<hash>.png?width=2000&format=png&optimize=medium"
           media="(min-width: 600px)">
   <img loading="lazy"
+       decoding="async"
        src="./media_<hash>.png?width=750&format=png&optimize=medium"
        width="..." height="..." alt="Hero">
 </picture>
@@ -543,9 +555,9 @@ images. The pipeline preserves authored `alt` on the fallback `<img>`.
 |---|---|
 | `<script>` | Stripped by pipeline. `[verified]` |
 | `<style>` | Stripped by pipeline. `[verified]` |
-| `<iframe>` | Allowed for specific block use cases (e.g., embed blocks) but generally stripped from default content. |
-| `<form>`, `<input>`, `<button>` | Forms work via specific block patterns, not as default content. |
-| `<link>`, `<meta>` outside the Page Metadata block | Stripped; use Page Metadata (§5). |
+| `<iframe>` | Allowed for specific block use cases (e.g., embed blocks) but generally stripped from default content. `[assumed]` |
+| `<form>`, `<input>`, `<button>` | Forms work via specific block patterns, not as default content. `[assumed]` |
+| `<link>`, `<meta>` outside the Page Metadata block | Stripped; use Page Metadata (§5). `[assumed]` |
 
 ### Forbidden attributes
 

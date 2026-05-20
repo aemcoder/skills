@@ -117,9 +117,14 @@ DA accepts media via four different mechanisms. Each has different ergonomics an
 
 ### 3.1 The DA Source API (HTTP PUT)
 
-The canonical write endpoint for binaries. Same multipart `data`-field
-contract as for HTML documents — see [platform.md §2](./platform.md) for
-the full request/response shape, headers, and the minimal Node example.
+The canonical write endpoint for binaries. PUT to
+`https://admin.da.live/source/{org}/{repo}/<path>` with a Bearer IMS token
+and a `multipart/form-data` body containing a single field named **`data`**.
+Other field names (`file`, `image`, `upload`) silently return 200 OK with no
+file written. `[verified]` 2026-05-18.
+
+See [platform.md §2](./platform.md) for the full request/response shape,
+headers, response envelope, and the minimal Node example.
 
 For binaries specifically: the path determines the storage pattern (§2),
 the file extension determines the MIME type sniffed at delivery (§4.2),
@@ -202,6 +207,7 @@ DA accepts any file as a binary upload — the Source API does not police conten
 | Images: JPEG | `.jpg`, `.jpeg` | Media Bus |
 | Images: AVIF | `.avif` | Media Bus |
 | Images: WEBP | `.webp` | Media Bus |
+| Images: GIF | `.gif` | Media Bus (no responsive variants) |
 | Images: SVG | `.svg` | Content Bus |
 | Video: MP4 | `.mp4` | Media Bus |
 | Document: PDF | `.pdf` | Content Bus |
@@ -250,7 +256,7 @@ When you have a choice of upload format:
 - **SVG** — best for vector illustrations, logos, icons. Hard 40 KB cap (§5).
 - **GIF** — uploads, no responsive variants generated. Use only for legacy animated GIFs; prefer MP4 video.
 
-The pipeline doesn't care which format you upload — it generates the responsive variants from any source. Upload the highest-quality source you have.
+For Media Bus formats (PNG, JPG, AVIF, WEBP), the pipeline generates responsive WebP + original-format variants at 750 px and 2000 px widths from any source. Upload the highest-quality source you have. Content Bus formats (SVG, PDF, ICO, WOFF2, JSON) and GIF are served at their original bytes — no variant generation. `[verified]`
 
 ### 4.4 WEBP upload — empirical note
 
@@ -414,6 +420,7 @@ When an HTML document references an image via a single `<img src="…">`, the ED
   <source type="image/png"  srcset="./media_<hash>.png?width=2000&format=png&optimize=medium"
           media="(min-width: 600px)">
   <img loading="lazy"
+       decoding="async"
        src="./media_<hash>.png?width=750&format=png&optimize=medium"
        width="1512" height="852">
 </picture>

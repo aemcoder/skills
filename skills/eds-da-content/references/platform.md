@@ -209,6 +209,8 @@ before uploading.
 
 ### Path normalizer
 
+Reference implementation (not extracted from `da-admin` source). `[assumed]`
+
 ```javascript
 function normalizeDAPath(name) {
   return name

@@ -77,7 +77,7 @@ output before upload.
 6. **Referenced binaries must exist before the HTML is uploaded.** Upload
    binaries first, then the HTML. Otherwise the document loads but media
    references 404.
-   → [media.md §3.1](./references/media.md), [html-content.md §11](./references/html-content.md)
+   → [html-content.md §9](./references/html-content.md), [html-content.md §11](./references/html-content.md)
 
 7. **DA Source API requires `multipart/form-data` with field name `data`.**
    Other field names (`file`, `image`) return 200 OK with no file written.
