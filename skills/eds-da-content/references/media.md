@@ -21,12 +21,16 @@ DA stores both content (HTML) and binaries under
 in [platform.md §1](./platform.md). What's relevant here: every binary is
 addressed by a path under that namespace, served at `content.da.live`, and
 optionally rendered through the EDS pipeline at `aem.page` / `aem.live`.
+[verified] from `da-admin` source and `aem.live` docs.
 
 ---
 
 ## 2. Three media-storage patterns
 
-DA officially documents three patterns for where media binaries can live. Each fits a different use case. The choice has practical consequences for deduplication, branch-coupling, and authoring UX.
+DA officially documents three patterns for where media binaries can live.
+[verified] from `aem.live/docs/media`. Each fits a different use case. The
+choice has practical consequences for deduplication, branch-coupling, and
+authoring UX.
 
 | Pattern | Where binaries live | Reference URL | Use case |
 |---|---|---|---|
@@ -55,7 +59,9 @@ URL pattern used by DA's editor:
   https://admin.da.live/source/{org}/{repo}/{parent}/.{docname}/<filename>
 ```
 
-So for a document at `/marketing/launch.html`, an author drag-drop of `hero.png` lands at `/marketing/.launch/hero.png`. The dot-prefix prevents the folder from being treated as a sibling document.
+So for a document at `/marketing/launch.html`, an author drag-drop of `hero.png`
+lands at `/marketing/.launch/hero.png`. The dot-prefix prevents the folder from
+being treated as a sibling document. [verified] from `da-admin` source.
 
 The document references the upload via an absolute `content.da.live` URL:
 
@@ -63,7 +69,10 @@ The document references the upload via an absolute `content.da.live` URL:
 <img src="https://content.da.live/{org}/{repo}/marketing/.launch/hero.png" alt="…">
 ```
 
-**Important constraint:** relative paths (`./assets/hero.png`) resolve against the editor URL (`da.live/edit#/…`) — which does not host content. Authors who try to type a relative path will see broken images in the editor preview AND in deployed pages.
+**Important constraint:** relative paths (`./assets/hero.png`) resolve against
+the editor URL (`da.live/edit#/…`) — which does not host content. Authors who
+try to type a relative path will see broken images in the editor preview AND in
+deployed pages. [verified]
 
 Use when:
 
@@ -82,9 +91,14 @@ DA supports a top-level `/media` folder for assets that need to be reused across
 
 > "Simply create a top-level folder called 'media' and upload your content into it."
 
-Empirically: a direct PUT to `https://admin.da.live/source/{org}/{repo}/media/<file>` auto-creates the `/media` folder if missing. Subfolders work too — `/media/<arbitrary>/<more>/<file>` is fine, any depth.
+Empirically: a direct PUT to `https://admin.da.live/source/{org}/{repo}/media/<file>`
+auto-creates the `/media` folder if missing. Subfolders work too —
+`/media/<arbitrary>/<more>/<file>` is fine, any depth. [verified]
 
-The asset is served at `https://content.da.live/{org}/{repo}/media/<file>` with no auth (for image content types) and is **branch-independent** — the same DA path is reachable from any branch's `aem.page` host once that branch has been previewed.
+The asset is served at `https://content.da.live/{org}/{repo}/media/<file>` with
+no auth (for image content types) and is **branch-independent** — the same DA
+path is reachable from any branch's `aem.page` host once that branch has been
+previewed. [verified]
 
 Use when:
 
@@ -138,9 +152,14 @@ aem content status / diff / merge                      # inspect / sync
 
 Auth is browser-based on first run; the resulting token is cached at `.hlx/.da-token.json` (which should be gitignored).
 
-**Critical limitation: `aem content push` does NOT reliably upload binary files.** The command was designed for HTML content. It reports success (`0 files pushed` or similar) but the binary often does not actually land. Verify with `curl -sI <expected-url>`; if the upload didn't happen, fall back to the Source API (§3.1) directly.
+**Critical limitation: `aem content push` does NOT reliably upload binary
+files.** [verified] The command was designed for HTML content. It reports
+success (`0 files pushed` or similar) but the binary often does not actually
+land. Verify with `curl -sI <expected-url>`; if the upload didn't happen, fall
+back to the Source API (§3.1) directly.
 
-This is a known bug and may be fixed in future CLI versions. Until then, treat the CLI as HTML-only and use the Source API for binaries.
+This is a known bug and may be fixed in future CLI versions. Until then, treat
+the CLI as HTML-only and use the Source API for binaries.
 
 ### 3.4 The Admin API (preview + publish)
 
@@ -153,7 +172,9 @@ POST https://admin.hlx.page/live/{org}/{repo}/{branch}/{path}
 
 `{path}` matches the DA-stored content path without the `.html` extension; index documents can use a trailing `/`. `{branch}` matches the GitHub branch the EDS deploy is tied to.
 
-Binaries do not need preview/publish — they're delivered directly from `content.da.live` once uploaded. Only the documents that reference them need the lifecycle calls.
+Binaries do not need preview/publish — they're delivered directly from
+`content.da.live` once uploaded. Only the documents that reference them need
+the lifecycle calls. [verified] from EDS docs.
 
 ### 3.5 Auth token handling
 
@@ -443,18 +464,17 @@ A common gotcha: replacing a PNG and re-uploading does NOT update referencing do
 
 ### 8.5 Direct `content.da.live` URLs vs `aem.page` URLs
 
-When a document references a media file, you can use either host:
+When a document references a media file, either host works as the `src=` value.
+The EDS pipeline applies the `<picture>` transformation based on the `<img>`
+element it encounters when rendering the document, regardless of which host
+the `src=` points at (as long as the host returns a valid image). The
+difference is freshness and stability:
 
-- `https://content.da.live/{org}/{repo}/media/<file>` — direct from DA. Serves the raw binary. **No `<picture>` transformation when this URL is referenced from a document.**
+- `content.da.live` is canonical. Always the latest uploaded version of that path. [verified]
+- `aem.page/{branch}` is preview-cached. Updates after re-preview.
 
-Wait — that's not quite right. Let me restate:
-
-- The EDS pipeline applies the `<picture>` transformation based on the `<img>` element it encounters when rendering the document. The transformation runs regardless of which host the `src=` points at, as long as the host is reachable and returns a valid image. So either `content.da.live` or `aem.page` works as a source URL; both get the responsive `<picture>` treatment.
-- The difference is **freshness and stability**:
-  - `content.da.live` is canonical. Always the latest uploaded version of that path. [verified]
-  - `aem.page/{branch}` is preview-cached. Updates after re-preview.
-
-For author-authored documents, use `content.da.live` URLs. They're branch-independent and always-fresh.
+For author-authored documents, use `content.da.live` URLs. They're
+branch-independent and always-fresh.
 
 ---
 
