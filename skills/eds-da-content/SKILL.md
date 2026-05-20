@@ -1,6 +1,6 @@
 ---
 name: eds-da-content
-description: Reference for producing Adobe Document Authoring (DA) and Edge Delivery Services (EDS) compatible content. Use whenever generating HTML for DA upload, uploading media binaries to DA, or driving the DA admin API (auth, source PUT, preview/publish). Covers block table HTML format, section structure, page/section metadata blocks, icons, links, images, default content, document skeleton constraints, the DA Source API contract, IMS auth, media storage patterns, supported formats and size limits, Media Bus vs Content Bus delivery, and the silent-failure rules that corrupt content.
+description: Reference for producing Adobe Document Authoring (DA, da.live) and Edge Delivery Services (EDS, also known as AEM Edge Delivery, aem.live, Helix, Franklin, Project Helix) compatible content. Use whenever generating HTML for DA upload, uploading media binaries to DA, publishing to aem.live, working with AEM pages backed by DA, or driving the DA admin API (auth, source PUT, preview/publish). Covers block table HTML format, section structure, page/section metadata blocks, icons, links, images, default content, document skeleton constraints, the DA Source API contract, IMS auth, media storage patterns, supported formats and size limits, Media Bus vs Content Bus delivery, and the silent-failure rules that corrupt content.
 ---
 
 # DA + EDS content reference
@@ -42,6 +42,41 @@ Invoke this skill whenever you are:
   the *content* side, not the *code* side.
 - Universal Editor, structured-content authoring, or AEM Cloud Service
   (Java / OSGi / JCR). Out of scope.
+
+## Minimal upload example
+
+The most common operation — upload an HTML document to DA. Shows the
+non-obvious rules in one place: multipart/form-data body, field name
+`data`, blob with `text/html` type, Bearer IMS token, then a separate
+preview call to make the page reachable at `aem.page`. See
+[references/platform.md](./references/platform.md) for the full contract
+and [references/html-content.md](./references/html-content.md) for what
+the HTML payload must look like.
+
+```bash
+TOKEN=$(jq -r .access_token .hlx/.da-token.json)
+
+# 1. Upload HTML — note multipart with field name "data" (other names silently fail)
+curl -X PUT \
+  -H "Authorization: Bearer $TOKEN" \
+  -F "data=@./page.html;type=text/html" \
+  "https://admin.da.live/source/{org}/{repo}/path/to/page.html"
+
+# 2. Trigger preview — required separate step, path WITHOUT .html extension
+curl -X POST \
+  -H "Authorization: Bearer $TOKEN" \
+  "https://admin.hlx.page/preview/{org}/{repo}/main/path/to/page"
+
+# 3. Optional: publish to aem.live
+curl -X POST \
+  -H "Authorization: Bearer $TOKEN" \
+  "https://admin.hlx.page/live/{org}/{repo}/main/path/to/page"
+```
+
+Image binaries upload the same way (PUT to `admin.da.live/source/...`)
+but do NOT need preview/publish — they're served directly from
+`content.da.live` once uploaded. See
+[references/media.md](./references/media.md).
 
 ## The 10 silent-failure rules
 
