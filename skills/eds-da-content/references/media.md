@@ -171,7 +171,7 @@ media) follow the same non-retry rule as other semantic 4xx.
 
 ## 4. Supported formats
 
-DA accepts any file as a binary upload — the Source API does not police content type at upload. However, EDS only **delivers** a specific set of types through its server-side pipeline. Files outside this set need Code Bus delivery (which is git-tracked, not DA-tracked) or third-party hosting.
+DA accepts any file as a binary upload — the Source API does not police content type at upload. However, EDS only **delivers** a specific set of types through its server-side pipeline. Files outside this set need Code Bus delivery (which is git-tracked, not DA-tracked) or third-party hosting. [verified]
 
 ### 4.1 Supported content types (delivered by EDS)
 
@@ -193,7 +193,7 @@ Anything outside this list (text files, ZIP archives, MP3 audio, OTF/TTF fonts, 
 
 ### 4.2 MIME type detection
 
-EDS sniffs the content type at delivery time. The detected type must match the file extension — a WEBP renamed to `.png`, or a JPEG renamed to `.png`, will not deliver.
+EDS sniffs the content type at delivery time. The detected type must match the file extension — a WEBP renamed to `.png`, or a JPEG renamed to `.png`, will not deliver. [verified]
 
 Set the correct `Content-Type` on the multipart upload:
 
@@ -233,17 +233,17 @@ The pipeline doesn't care which format you upload — it generates the responsiv
 
 ### 4.4 WEBP upload — empirical note
 
-The official DA docs ([aem.live/docs/media](https://www.aem.live/docs/media)) state that WEBP "is not supported for upload." This refers to the **DA editor UI**, which refuses WEBP drag-drop.
+The official DA docs ([aem.live/docs/media](https://www.aem.live/docs/media)) state that WEBP "is not supported for upload." This refers to the **DA editor UI**, which refuses WEBP drag-drop. [verified]
 
-The **DA Source API accepts WEBP**. Direct PUT works; the asset is delivered correctly and gets responsive variants. Migration scripts using the Source API can upload WEBP without re-encoding.
+The **DA Source API accepts WEBP**. Direct PUT works; the asset is delivered correctly and gets responsive variants. Migration scripts using the Source API can upload WEBP without re-encoding. [verified]
 
 Don't waste cycles re-encoding existing WEBP assets to PNG just because the docs say so. Test once and confirm the rendered `<picture>` is correct; if it is, ship as WEBP.
 
 ### 4.5 Font files
 
-WOFF2 is the canonical format. Upload via the Source API to a path like `/fonts/<family>-<weight>.woff2`. Reference from CSS via the absolute `content.da.live` URL or via Code Bus (`/fonts/`).
+WOFF2 is the canonical format. [verified] Upload via the Source API to a path like `/fonts/<family>-<weight>.woff2`. Reference from CSS via the absolute `content.da.live` URL or via Code Bus (`/fonts/`).
 
-Self-hosted fonts that aren't WOFF2 (OTF, TTF, WOFF) won't deliver through DA. Convert to WOFF2 first, or host externally.
+Self-hosted fonts that aren't WOFF2 (OTF, TTF, WOFF) won't deliver through DA. [verified] Convert to WOFF2 first, or host externally.
 
 ---
 
@@ -262,6 +262,8 @@ EDS enforces per-file and aggregate limits at the delivery layer. These are oper
 | Favicon (`.ico`) | 16 KB | |
 | WOFF2 | (Per file practical limit) | Default font subsets are typically well under 1 MB |
 
+Source: [aem.live/docs/limits](https://www.aem.live/docs/limits). [verified]
+
 **SVG 40 KB is the constraint that bites most.** Hand-authored multi-shape illustrations, especially those with embedded `<filter>` definitions, multi-stop gradients, or dozens of `<path>` shapes, frequently exceed 40 KB. Mitigations:
 
 1. Optimize with [SVGO](https://github.com/svg/svgo) — aggressive `removeViewBox=false`, `mergePaths`, `removeUnknownsAndDefaults`.
@@ -271,7 +273,7 @@ EDS enforces per-file and aggregate limits at the delivery layer. These are oper
 
 ### 5.2 Image dimensions
 
-EDS will not upscale beyond source dimensions. A 500 px source stays at most 500 px in any delivered variant — the responsive `srcset` will request larger widths, but the pipeline returns the source-resolution image.
+EDS will not upscale beyond source dimensions. A 500 px source stays at most 500 px in any delivered variant — the responsive `srcset` will request larger widths, but the pipeline returns the source-resolution image. [verified]
 
 - **Recommended max source dimension:** 2000 × 2000 px.
 - **Practical minimum:** the largest display size you need. For a hero that renders at 1200 px wide on desktop with 2× retina, upload at least 2400 px wide.
@@ -285,6 +287,8 @@ EDS will not upscale beyond source dimensions. A 500 px source stays at most 500
 | Files per Code Bus reference | 500 |
 | Response payload (compressed) | 6 MB |
 | Rate limit | 200 requests/sec per IP per hostname |
+
+Source: aem.live/docs/limits. [verified]
 
 For DA Source uploads specifically, the rate limit applies — high-concurrency upload scripts (>200 concurrent PUTs from a single IP) will see 429s and need backoff (§3.6).
 
@@ -306,7 +310,7 @@ The single most useful convention. Use `/media/...` for binaries that aren't tie
 /media/shared/<file>                       # cross-scope shared assets
 ```
 
-Any depth is allowed. The folders auto-create on first PUT.
+Any depth is allowed. The folders auto-create on first PUT. [verified]
 
 The convention `/media/<scope>/<file>` (one level of scoping) hits a sweet spot for medium-sized projects:
 
@@ -318,7 +322,7 @@ The convention `/media/<scope>/<file>` (one level of scoping) hits a sweet spot 
 
 Reserved for the DA editor's drag-drop workflow (§2.2). Don't put scripted uploads here unless you specifically want per-document isolation.
 
-A dot-folder for a document at `/blog/2024/launch.html` is `/blog/2024/.launch/`. The dot-prefix prevents collision with a sibling document of the same base name.
+A dot-folder for a document at `/blog/2024/launch.html` is `/blog/2024/.launch/`. The dot-prefix prevents collision with a sibling document of the same base name. [verified]
 
 ### 6.3 Document paths
 
@@ -326,6 +330,8 @@ Document paths are the same `/path/to/<name>` model, but the document file has n
 
 - DA-stored: `/<path>/<name>.html` (extension is part of the storage path)
 - Delivered: `https://{branch}--{repo}--{owner}.aem.page/<path>/<name>` (no extension)
+
+[verified]
 
 For index pages, the convention is a file at `/path/index.html` delivered at `/path/`.
 
@@ -338,37 +344,16 @@ Code Bus and Content Bus serve different things:
 - **Code Bus** — git-tracked files. Block JS, CSS, fonts, icons, configuration. Updated by code deploy.
 - **Content Bus** — DA-tracked path-addressed content. SVGs uploaded to `/media`, PDFs, JSON, HTML documents. Updated by preview/publish.
 
+[verified]
+
 The two coexist on the same delivery host. A request to `/foo.svg` is served by whichever bus has it; conflict-resolution generally favors Content Bus for paths under `/media/`.
 
 ---
 
 ## 7. Path constraints
 
-DA enforces a few hard rules on paths.
-
-| Rule | Detail |
-|---|---|
-| Character set | Lowercase `a–z`, digits `0–9`, dash `-`. No uppercase, spaces, or other punctuation. |
-| Maximum length | 900 characters total path length |
-| Extension required for binaries | The file extension determines content type sniffing; no extension means no delivery for non-document assets |
-| No extension for documents | HTML documents are uploaded as `<name>.html` but delivered without the extension |
-| No traversal | Paths cannot contain `..`; relative paths in URLs don't resolve against an authoritative root |
-
-Rename source files at manifest construction time if they don't comply. A migration script that uploads `Hero Image_v2.PNG` will see DA accept the PUT, but the path will not be canonically discoverable (uppercase paths may serve, may not, depending on the layer — don't rely on it).
-
-A simple normalizer:
-
-```js
-function normalizeDAPath(name) {
-  return name
-    .toLowerCase()
-    .replace(/[_\s]+/g, '-')                   // spaces, underscores → dash
-    .replace(/[^a-z0-9\-./]/g, '')             // strip everything else
-    .replace(/-+/g, '-')                        // collapse multiple dashes
-    .replace(/-(\.)/g, '$1')                    // dash before . (extension) → strip
-    .replace(/^-|-$/g, '');                     // trim leading/trailing dashes
-}
-```
+See [platform.md §5](./platform.md). The constraints apply equally to
+content and binary paths.
 
 ---
 
@@ -388,9 +373,9 @@ Once a binary lives in DA Source, the EDS rendering pipeline serves it through o
 
 Practical consequences:
 
-- **Replacing a PNG/JPG/AVIF/WEBP/MP4** generates a new content hash → every referencing document needs re-preview to pick up the new URL. The OLD path still resolves to the OLD hash via cached redirects.
+- **Replacing a PNG/JPG/AVIF/WEBP/MP4** generates a new content hash → every referencing document needs re-preview to pick up the new URL. The OLD path still resolves to the OLD hash via cached redirects. [verified]
 - **Replacing an SVG/PDF/HTML/JSON** keeps the same path; the next preview/publish picks up the change.
-- **Cross-branch sharing** — the same source `/media/<file>` deduplicates to ONE Media Bus entry across `main`, feature branches, and iterations. Same `media_<sha>.png` URL appears on every branch.
+- **Cross-branch sharing** — the same source `/media/<file>` deduplicates to ONE Media Bus entry across `main`, feature branches, and iterations. Same `media_<sha>.png` URL appears on every branch. [verified]
 
 ### 8.2 The `<picture>` transformation
 
@@ -420,11 +405,13 @@ What the transformation does:
 - Adds `loading="lazy"`, `decoding="async"`, and computed `width`/`height` attributes to the fallback `<img>`.
 - Strips authored `width`/`height` (the pipeline computes them from delivered variant dimensions).
 
+[verified]
+
 The transformation only applies to HTML documents authored in DA and rendered through `aem.page` / `aem.live`. Direct `content.da.live` URLs serve the raw binary without transformation.
 
 ### 8.3 Repo-relative paths don't work from DA content
 
-If a DA document contains `<img src="/path/to/foo.png">` (repo-relative), the EDS pipeline does **not** resolve this against the document's branch — it emits `<img src="about:error">`.
+If a DA document contains `<img src="/path/to/foo.png">` (repo-relative), the EDS pipeline does **not** resolve this against the document's branch — it emits `<img src="about:error">`. [verified]
 
 Acceptable URL forms in DA content:
 
@@ -440,12 +427,16 @@ Not acceptable:
 
 If you need to reference a file that lives in Code Bus (git-tracked), use the full URL `https://{branch}--{repo}--{owner}.aem.page/<path>` — though again, this branch-locks the content.
 
+This is the single most common silent failure when generating HTML
+programmatically. See [html-content.md §9 (Images in HTML)](./html-content.md)
+for the HTML-side rule that prevents it.
+
 ### 8.4 Cache invalidation
 
 The DA delivery surface caches aggressively. After uploading or replacing a file:
 
-- **Binary in Media Bus** (PNG/JPG/AVIF/WEBP/MP4): the new file gets a new hash. To make documents pick up the new hash, re-preview each referencing document.
-- **Binary in Content Bus** (SVG/PDF/JSON/ICO/WOFF2): the path is stable. Trigger a preview if the file is referenced by a document that was previously rendered; otherwise the next request fetches the new version after Content Bus cache lifecycle.
+- **Binary in Media Bus** (PNG/JPG/AVIF/WEBP/MP4): the new file gets a new hash. To make documents pick up the new hash, re-preview each referencing document. [verified]
+- **Binary in Content Bus** (SVG/PDF/JSON/ICO/WOFF2): the path is stable. Trigger a preview if the file is referenced by a document that was previously rendered; otherwise the next request fetches the new version after Content Bus cache lifecycle. [verified]
 - **HTML document**: preview → `aem.page`; publish → `aem.live`. Documents are not implicitly re-rendered when their referenced binaries change.
 
 A common gotcha: replacing a PNG and re-uploading does NOT update referencing docs. You uploaded `hero.png` → it gets `media_<sha-A>.png`. Six months later, you upload a new `hero.png` → it gets `media_<sha-B>.png`. Documents that reference `https://content.da.live/.../media/hero.png` still resolve via redirect to `media_<sha-A>.png` until they're re-previewed.
@@ -460,7 +451,7 @@ Wait — that's not quite right. Let me restate:
 
 - The EDS pipeline applies the `<picture>` transformation based on the `<img>` element it encounters when rendering the document. The transformation runs regardless of which host the `src=` points at, as long as the host is reachable and returns a valid image. So either `content.da.live` or `aem.page` works as a source URL; both get the responsive `<picture>` treatment.
 - The difference is **freshness and stability**:
-  - `content.da.live` is canonical. Always the latest uploaded version of that path.
+  - `content.da.live` is canonical. Always the latest uploaded version of that path. [verified]
   - `aem.page/{branch}` is preview-cached. Updates after re-preview.
 
 For author-authored documents, use `content.da.live` URLs. They're branch-independent and always-fresh.
