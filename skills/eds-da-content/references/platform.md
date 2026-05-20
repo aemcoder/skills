@@ -173,3 +173,78 @@ if (expMs - Date.now() < 5 * 60 * 1000) {
 The token is bearer-scoped to the IMS user. There is no per-asset ACL — a
 bearer can read/write everything in the `{org}/{repo}` it has access to.
 `[verified]`
+
+## 4. Retry policy for transient failures
+
+Production scripts should retry on `429` and `5xx` responses. DA's Source
+endpoint is generally robust, but the upstream `admin.hlx.page` endpoints
+occasionally return transient errors under load.
+
+| Behavior | Value |
+|---|---|
+| Max attempts | 3 |
+| Backoff | Exponential (1s / 2s / 4s) |
+| Honor `Retry-After` header | Yes |
+| Retry on status | `429`, `500`, `502`, `503`, `504`, network errors (`ECONNRESET`, `ETIMEDOUT`) |
+| Do NOT retry on | All other 4xx — they represent semantic failures the caller needs to see (`401` token, `413` payload, `415` unsupported media, `400` malformed) |
+
+`[assumed]` from the policy in `aem-import-helper` and community practice.
+`[verified]` for DA-specific 401-empty-body behavior on token expiry.
+
+## 5. Path constraints
+
+| Rule | Value |
+|---|---|
+| Character set | Lowercase `a–z`, digits `0–9`, dash `-` |
+| Max path length | 900 characters |
+| Extension on documents | `.html` in DA storage; delivered without extension |
+| Extension on binaries | Required at upload (drives MIME sniffing) |
+| Traversal | `..` not allowed; relative paths don't resolve against an authoritative root |
+
+`[verified]` from `aem.live/docs/limits`.
+
+DA's Source API will accept a PUT to `/Media/Hero Image.PNG`, but the resulting
+path may not be canonically reachable. Validate paths against the rules
+before uploading.
+
+### Path normalizer
+
+```javascript
+function normalizeDAPath(name) {
+  return name
+    .toLowerCase()
+    .replace(/[_\s]+/g, '-')                   // spaces, underscores → dash
+    .replace(/[^a-z0-9\-./]/g, '')             // strip everything else
+    .replace(/-+/g, '-')                        // collapse multiple dashes
+    .replace(/-(\.)/g, '$1')                    // dash before . (extension) → strip
+    .replace(/^-|-$/g, '');                     // trim leading/trailing dashes
+}
+```
+
+## 6. Preview and publish — required step, separate from upload
+
+Uploading via the Source API only stages drafts. The page does **not** appear
+at `aem.page` or `aem.live` URLs until preview (makes `aem.page` work) and
+publish (makes `aem.live` work) are explicitly triggered.
+
+```bash
+TOKEN=$(jq -r .access_token .hlx/.da-token.json)
+
+curl -X POST -H "Authorization: Bearer $TOKEN" \
+  "https://admin.hlx.page/preview/{org}/{repo}/{branch}/{path}"
+
+curl -X POST -H "Authorization: Bearer $TOKEN" \
+  "https://admin.hlx.page/live/{org}/{repo}/{branch}/{path}"
+```
+
+`[verified]` 2026-05-18.
+
+**Important:**
+- `{path}` matches the DA-stored content path **without** the `.html`
+  extension. Index pages can use a trailing `/`.
+- `{branch}` matches the GitHub branch the EDS deploy is tied to. The
+  previewed page is reachable at
+  `https://{branch}--{repo}--{owner}.aem.page/{path}`.
+- Binaries do **not** need preview/publish — they're delivered directly from
+  `content.da.live` once uploaded. Only documents that reference them need
+  the lifecycle calls.
