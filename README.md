@@ -46,6 +46,55 @@ The `migrate-page` skill activates and orchestrates the full flow.
 - GitHub access for `git clone` (public repos or configured token)
 - Scoop system for parallel block generation
 
+## Overlay skill
+
+The `snowflake` skill converts AI-generated static HTML pages
+(Stardust, Mobirise, Relume, Lovable, v0, Figma-derived hand-coded,
+etc.) into EDS pages using a different approach: the **overlay
+pattern**, which preserves the original DOM byte-for-byte and only
+makes the text/image content authorable in DA. Use this when the
+visual fidelity of the original generator output matters and
+migrating into EDS-shape markup isn't desirable.
+
+### Installation
+
+```
+upskill aemcoder/skills --path skills/snowflake
+```
+
+### One-time substrate install per target repo
+
+`snowflake` requires an overlay-pattern substrate (modified
+`scripts/scripts.js`, lifecycle CSS, header/footer fetch decorators)
+on top of a vanilla `adobe/aem-boilerplate` repo. The skill bundles
+an idempotent installer that handles this on first invocation:
+
+```bash
+node <SKILL_DIR>/install-substrate.mjs
+```
+
+Drives off `substrate/MANIFEST.json`; backs up overwritten files;
+stamps `.snowflake/config.json` with the installed version.
+Subsequent invocations skip the install. See
+`skills/snowflake/phases/0-prereq.md` for the full procedure and
+`skills/snowflake/HOST-NOTES.md` for per-host wiring.
+
+### Portability
+
+Unlike the migration skills, `snowflake` is designed to run on any
+host that provides bash + node + git + curl + playwright-cli. See
+`skills/snowflake/HOST-NOTES.md` for Slicc, Claude Code, and generic
+shell adapters.
+
+### Skills
+
+| Skill | Purpose |
+|-------|---------|
+| `snowflake` | 6-phase static-to-EDS overlay conversion (sequential v1) |
+
+See [skills/snowflake/README.md](skills/snowflake/README.md) for
+methodology, prerequisites, and worked examples.
+
 ## License
 
 See [LICENSE](LICENSE).
