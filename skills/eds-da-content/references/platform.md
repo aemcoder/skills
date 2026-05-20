@@ -248,3 +248,63 @@ curl -X POST -H "Authorization: Bearer $TOKEN" \
 - Binaries do **not** need preview/publish — they're delivered directly from
   `content.da.live` once uploaded. Only documents that reference them need
   the lifecycle calls.
+
+## 7. `aem content` CLI — git-style workflow
+
+```bash
+aem content clone --path /        # auth via browser, pulls into ./content/
+aem content add <files>           # stage
+aem content commit -m "..."       # local commit
+aem content push [--force]        # upload to DA
+aem content status                # show added/modified/deleted
+aem content diff                  # diff local vs remote
+aem content merge                 # sync
+```
+
+Auth token cached at `.hlx/.da-token.json` (gitignored). The CLI can be read
+directly to authorize PUTs:
+
+```bash
+TOKEN=$(jq -r .access_token .hlx/.da-token.json)
+```
+
+### Known limitation: binaries
+
+`aem content push` does **not** reliably upload binary files. The command was
+designed for HTML; it reports success but the binary often doesn't land.
+`[verified]` empirically.
+
+Verify with `curl -sI <expected-url>`; if the upload didn't happen, fall back
+to the Source API (§2) directly. Treat the CLI as HTML-only and use the
+Source API for binaries until this is fixed upstream.
+
+## 8. Rate limits
+
+| Limit | Value | Source |
+|---|---|---|
+| Rate limit | 200 req/sec per IP per hostname | `aem.live/docs/limits` `[verified]` |
+| Concurrent uploads (recommended) | ≤ 50 | `aem-import-helper` default `[verified]` |
+| Pages per site | 1,000,000 | `aem.live/docs/limits` `[verified]` |
+| Files per Code Bus reference | 500 | `aem.live/docs/limits` `[verified]` |
+| Response payload (compressed) | 6 MB | `aem.live/docs/limits` `[verified]` |
+
+For DA Source uploads, the per-IP rate limit applies — high-concurrency
+upload scripts (>200 concurrent PUTs from a single IP) will see 429s and need
+backoff per §4.
+
+## 9. URL reference card
+
+| Pattern | Purpose | Auth |
+|---|---|---|
+| `https://admin.da.live/source/{org}/{repo}/<path>` | DA Source API — PUT/GET/DELETE content and binaries | Bearer IMS token |
+| `https://admin.da.live/list/{org}/{repo}/<path>` | List directory | Bearer IMS token |
+| `https://admin.da.live/versionsource/{org}/{repo}/<path>` | Create a named version | Bearer IMS token |
+| `https://admin.hlx.page/preview/{org}/{repo}/{branch}/<path>` | Trigger preview for a document | Bearer IMS token |
+| `https://admin.hlx.page/live/{org}/{repo}/{branch}/<path>` | Trigger publish for a document | Bearer IMS token |
+| `https://content.da.live/{org}/{repo}/<path>` | Raw DA delivery — returns bytes as uploaded | None for image / public types |
+| `https://da.live/edit#/{org}/{repo}/<path>` | DA web editor for a document | Sign-in required |
+| `https://{branch}--{repo}--{owner}.aem.page/<path>` | Preview deploy from a branch (post-`preview`) | None |
+| `https://{branch}--{repo}--{owner}.aem.live/<path>` | Live deploy from a branch (post-`live`) | None |
+
+For media-specific patterns (`/media`, dot-folders, AEM Assets) see
+[media.md](./media.md).
