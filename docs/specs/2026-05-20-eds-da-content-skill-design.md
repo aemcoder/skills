@@ -262,14 +262,11 @@ Slicc's `upskill` flattens `skills/eds-da-content/` to
 `/workspace/skills/eds-da-content/` at install time. References are loaded
 relative to the skill: `/workspace/skills/eds-da-content/references/*.md`.
 
-## Open Questions
+## Decisions
 
-1. **Skill name.** `eds-da-content` is the working name. Alternatives
-   considered: `da-content` (too narrow — EDS rules apply even pre-upload),
-   `aem-edge-content` (matches Adobe naming but verbose). Stay with
-   `eds-da-content` unless review surfaces objections.
-2. **Should SKILL.md cite specific aem.live URLs as authoritative anchors?**
-   Pro: agent can fetch for fresh data. Con: SKILL.md balloons. Recommend
-   keeping URLs in references, not SKILL.md.
-3. **What about JSON sheets and structured content?** Out of scope for v1;
-   skills generating sheets are rare today.
+1. **Skill name.** `eds-da-content` for now. Renaming is cheap if a better
+   name surfaces during implementation.
+2. **URL placement.** URLs live in references, not SKILL.md. Keeps SKILL.md
+   compact and the must-not-violate rules scannable.
+3. **JSON sheets and structured content.** Out of scope for v1.
+	
