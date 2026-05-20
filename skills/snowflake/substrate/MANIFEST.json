@@ -1,5 +1,5 @@
 {
-  "substrateVersion": "1.0.2",
+  "substrateVersion": "1.0.5",
   "marker": {
     "file": "scripts/scripts.js",
     "needle": "function applyTemplateOverlay",
@@ -20,6 +20,11 @@
       "src": "styles/styles.css",
       "dst": "styles/styles.css",
       "purpose": "Lifecycle visibility CSS with direct-child selectors so fragment-internal .header/.footer classes are not caught by the boilerplate's descendant selectors."
+    },
+    {
+      "src": "styles/fonts.css",
+      "dst": "styles/fonts.css",
+      "purpose": "Empty by design. The boilerplate's default ships Roboto @font-face rules that scripts.js loadFonts() loads on every page — that contaminates overlay pages whose source declares 'Roboto, Tahoma, ...' as a fallback chain without actually loading a webfont (source intends system Tahoma; boilerplate silently provides real Roboto). Per-template font needs belong in /styles/<template>.css."
     },
     {
       "src": "blocks/header/header.js",

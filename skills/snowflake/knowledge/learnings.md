@@ -16,6 +16,63 @@ Categories to look for as the list grows:
 
 ---
 
+## 2026-05-20 — AEM boilerplate's default `styles/fonts.css` contaminates overlay pages
+
+**Surfaced on:** ups-gb refresh (run 017) — visible font rendering divergence.
+
+The AEM EDS boilerplate ships `styles/fonts.css` with Roboto and Roboto-Condensed
+`@font-face` rules. The substrate's `scripts.js` `loadFonts()` loads this file
+on every page, including overlay pages. The boilerplate's font declarations
+were leaking into overlay rendering for any source that mentions Roboto in
+its font-family fallback chain.
+
+### Why this bites
+
+A source page like UPS UK declares:
+
+```css
+body { font-family: "Roboto, Tahoma, Helvetica, Arial, sans-serif"; }
+```
+
+…but does NOT load a Roboto webfont. The source intends system Tahoma fallback.
+The converted overlay page on EDS:
+- Loads the boilerplate's `styles/fonts.css` via `scripts.js loadFonts()`
+- That CSS declares `@font-face { font-family: roboto; src: url('../fonts/roboto-bold.woff2'); }`
+- The `font-family: Roboto, Tahoma, ...` declaration now finds a real Roboto
+- Browser renders Roboto instead of system Tahoma
+
+Visual outcome: font weights, x-heights, kerning, letter shapes all subtly differ
+from the source. The page LOOKS converted but doesn't feel 1:1.
+
+### Substrate-level fix (shipped in v1.0.5)
+
+The substrate now ships its own empty `styles/fonts.css` and the install
+manifest replaces the boilerplate's version. Overlay pages render with the
+source's declared fallback chain — no boilerplate-injected webfonts.
+
+If a per-template needs a webfont (the source page DID load Roboto via
+`<link>` or `@font-face`), declare it in that template's
+`/styles/<template>.css`. The page CSS extraction in Phase 3 already
+preserves source-side `@font-face` declarations.
+
+### Phase 4 (Wire) self-check
+
+After wiring, compare the source page's `document.fonts` set against the
+converted page's `document.fonts` set (both via `playwright-cli run-code`).
+If the converted page has additional loaded fonts that the source doesn't,
+investigate — usually a sign of leaked boilerplate fonts or a webfont the
+template CSS injected that wasn't in the source.
+
+### Existing branches
+
+Pre-1.0.5 branches that were converted with the boilerplate's Roboto still
+ship the leaky fonts.css. They'll be fixed automatically on next refresh
+(substrate install at v1.0.5+ overwrites the file with the empty version).
+For an immediate fix without refresh, empty out `styles/fonts.css` at the
+branch level and push.
+
+---
+
 ## 2026-05-20 — inline content elements belong INSIDE the slot, not as static template siblings
 
 **Surfaced on:** polestar refresh (run 010) — `<sup>¹</sup>` footnote marker.
