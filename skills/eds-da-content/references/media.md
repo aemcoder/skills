@@ -458,9 +458,18 @@ For author-authored documents, use `content.da.live` URLs. They're branch-indepe
 
 ---
 
-## 9. Authoring — how documents reference media
+## 9. Authoring — how HTML documents reference media
 
-A DA document references uploaded media via standard HTML `<img>`, `<source>`, `<video>`, etc. tags. The `src=` attribute holds a full URL (per §8.3).
+A DA document references uploaded media via standard HTML `<img>`,
+`<source>`, `<video>`, `<a>`, and `<link>` tags. The `src=` / `href=`
+attributes hold full URLs (per §8.3 — never repo-relative or
+document-relative).
+
+The HTML-side rules — exactly which tags to use, where they go in the doc
+skeleton, and how they interact with sections and blocks — are documented
+in [html-content.md §9 (Images in HTML)](./html-content.md). This section
+covers the media-side: which URL host to point at, and what the pipeline
+does with the reference at delivery.
 
 ### 9.1 Static `<img>` references
 
@@ -559,15 +568,10 @@ DA Source will accept a PUT to `/Media/Hero Image.PNG`, but the resulting path m
 
 ## 11. URL reference card
 
-| Pattern | Purpose | Auth |
-|---|---|---|
-| `https://admin.da.live/source/{org}/{repo}/<path>` | DA Source API — PUT binaries here | Bearer token |
-| `https://admin.hlx.page/preview/{org}/{repo}/{branch}/<path>` | Trigger preview for a document | Bearer token |
-| `https://admin.hlx.page/live/{org}/{repo}/{branch}/<path>` | Trigger publish for a document | Bearer token |
-| `https://content.da.live/{org}/{repo}/<path>` | Direct DA delivery — raw binaries | None (for images and public types) |
-| `https://da.live/edit#/{org}/{repo}/<path>` | DA web editor for a document | Sign-in required |
-| `https://{branch}--{repo}--{owner}.aem.page/<path>` | Preview deploy from a branch (post-`preview`) | None |
-| `https://{branch}--{repo}--{owner}.aem.live/<path>` | Live deploy from a branch (post-`live`) | None |
+See [platform.md §9](./platform.md) for the canonical URL reference. The
+patterns relevant to media are the `content.da.live` delivery URLs (§2),
+`admin.da.live/source` for upload (§3.1), and `aem.page`/`aem.live` for
+rendered output.
 
 ---
 
@@ -594,31 +598,3 @@ Is this binary referenced from authored content (HTML documents in DA)?
           ├── A block asset?     → /blocks/<block>/<file>
           └── Site config?       → /head.html, /styles/, /scripts/
 ```
-
----
-
-## 13. Glossary
-
-**Admin API** — `https://admin.hlx.page/…` endpoint family. Controls document lifecycle (preview, publish, status).
-
-**Code Bus** — files delivered from the git-tracked branch (typically `/fonts/`, `/icons/`, `/blocks/`, `/scripts/`, `/styles/`, `/head.html`). Updated by code deploy.
-
-**Content Bus** — files delivered from DA at their original path (SVG, PDF, HTML, JSON, ICO, WOFF2). Updated by preview/publish.
-
-**DA editor** — the web UI at `da.live/edit#/…` for authoring documents.
-
-**DA Source API** — `https://admin.da.live/source/…` endpoint for read/write of DA-tracked files.
-
-**Dot-folder** — `/{parent}/.{docname}/` folder created automatically by the DA editor for per-document author uploads.
-
-**Edge Delivery Services (EDS)** — the rendering pipeline that serves `aem.page` (preview) and `aem.live` (production). Consumes DA content + Code Bus + Media Bus to produce rendered HTML.
-
-**IMS token** — Adobe Identity Management access token. Cached at `.hlx/.da-token.json`. Used for auth against DA Source API and Admin API.
-
-**Media Bus** — content-addressed backend for image and video binaries (PNG, JPG, AVIF, WEBP, MP4). Dedup by SHA hash; permanent cache.
-
-**`/media` folder** — DA convention for shared assets — top-level folder for binaries referenced across documents/branches/iterations. Auto-creates on first PUT.
-
-**Preview / Publish** — Admin API operations that promote a document from "stored in DA" to "available at `aem.page`" (preview) or "available at `aem.live`" (publish).
-
-**Source API** — see DA Source API.
