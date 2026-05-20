@@ -70,6 +70,16 @@ in `decisions.json["sections"]`:
    - Find the element matching `selector` inside the section.
    - Add `data-slot="<name>"` to it. Keep the default content (acts
      as fallback when DA cell is empty).
+   - **Mid-sentence inline elements are CONTENT, not chrome.** If the
+     element contains inline tags from the preserved set (`<sup>`,
+     `<sub>`, `<strong>`, `<em>`, `<del>`, `<ins>`, `<mark>`, `<code>`,
+     `<kbd>`, anchors, images) that sit BETWEEN text runs, leave them
+     inside the element and slot the WHOLE element. Do NOT wrap the
+     text in a sub-`<span data-slot>` that excludes the inline tags —
+     the DA cell would then be missing them and the `.md`
+     representation would be incomplete (authors can't see/edit the
+     marker). See `<SKILL_DIR>/knowledge/learnings.md` entry
+     "2026-05-20 — inline content elements belong INSIDE the slot".
    - For `background-image` slots, the element keeps its inline
      `style="background-image:url(...)"` AS-IS. The substrate writer
      replaces the URL at runtime.

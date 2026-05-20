@@ -16,6 +16,84 @@ Categories to look for as the list grows:
 
 ---
 
+## 2026-05-20 — inline content elements belong INSIDE the slot, not as static template siblings
+
+**Surfaced on:** polestar refresh (run 010) — `<sup>¹</sup>` footnote marker.
+
+Source page has an inline element mid-sentence in a heading:
+
+```html
+<h2 class="incentive__head">Not the status quo. Tesla owners receive $14,000.<sup>¹</sup></h2>
+```
+
+**The trap:** A sub-agent looked at this and reasoned "the sup is structural,
+the text is content — give the author a slot for just the text and keep the
+sup as static template chrome." Result:
+
+```html
+<!-- WRONG: sup outside the slot -->
+<h2 class="incentive__head">
+  <span data-slot="head">Not the status quo. Tesla owners receive $14,000.</span>
+  <sup>¹</sup>
+</h2>
+```
+
+DA cell: `Not the status quo. Tesla owners receive $14,000.` (no sup).
+
+This breaks two things:
+
+1. **`.md` representation is incomplete.** Authors see the headline text
+   without the footnote marker. If they remove the footnote later, the
+   orphan sup is invisible to them — they can't clean it up.
+2. **Round-trip fidelity is lost.** The source HTML has the sup as inline
+   content; the converted page splits it across template chrome and slot
+   content. Anyone reading the DA-stored content can't reconstruct the
+   intended rendering.
+
+### The rule
+
+**Mid-sentence inline elements are CONTENT, not chrome.** Put them inside
+the slot value. Use a single `data-slot` on the heading/paragraph element
+itself, not a sub-`<span>`:
+
+```html
+<!-- RIGHT: data-slot on the heading, sup inside -->
+<h2 class="incentive__head" data-slot="head">Not the status quo. Tesla owners receive $14,000.<sup>¹</sup></h2>
+```
+
+DA cell: `Not the status quo. Tesla owners receive $14,000.<sup>¹</sup>` —
+visible and editable in the DA editor.
+
+### Which elements does this apply to
+
+The EDS pipeline preserves the same semantic-inline set listed in the
+2026-05-20 `<span class="...">` entry below: `<sup>`, `<sub>`, `<strong>`,
+`<em>`, `<del>`, `<ins>`, `<mark>`, `<code>`, `<kbd>`, anchors, images.
+All of these belong inside the slot when they appear mid-sentence.
+
+### When IS it OK to keep an inline element as template chrome?
+
+Rare, but possible:
+- The element is a **purely structural placeholder** (e.g. an SVG icon, a
+  decorative dingbat) that's tied to the template's visual design and
+  shouldn't be authored.
+- The element wraps the slot rather than sitting beside it (e.g. a `<sup>`
+  decorating the *whole* slot's content, not a fragment mid-sentence —
+  unusual).
+
+For everything mid-sentence, default to "inside the slot."
+
+### Phase 3 (Generate) self-check
+
+When constructing slot markers, scan the source heading/paragraph being
+slotted. If it contains any inline elements from the preserved list AND
+those elements sit between text runs (not wrapping the whole element),
+put `data-slot` on the heading/paragraph itself and include the inline
+elements in the slot value. Do NOT introduce a `<span data-slot>` that
+excludes them.
+
+---
+
 ## 2026-05-20 — EDS pipeline strips `<span class="...">` from DA cell content
 
 **Surfaced on:** glossier refresh (run 008) — sale prices.
