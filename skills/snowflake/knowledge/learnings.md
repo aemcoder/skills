@@ -16,6 +16,109 @@ Categories to look for as the list grows:
 
 ---
 
+## 2026-05-20 — EDS pipeline strips `<span class="...">` from DA cell content
+
+**Surfaced on:** glossier refresh (run 008) — sale prices.
+
+The EDS post-pipeline (the renderer that produces `<page>.plain.html` from the
+DA HTML source) **drops `<span class="...">` wrappers** that have no semantic
+role — they're treated as presentational and not preserved through the
+markdown round-trip. The `<span>` tags themselves disappear; their text content
+survives as bare text in the parent element.
+
+Other inline elements survive: `<del>`, `<ins>`, `<strong>`, `<em>`, `<mark>`,
+`<code>`, `<kbd>`, `<sub>`, `<sup>`, anchors, images. These have semantic
+meaning so markdown preserves them.
+
+### Why this bites
+
+Generator pages frequently use `<span class="foo">` purely as styling hooks:
+
+```html
+<p class="product-card__price">
+  <del>CHF 20.90</del>
+  <span class="product-card__price-now">CHF 14.63</span>
+</p>
+```
+
+```css
+.product-card__price-now { color: var(--color-sale-orange); }
+```
+
+After DA round-trip, the live page renders as:
+
+```html
+<p class="product-card__price">
+  <del>CHF 20.90</del>
+  CHF 14.63                <!-- span and its class are gone -->
+</p>
+```
+
+…and the CSS rule has nothing to match → sale price shows in default color.
+
+### How to handle in Generate phase
+
+When source CSS targets a `<span class="...">` for styling and the span isn't
+load-bearing semantically, choose ONE of:
+
+1. **CSS-only fix using structural selectors** (preferred — no markup change):
+   Use `:has()`, sibling combinators, or `:nth-child()` to target the position
+   instead of the class. Example for the price pattern:
+
+   ```css
+   /* whole <p> orange when it contains a <del>; del rule overrides back grey */
+   .product-card__price:has(del) { color: var(--color-sale-orange); }
+   .product-card__price del { color: var(--color-fg-muted); }
+   ```
+
+2. **Swap `<span>` for a semantic element** that survives the pipeline:
+   `<strong>`, `<em>`, `<mark>`, `<b>`, `<i>` all pass through. Update the
+   page CSS to target the element instead of the class:
+
+   ```html
+   <p><del>CHF 20.90</del> <strong>CHF 14.63</strong></p>
+   ```
+
+   ```css
+   .product-card__price strong {
+     color: var(--color-sale-orange);
+     font-weight: inherit;  /* override default <strong> bold */
+   }
+   ```
+
+   Pick the semantically least-wrong element. `<strong>` for "the price you
+   should focus on" is reasonable; `<mark>` if it's a highlight; `<em>` for
+   stylistic emphasis. Avoid `<b>`/`<i>` unless the original was bold/italic
+   for purely visual reasons.
+
+### How to detect in Phase 2 (Analyze)
+
+When mapping CSS selectors to slot opportunities, flag any rule that targets
+`.<class>` on a `<span>` and emit a decisions.json note. Then choose the
+strategy above during Phase 3 (Generate).
+
+### Counter-pattern: spans with `data-slot`
+
+A `<span data-slot="...">` does survive — the substrate's writeSlot writes
+text into it before DA serialization ever happens. The pipeline only strips
+spans from the FINAL DA-stored content. Spans that are template-only
+(populated at runtime by the overlay engine) are unaffected.
+
+### Anti-pattern: literal arrow flattening
+
+Don't flatten `<del>X</del> <span>Y</span>` to `X → Y` plain text in DA. The
+arrow is a presentation artifact of the strikethrough rendering, not part of
+the content. Storing `→` literally:
+- Loses the strikethrough (no `<del>`)
+- Loses the color styling (no class hook)
+- Adds noise that DA authors will see and may "correct"
+
+Keep `<del>` in the DA cell. Handle the sale-price color via CSS (option 1
+above) or semantic-element swap (option 2). Branch fix: see
+glossier-a `styles/glossier.css` `.product-card__price:has(del)` rule.
+
+---
+
 ## 2026-05-19 — substrate `footer > .footer { visibility: hidden }` leaks into fragment inner divs
 
 The substrate lifecycle CSS uses `footer > .footer { visibility: hidden }` to hide
