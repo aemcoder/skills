@@ -2,7 +2,7 @@
   "name": "local/eds-da-content",
   "version": "0.1.0",
   "private": true,
-  "summary": "Reference for producing Adobe Document Authoring (DA) and Edge Delivery Services (EDS) compatible content. Use whenever generating HTML for DA upload, uploading media binaries to DA, or driving the DA admin API (auth, source PUT, preview/publish). Covers block HTML format (canonical `<div class=\"…\">` form and accepted `<table>` alternate), section structure, page/section metadata blocks, icons, links, images, default content, document skeleton constraints, the DA Source API contract, IMS auth, media storage patterns, supported formats and size limits, Media Bus vs Content Bus delivery, and the silent-failure rules that corrupt content.",
+  "summary": "Reference for producing Adobe Document Authoring (DA) and Edge Delivery Services (EDS) compatible content. Use whenever generating HTML for DA upload, uploading media binaries to DA, or driving the DA admin API (auth, source PUT, preview/publish). Covers block HTML format (canonical `<div class=\"…\">` form and accepted `<table>` alternate), section structure, page/section metadata blocks, icons, links, images, default content, document skeleton constraints, block cell content normalization rules (which inline tags survive, get rewritten, or get stripped inside block cells), the DA Source API contract, IMS auth, media storage patterns, supported formats and size limits, Media Bus vs Content Bus delivery, and the silent-failure rules that corrupt content.",
   "skills": {
     "eds-da-content": {
       "path": "SKILL.md"
