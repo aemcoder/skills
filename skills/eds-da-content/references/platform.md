@@ -280,6 +280,30 @@ Verify with `curl -sI <expected-url>`; if the upload didn't happen, fall back
 to the Source API (§2) directly. Treat the CLI as HTML-only and use the
 Source API for binaries until this is fixed upstream.
 
+### Known limitation: pre-upload HTML normalization
+
+The CLI applies pre-upload normalization that **strips EDS-specific
+decorations** before sending — notably `<span class="icon icon-X">` icon
+markers and similar markup that the EDS pipeline (not the editor) reads.
+`[verified]` `DA-BLOCK-FORMAT.md` line 361-363.
+
+For byte-faithful upload of pre-shaped EDS HTML (e.g. content produced
+by `excat` / migration pipelines that already emit decorated blocks),
+POST directly to `admin.da.live/source/...` with
+`Content-Type: text/html` rather than going through the CLI:
+
+```bash
+curl -X POST \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: text/html" \
+  --data-binary @./page.html \
+  "https://admin.da.live/source/{org}/{repo}/path/to/page.html"
+```
+
+The CLI is fine for prose-heavy content where decorations are absent
+(authored docs, plain-text migrations). It's lossy for decorated EDS
+HTML.
+
 ## 8. Rate limits
 
 | Limit | Value | Source |

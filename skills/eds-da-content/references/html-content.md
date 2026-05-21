@@ -1,9 +1,10 @@
 # DA HTML content reference
 
 How to generate HTML that DA will accept and EDS will render correctly.
-Covers the document skeleton, block table format, section structure,
-page and section metadata blocks, default content, icons, links, image
-references, and the encoding / forbidden constructs.
+Covers the document skeleton, block markup (canonical `<div class="…">`
+form and accepted `<table>` alternate), section structure, page and
+section metadata blocks, default content, icons, links, image references,
+and the encoding / forbidden constructs.
 
 For media binaries (the files HTML references), see [media.md](./media.md).
 For the DA Source API call that uploads the HTML, see
@@ -94,44 +95,110 @@ A page with no logical section break still wraps its content in one `<div>`
 inside `<main>`. The pipeline always wraps everything in at least one
 section. `[verified]`.
 
-## 3. Block tables
+## 3. Blocks
 
-A block is an HTML `<table>` where the first row is a single merged cell
-containing the block name. `[verified]` from EDS markup docs.
+A block is a piece of structured, named content inside a section. Two
+authoring shapes are accepted by DA:
+
+- **`<div class="…">` form — canonical.** Use this when generating HTML
+  programmatically or by hand.
+- **`<table>` form — accepted alternate.** Use this when piping content
+  from Word / Google-docs imports, helix-importer-ui, or any
+  markdown→HTML chain that emits tables natively.
+
+Both forms produce **byte-identical** rendered output on `aem.page` /
+`aem.live`. The recommendation to prefer divs is about round-trip
+efficiency, not correctness. `[verified]` empirically via direct PUT of
+each form against `admin.da.live/source/...` followed by preview —
+identical `<div class="…">` markup in the rendered `<main>`. See the
+investigation at `DA-BLOCK-FORMAT.md` lines 312-339.
+
+### 3.1 The three-layer conversion model
+
+Why both forms work, and why divs are the canonical form:
+
+| Layer | Behavior |
+|---|---|
+| **Storage (`da-admin`)** | Accepts any HTML; stores bytes as-is, no transformation. `[verified]` `da-admin/src/storage/object/put.js:33-58`, `da-admin/src/helpers/source.js:62-71` |
+| **Preview pipeline (Helix `md2da`)** | On preview, normalizes `<table>` blocks to `<div class="…">` blocks. `[verified]` mirrored in-repo by `da-nx/nx/utils/converters.js:33-60` `convertBlocks()`; the upstream contract is named in `da-nx/test/utils/converters/converters.test.js:145-160` ("md2da in Helix corresponds to mdToDocDom + docDomToAemHtml"). |
+| **Editor (`da-live`)** | On open, parses `<div class="…">` into a ProseMirror `table` node via `aem2doc`. On save, always serializes back to `<div class="…">` via `prose2aem.js:26-58` `convertBlocks()`. `[verified]` |
+
+Counter-check: the Universal Editor adapter reads div-form blocks
+directly. `[verified]` `da-universal/src/utils/hast.js:36-103`
+`readBlockConfig`.
+
+Consequence for programmatic authoring:
+
+- **Generate divs** → the read shape (when you fetch existing content
+  from `admin.da.live/source/...`) matches the write shape. Round-trip
+  is identity. No `md2da` normalization step on the way to render.
+- **Generate tables** → fully supported, but the storage form will flip
+  to divs the first time a human user opens-and-saves in the DA editor
+  (the editor canonicalizes on save).
+
+### 3.2 Canonical div form
 
 ```html
-<table>
-  <tr><td>Block Name</td></tr>        <!-- merged header = block identifier -->
-  <tr>
-    <td>cell 1</td>
-    <td>cell 2</td>
-  </tr>
-  <tr>
-    <td>cell 3</td>
-    <td>cell 4</td>
-  </tr>
-</table>
+<div class="block-name">
+  <div>
+    <div>cell 1</div>
+    <div>cell 2</div>
+  </div>
+  <div>
+    <div>cell 3</div>
+    <div>cell 4</div>
+  </div>
+</div>
 ```
 
-### Block name normalization
+The outermost `<div>`'s `class` attribute encodes the block identity:
+the **first class token is the block name**; subsequent tokens are
+variants. Each direct child `<div>` is a row. Each grandchild `<div>` is
+a cell.
 
-The header cell text is normalized via `toClassName()` (`aem.js`):
+```html
+<div class="hero">
+  <div>
+    <div>
+      <h1>Title</h1>
+      <p>Subtitle</p>
+    </div>
+  </div>
+</div>
+```
 
-1. Convert to lowercase
-2. Replace spaces with hyphens
-3. Replace non-alphanumeric characters with hyphens
-4. Collapse multiple consecutive hyphens to one
-5. Trim leading/trailing hyphens
+### 3.3 Block name encoding
 
-| Header text | Normalized name | File path |
+The first class token is the block name. It resolves to
+`/blocks/<name>/<name>.{js,css}` at delivery (the EDS pipeline injects
+these references from Code Bus).
+
+| Class attribute | Block name | File path |
 |---|---|---|
-| `Columns` | `columns` | `blocks/columns/columns.{js,css}` |
-| `Hero Banner` | `hero-banner` | `blocks/hero-banner/hero-banner.{js,css}` |
-| `My  Block!` | `my-block` | `blocks/my-block/my-block.{js,css}` |
+| `class="columns"` | `columns` | `blocks/columns/columns.{js,css}` |
+| `class="hero-banner"` | `hero-banner` | `blocks/hero-banner/hero-banner.{js,css}` |
 
-`[verified]` from `aem.js` source.
+`[verified]` from `aem.js` `decorateBlock`.
 
-### Block name constraints
+#### `toBlockCSSClassNames` algorithm
+
+Identical implementation in `da-nx/nx/utils/converters.js` and
+`da-live/blocks/shared/prose2aem.js`. Used when normalizing a table-form
+header (e.g. `"Columns (features, 3-col)"`) into the equivalent class
+list (`["columns", "features", "3-col"]`):
+
+1. Split on the last `(` — first part is the block name, parenthetical
+   part splits on `,`
+2. Lowercase
+3. Non-alphanumeric runs → single `-`
+4. Trim leading/trailing `-`
+5. Drop empty segments
+
+The inverse (`<div>` → editor table heading) joins them back: first
+class is the block name, the rest are variants joined with `, ` and
+wrapped in parentheses. `[verified]` `DA-BLOCK-FORMAT.md` lines 290-308.
+
+#### Block name constraints (both forms)
 
 - Alphanumeric and single hyphens only.
 - No underscores. `[verified]`
@@ -141,29 +208,38 @@ The header cell text is normalized via `toClassName()` (`aem.js`):
 Valid: `hero`, `columns`, `super-hero`
 Invalid: `hero_wide`, `hero--wide`, `2col`
 
-### Block variants / options
+### 3.4 Block variants / options
 
-Options in parentheses after the block name become additional CSS classes:
+Variants attach CSS modifier classes to the block. The two forms encode
+them differently but normalize identically:
 
-| Header text | Resulting classes |
-|---|---|
-| `Columns` | `columns block` |
-| `Columns (wide)` | `columns wide block` |
-| `Columns (super wide)` | `columns super-wide block` (multi-word: hyphenated) |
-| `Columns (dark, wide)` | `columns dark wide block` (comma-separated: separate classes) |
+| Div form (`class="…"`) | Table form (header cell) | Resulting classes |
+|---|---|---|
+| `class="columns"` | `Columns` | `columns block` |
+| `class="columns wide"` | `Columns (wide)` | `columns wide block` |
+| `class="columns super-wide"` | `Columns (super wide)` | `columns super-wide block` (multi-word: hyphenated) |
+| `class="columns dark wide"` | `Columns (dark, wide)` | `columns dark wide block` (comma-separated → separate classes) |
 
-`[verified]` from EDS markup docs.
+`[verified]` from EDS markup docs and `toBlockCSSClassNames` in
+`da-nx/nx/utils/converters.js`.
 
-### DOM output after decoration
+### 3.5 DOM output after decoration
+
+For **div-form input**, decoration is not a format conversion — only a
+wrapper, status attributes, and an added `block` class are layered on:
 
 ```html
-<!-- Authored in DA (table form) -->
-<table>
-  <tr><td>Hero</td></tr>
-  <tr><td><h1>Title</h1><p>Subtitle</p></td></tr>
-</table>
+<!-- Authored in DA (div form, canonical) -->
+<div class="hero">
+  <div>
+    <div>
+      <h1>Title</h1>
+      <p>Subtitle</p>
+    </div>
+  </div>
+</div>
 
-<!-- Rendered by aem.page (decorated div form) -->
+<!-- Rendered by aem.page -->
 <div class="hero-wrapper">
   <div class="hero block" data-block-name="hero" data-block-status="loaded">
     <div>
@@ -176,13 +252,64 @@ Options in parentheses after the block name become additional CSS classes:
 </div>
 ```
 
-Each row becomes an inner `<div>`. Each cell within a row becomes a nested
-`<div>`. `[verified]` from `aem.js` `decorateBlock`.
+For **table-form input**, the Helix preview pipeline first normalizes
+the table to the div form above, then decoration applies. The rendered
+markup is byte-identical to the div-form rendering.
 
-### Forbidden patterns
+```html
+<!-- Authored in DA (table form, alternate) -->
+<table>
+  <tr><td>Hero</td></tr>
+  <tr><td><h1>Title</h1><p>Subtitle</p></td></tr>
+</table>
 
-These render as plain HTML tables (silent failure — the block JS never
-loads):
+<!-- Normalized by Helix preview pipeline -->
+<div class="hero">
+  <div><div><h1>Title</h1><p>Subtitle</p></div></div>
+</div>
+
+<!-- Then decorated (same as above) -->
+<div class="hero-wrapper">
+  <div class="hero block" data-block-name="hero" data-block-status="loaded">
+    <div><div><h1>Title</h1><p>Subtitle</p></div></div>
+  </div>
+</div>
+```
+
+`[verified]` from `aem.js` `decorateBlock` for decoration; from
+`da-nx/nx/utils/converters.js:33-60` for normalization.
+
+### 3.6 Which form should I generate?
+
+| Situation | Form |
+|---|---|
+| Writing HTML by hand or programmatically authoring | **`<div class="…">`** — matches what the editor saves and what storage returns. Round-trip is identity. |
+| Migrating from Word / Google-docs, helix-importer-ui, an md-based site, or any pipeline that already emits `<table>` blocks | **`<table>`** — the Helix preview pipeline normalizes them on the way to render. No need to pre-convert. |
+| Generating EDS-decorated HTML (with `<span class="icon icon-X">` etc.) for upload | **`<div class="…">`** with direct PUT to `admin.da.live/source/...`. Tables piped through the `aem content` CLI lose icon spans during pre-upload normalization. See [platform.md §7](./platform.md). |
+
+`[verified]` `DA-BLOCK-FORMAT.md` lines 343-363.
+
+### 3.7 Max children per row
+
+Four children per row maximum (i.e. four cells per row). `[verified]`
+from Adobe's Experience Modernization Agent prompting guide. Exceeding
+this is not a hard parse failure but breaks the common block JS
+patterns that assume ≤4 columns.
+
+### 3.8 Forbidden patterns
+
+These render as plain HTML (silent failure — the block JS never loads):
+
+#### Div form
+
+| Pattern | Why it breaks |
+|---|---|
+| Outermost `<div>` has no `class` attribute | No block name → not recognized as a block. Renders as a plain section `<div>`. `[verified]` |
+| Block name class is not first in the class list | EDS reads the first class token as the block name. `class="wide hero"` resolves to block name `wide`, not `hero`. `[verified]` from `aem.js`. |
+| Nested block divs (block inside a block cell) | EDS doesn't support nested blocks. The inner block renders as plain HTML. `[verified]` from EDS markup docs. |
+| Skipping the row/cell nesting (`<div class="hero"><h1>…</h1></div>` directly) | Decoration expects depth-2 rows and depth-3 cells. Without them, default-content selectors inside the block JS don't match. `[verified]` |
+
+#### Table form (alternate)
 
 | Pattern | Why it breaks |
 |---|---|
@@ -192,18 +319,27 @@ loads):
 | Missing `<tbody>` | Some HTML generators omit `<tbody>`; DA's ProseMirror schema is strict. Use `<table><tr>...</tr></table>` consistently or always wrap in `<tbody>`. `[verified]` from `da-live` source. |
 | Stray text nodes between `<tr>` / `<td>` | ProseMirror parse failure. Output clean HTML with no whitespace text nodes. `[verified]` |
 
-### Max cells per row
-
-Four cells per row maximum. `[verified]` from Adobe's Experience
-Modernization Agent prompting guide. Exceeding this is not a hard
-parse failure but breaks the common block JS patterns that assume
-≤4 columns.
-
 ## 4. Section Metadata block
 
 Section Metadata is a special block placed **inside** the section it
 targets. It adds CSS classes and data attributes to the enclosing section
 `<div>`. It has **no SEO effect** — that's the Page Metadata block (§5).
+
+Canonical (div) form:
+
+```html
+<div class="section-metadata">
+  <div><div>Style</div><div>dark, center</div></div>
+  <div><div>Background</div><div>https://content.da.live/{org}/{repo}/media/bg.jpg</div></div>
+</div>
+```
+
+The block class is exactly `section-metadata` (kebab-case, one token).
+`[verified]` from `toBlockCSSClassNames` in `da-nx/nx/utils/converters.js`
+applied to the table-form header `"Section Metadata"`.
+
+Alternate (table) form — equivalent, accepted when imported from
+Word/Google-docs flows:
 
 ```html
 <table>
@@ -225,8 +361,8 @@ targets. It adds CSS classes and data attributes to the enclosing section
 ### Placement
 
 Section Metadata must be inside the section it targets. The section is
-determined by which `<div>` (inside `<main>`) the table sits inside.
-Placing a Section Metadata table in the wrong section silently applies
+determined by which `<div>` (inside `<main>`) the block sits inside.
+Placing a Section Metadata block in the wrong section silently applies
 the styles to the wrong section. `[verified]`
 
 ### URL values in data attributes
@@ -239,7 +375,7 @@ data-attribute values. `[verified]`
 
 ### HTML output example
 
-For the table above inside a section, the section `<div>` becomes:
+For either form above inside a section, the section `<div>` becomes:
 
 ```html
 <div class="section dark center" data-background="https://content.da.live/{org}/{repo}/media/bg.jpg">
@@ -252,6 +388,27 @@ For the table above inside a section, the section `<div>` becomes:
 A single block placed as the **last element of the last section inside
 `<main>`**. Maps to `<head>` meta tags at delivery. Do not place it inside
 `<footer>` — `<footer>` is typically empty (see §1). `[verified]`
+
+Canonical (div) form:
+
+```html
+<div class="metadata">
+  <div><div>title</div><div>My Page Title</div></div>
+  <div><div>description</div><div>Page summary</div></div>
+  <div><div>image</div><div><img src="https://content.da.live/{org}/{repo}/media/og.png"></div></div>
+  <div><div>template</div><div>article</div></div>
+  <div><div>theme</div><div>dark</div></div>
+  <div><div>og:title</div><div>OG Title</div></div>
+  <div><div>robots</div><div>noindex</div></div>
+  <div><div>canonical</div><div>https://example.com/canonical-url</div></div>
+</div>
+```
+
+The block class must be exactly `metadata` (single token, lowercase).
+Misspelled class (`meta-data`, `metadatas`, missing class) → not
+recognized → no `<meta>` tags emitted. `[verified]`
+
+Alternate (table) form — equivalent:
 
 ```html
 <table>
@@ -288,9 +445,11 @@ A single block placed as the **last element of the last section inside
 ### Rules
 
 - Only one Metadata block per page. `[verified]`
-- Block header must be exactly `Metadata` (case-insensitive). Misspellings
-  (`Meta Data`, `Metadata:`, `Metadat`) are silently ignored — no `<meta>`
-  tags emitted. `[verified]`
+- **Div form:** block class must be exactly `metadata` (single token).
+  **Table form:** header text must be exactly `Metadata` (case-insensitive).
+  Misspellings (`meta-data` / `Meta Data`, `metadatas` / `Metadata:`,
+  `metadat` / `Metadat`) are silently ignored — no `<meta>` tags emitted.
+  `[verified]`
 - Page-level metadata overrides bulk metadata. `[verified]`
 - Empty right column removes the corresponding tag (useful for clearing
   canonical on specific pages). `[verified]`
@@ -303,14 +462,14 @@ authoring tooling.
 
 ## 6. Default content
 
-Default content is anything outside a block table — standard document
+Default content is anything outside a block — standard document
 elements that render as themselves: headings, paragraphs, lists, links,
 images, inline formatting.
 
-Use default content as much as possible. Blocks are heavier (table syntax,
-block JS, dedicated CSS). Prefer default content for any content that
-doesn't need a custom layout or behavior. `[verified]` from EDS authoring
-docs.
+Use default content as much as possible. Blocks are heavier (structured
+markup, block JS, dedicated CSS). Prefer default content for any content
+that doesn't need a custom layout or behavior. `[verified]` from EDS
+authoring docs.
 
 ### Allowed elements
 
