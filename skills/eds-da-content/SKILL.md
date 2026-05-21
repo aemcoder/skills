@@ -1,6 +1,6 @@
 ---
 name: eds-da-content
-description: Reference for producing Adobe Document Authoring (DA, da.live) and Edge Delivery Services (EDS, also known as AEM Edge Delivery, aem.live, Helix, Franklin, Project Helix) compatible content. Use whenever generating HTML for DA upload, uploading media binaries to DA, publishing to aem.live, working with AEM pages backed by DA, or driving the DA admin API (auth, source PUT, preview/publish). Covers block table HTML format, section structure, page/section metadata blocks, icons, links, images, default content, document skeleton constraints, the DA Source API contract, IMS auth, media storage patterns, supported formats and size limits, Media Bus vs Content Bus delivery, and the silent-failure rules that corrupt content.
+description: Reference for producing Adobe Document Authoring (DA, da.live) and Edge Delivery Services (EDS, also known as AEM Edge Delivery, aem.live, Helix, Franklin, Project Helix) compatible content. Use whenever generating HTML for DA upload, uploading media binaries to DA, publishing to aem.live, working with AEM pages backed by DA, or driving the DA admin API (auth, source PUT, preview/publish). Covers block HTML format (canonical `<div class="…">` form and accepted `<table>` alternate), section structure, page/section metadata blocks, icons, links, images, default content, document skeleton constraints, the DA Source API contract, IMS auth, media storage patterns, supported formats and size limits, Media Bus vs Content Bus delivery, and the silent-failure rules that corrupt content.
 ---
 
 # DA + EDS content reference
@@ -33,7 +33,7 @@ Invoke this skill whenever you are:
 - Reading a DA-stored HTML document and modifying it before re-upload.
 - Diagnosing why a generated page renders incorrectly on `aem.page` /
   `aem.live` (silent failures: `about:error` images, missing meta tags,
-  blocks rendering as plain tables).
+  blocks rendering as plain HTML without their JS or CSS).
 
 ### When NOT to use this skill
 
@@ -89,22 +89,28 @@ output before upload.
    injects head/scripts/styles from Code Bus at delivery.
    → [html-content.md §1](./references/html-content.md)
 
-2. **Block tables need a merged first cell with `colspan` matching the
-   content width.** Header is `<tr><td colspan="N">Name</td></tr>` where
-   `N` is the cell count of the widest content row. Single-column blocks
-   can omit `colspan`. Multi-column blocks without `colspan` render as
-   plain HTML tables (no JS, no CSS). Multi-cell first rows or empty
-   first cells also break.
+2. **Block class encodes block identity (canonical div form).** The
+   outermost `<div>` carries `class="<block-name> [<variant>…]"`. The
+   first class token is the block name and resolves to
+   `/blocks/<name>/<name>.{js,css}`. For the accepted table-form
+   alternate, the header is `<tr><td colspan="N">Name</td></tr>` where
+   `N` matches the cell count of the widest content row; single-column
+   blocks may omit `colspan`. Misshapen blocks (missing div class,
+   multi-column table missing `colspan`, empty header cell) render as
+   plain HTML without block JS or CSS.
    → [html-content.md §3](./references/html-content.md)
 
 3. **Block names use alphanumeric + single hyphens only.** No underscores,
-   no double dashes, no digit-first names. Variants in parentheses: `Block
-   (option-a, option-b)`.
+   no double dashes, no digit-first names. Variants in div form: extra
+   class tokens after the name (`class="hero cta center"`). Variants in
+   table form: parentheses after the name (`Hero (cta, center)`). Both
+   normalize identically via `toBlockCSSClassNames`.
    → [html-content.md §3](./references/html-content.md)
 
-4. **Page Metadata block header is exactly `Metadata`.** Case-insensitive.
-   Misspellings (`Meta Data`, `Metadata:`) are silently ignored — no
-   `<meta>` tags emitted.
+4. **Page Metadata block name is exactly `metadata`.** Div form:
+   `class="metadata"` (single lowercase token). Table form: header text
+   `Metadata` (case-insensitive). Misspellings on either side are
+   silently ignored — no `<meta>` tags emitted.
    → [html-content.md §5](./references/html-content.md)
 
 5. **Image URLs must be full URLs.** Repo-relative (`/path/foo.png`) and
@@ -151,7 +157,7 @@ Terms used across all three references.
   authoring of documents.
 - **DA Source API** — `https://admin.da.live/source/...` endpoint for
   read/write of DA-tracked files (HTML and binaries).
-- **Default content** — anything in an EDS page outside a block table:
+- **Default content** — anything in an EDS page outside a block:
   headings, paragraphs, lists, links, images. Renders as standard HTML.
 - **Dot-folder** — `/<parent>/.<docname>/` folder created automatically
   by the DA editor for per-document author uploads of images.
