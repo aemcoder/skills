@@ -96,12 +96,17 @@ section. `[verified]`.
 
 ## 3. Block tables
 
-A block is an HTML `<table>` where the first row is a single merged cell
-containing the block name. `[verified]` from EDS markup docs.
+A block is an HTML `<table>` whose first row contains a **single `<td>` with
+`colspan` equal to the width of the widest content row**, containing the
+block name. The `colspan` is what makes the header "merged" — it tells DA's
+ProseMirror parser and the EDS pipeline that this row is a header spanning
+the full table, not a one-cell content row. `[verified]` 2026-05-20 by
+empirical upload test (multi-column blocks without `colspan` render as
+plain HTML tables, single-column blocks are unaffected).
 
 ```html
 <table>
-  <tr><td>Block Name</td></tr>        <!-- merged header = block identifier -->
+  <tr><td colspan="2">Block Name</td></tr>   <!-- colspan = content column count -->
   <tr>
     <td>cell 1</td>
     <td>cell 2</td>
@@ -112,6 +117,25 @@ containing the block name. `[verified]` from EDS markup docs.
   </tr>
 </table>
 ```
+
+### Colspan rule
+
+| Content row width | Header `<td>` requires |
+|---|---|
+| 1 cell | `colspan` optional (`<tr><td>Name</td></tr>` is fine) |
+| 2 cells | `<td colspan="2">Name</td>` |
+| 3 cells | `<td colspan="3">Name</td>` |
+| 4 cells | `<td colspan="4">Name</td>` |
+
+`[verified]` Single-column blocks (Hero with one big content cell, Quote)
+work without colspan because the header row's single cell already spans
+the full table width. Multi-column blocks (Columns, Cards, Stats, Section
+Metadata, Metadata) silently render as plain HTML tables — no
+decoration, no block JS, no block CSS — when the header lacks `colspan`.
+
+If different content rows have different cell counts (uncommon but legal),
+use the maximum: e.g., row 1 with 3 cells + row 2 with 2 cells → header
+`colspan="3"`.
 
 ### Block name normalization
 
@@ -187,6 +211,7 @@ loads):
 | Pattern | Why it breaks |
 |---|---|
 | First row NOT merged into a single cell | EDS treats the table as plain HTML. `[verified]` |
+| Multi-column content rows but header `<td>` missing `colspan` | EDS treats the table as plain HTML. The header must visually span all content columns; without `colspan` the parser sees a one-cell row followed by multi-cell rows and rejects the structure as a block. `[verified]` 2026-05-20 |
 | Empty header cell | No block name → not recognized as a block. `[verified]` |
 | Nested `<table>` inside a block cell | EDS doesn't support nested blocks; the inner table renders as plain HTML. `[verified]` |
 | Missing `<tbody>` | Some HTML generators omit `<tbody>`; DA's ProseMirror schema is strict. Use `<table><tr>...</tr></table>` consistently or always wrap in `<tbody>`. `[verified]` from `da-live` source. |
