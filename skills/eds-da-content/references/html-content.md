@@ -350,6 +350,238 @@ These render as plain HTML (silent failure — the block JS never loads):
 | Missing `<tbody>` | Some HTML generators omit `<tbody>`; DA's ProseMirror schema is strict. Use `<table><tr>...</tr></table>` consistently or always wrap in `<tbody>`. `[verified]` from `da-live` source. |
 | Stray text nodes between `<tr>` / `<td>` | ProseMirror parse failure. Output clean HTML with no whitespace text nodes. `[verified]` |
 
+### 3.9 Cell content normalization
+
+The EDS preview/publish pipeline runs an **inline-content normalization
+pass** on block cell content. It is stricter than the default-content
+rules in §6: tags that survive in a paragraph outside a block can be
+replaced or stripped when the same tag lives inside a block cell.
+
+This is the most common silent failure when generating block content
+programmatically from extracted source HTML: the cell values in the
+uploaded DA document look correct, the rendered page on `aem.page`
+silently loses or rewrites formatting, and nothing in the pipeline
+surfaces an error.
+
+The pipeline applies three distinct operations:
+
+| Operation | What happens |
+|---|---|
+| **PRESERVE** | Tag and content pass through unchanged. |
+| **REWRITE** | Tag is replaced with a semantic equivalent. Content survives wrapped in the new tag. |
+| **STRIP** | Tag wrapper is removed. Text content survives unwrapped (but loses class, attributes, and any CSS hooks). |
+
+#### Preserve list
+
+These tags pass through cell normalization unchanged.
+
+| Tag | Notes |
+|---|---|
+| `<strong>` | Bold emphasis. `[verified]` 2026-05-21 |
+| `<em>` | Italic emphasis. `[verified]` 2026-05-21 |
+| `<u>` | Underline. Survives inside cells despite having no markdown equivalent. `[verified]` 2026-05-21 |
+| `<del>` | Semantic strikethrough. `[verified]` 2026-05-21 |
+| `<code>` | Inline code. `[verified]` 2026-05-21 |
+| `<sub>`, `<sup>` | Subscript / superscript. `[verified]` 2026-05-21 |
+| `<a href="…">` | Link (full URLs only — see §8). `[verified]` 2026-05-21 |
+| `<img>`, `<picture>` | Inherits verification from §9 image rules. `[assumed]` for cell-specific behavior — not separately retested. |
+| `<h1>` – `<h6>` | Inherits verification from default-content rules. Block cells typically don't contain headings; verify before relying on this in a block context. |
+| `<p>` | Preserved when a cell contains multiple block-level children. Unwrapped when a cell contains a single `<p>` of inline-only content — see "Cell-level `<p>` unwrapping" below. `[verified]` 2026-05-21 |
+| `<ul>`, `<ol>`, `<li>` | Lists work inside cells, including nested lists, mixed list+`<p>` content, and `<li>` with inline formatting (`<strong>`, `<a>`). `[verified]` 2026-05-21 |
+| `<br>` | Position-dependent. Preserved when surrounded by flow text or inside an `<li>`. See "`<br>` is position-dependent" below. `[verified]` 2026-05-21 |
+
+#### Rewrite list
+
+The pipeline canonicalizes presentational and near-semantic tags to
+their semantic equivalents. The text content survives wrapped in the
+replacement tag, so visual styling is **not** lost — but selectors
+targeting the original tag stop matching, and DOM walks see a different
+node type.
+
+| Input tag | Rewritten to | Notes |
+|---|---|---|
+| `<b>` | `<strong>` | Presentational bold → semantic emphasis. `[verified]` 2026-05-21 |
+| `<i>` | `<em>` | Presentational italic → semantic emphasis. `[verified]` 2026-05-21 |
+| `<s>` | `<del>` | Presentational strikethrough → semantic deletion. `[verified]` 2026-05-21 |
+| `<mark>` | `<em>` | Markdown has no native highlight notation, so the pipeline falls back to italic. **No inline tag survives as `<mark>` inside cells** — highlight styling must be CSS-on-structure (see "Practical guidance" below). `[verified]` 2026-05-21 |
+| `<kbd>` | `<code>` | Both render as monospace; markdown round-trip collapses to `<code>`. `[verified]` 2026-05-21 |
+
+#### Strip list
+
+These tags are unwrapped. Text content survives bare in the parent
+element; the tag wrapper, including any class or attributes, disappears.
+
+| Tag | Observed behavior |
+|---|---|
+| `<span class="…">` | Span removed; text content survives without the wrapper. The class is lost, so any CSS targeting the class stops matching. `[verified]` 2026-05-21 |
+| `<span>` (no class) | Same as classed span — unwrapped. `[verified]` 2026-05-21 |
+| `<ins>` | Insertion semantics lost. No automatic semantic replacement. `[verified]` 2026-05-21 |
+
+#### `<br>` is position-dependent
+
+`<br>` is not simply preserved or stripped. The pipeline applies
+positional rules: a `<br>` survives when it has flow content on the
+side after it (i.e., it must "break to" something), and is stripped
+otherwise.
+
+| Position | Outcome | Example |
+|---|---|---|
+| Between flow text | PRESERVE | `before<br>after` → `before<br>after` |
+| Inside `<p>` with text either side | PRESERVE (and the `<p>` may unwrap — see below) | `<p>before<br>after</p>` → `before<br>after` |
+| Leading (`<br>` then text) | PRESERVE | `<br>text` → `<br>text` |
+| Trailing (text then `<br>`) | STRIP | `text<br>` → `text` |
+| Lonely (only content in cell) | STRIP | `<br>` → empty |
+| Between block siblings (e.g. between two `<p>`) | STRIP — the block boundary already breaks | `<p>a</p><br><p>b</p>` → `<p>a</p><p>b</p>` |
+| Consecutive (`<br><br>`) between flow text | PRESERVE both | `a<br><br>b` → `a<br><br>b` |
+| Inside `<li>` between text | PRESERVE | `<li>line 1<br>line 2</li>` → `<li>line 1<br>line 2</li>` |
+
+`[verified]` 2026-05-21 across all eight positional variants.
+
+When a `<br>` carries a block-level semantic break (separating two
+distinct paragraphs of content), restructure to two `<p>` elements
+instead — the pipeline will strip a `<br>` between blocks and the
+two-paragraph form is what authors would type in the DA editor anyway.
+
+#### Cell-level `<p>` unwrapping
+
+When a cell contains a single `<p>` whose children are inline-only
+content, the pipeline unwraps the `<p>` — the cell `<div>` itself
+provides the paragraph-equivalent flow context.
+
+```html
+<!-- Input: -->
+<div><p>before <strong>middle</strong> after</p></div>
+
+<!-- Output: -->
+<div>before <strong>middle</strong> after</div>
+```
+
+When a cell contains multiple block-level children (e.g., a `<p>` plus
+a `<ul>`, or two `<p>` elements), the `<p>` wrappers are preserved
+because they distinguish blocks from each other:
+
+```html
+<!-- Input: -->
+<div><p>Intro</p><ul><li>Item</li></ul></div>
+
+<!-- Output (both wrappers preserved): -->
+<div><p>Intro</p><ul><li>Item</li></ul></div>
+```
+
+`[verified]` 2026-05-21. The inverse also occurs in one observed case:
+in nested lists, the inline text of a parent `<li>` that has a nested
+list child gets wrapped in `<p>` on output (a markdown round-trip
+artifact — markdown lists with nested children require multi-paragraph
+notation for the parent).
+
+#### Practical guidance
+
+When source HTML contains content destined for a block cell, the
+normalization rules above usually do the right thing automatically:
+`<b>` becomes `<strong>`, `<i>` becomes `<em>`. Visual styling is
+preserved through the rewrite. The cases that need authoring effort
+are STRIP outcomes (where formatting is lost) and the `<mark>` rewrite
+(where the semantic intent shifts).
+
+**1. CSS-on-structure for stripped `<span>` styling hooks.** When a
+`<span class="…">` carried CSS styling, rewrite the page CSS to target
+structure rather than class. `:has()`, sibling combinators, and
+`:nth-child()` cover most cases. Example for a price pattern:
+
+```html
+<!-- Source: classed span used as a styling hook -->
+<p class="price">
+  <del>CHF 20.90</del>
+  <span class="price-now">CHF 14.63</span>
+</p>
+```
+
+```css
+/* Was: .price-now { color: orange; } — but the span gets stripped */
+/* Now: target the position structurally */
+.price:has(del) { color: orange; }
+.price del { color: grey; }
+```
+
+**2. `<mark>` highlight styling via CSS-on-structure.** No inline tag
+survives as `<mark>` inside cells. If a highlight is purely visual,
+apply CSS to a surrounding structural selector (e.g., the cell, or a
+parent block class). If the highlight needs to be inline-scoped, the
+authoring pattern is to use a block whose cell content is the
+highlighted phrase, styled at the block level.
+
+**3. Restructure `<br>` between block-level content into separate
+`<p>` elements.** This is mostly a non-issue today — `<br>` inside a
+paragraph survives. But if the source HTML uses `<br>` to separate
+what should be two paragraphs (e.g., between two `<strong>` titles
+with trailing text), split it:
+
+```html
+<!-- Before: -->
+<p><strong>Title A</strong><br><strong>Title B</strong></p>
+
+<!-- After (semantically two paragraphs): -->
+<p><strong>Title A</strong></p>
+<p><strong>Title B</strong></p>
+```
+
+#### Why this happens
+
+The preview pipeline converts DA-stored HTML through a markdown-ish
+intermediate representation as it produces `*.plain.html` and the final
+delivered page. Tags that map cleanly to markdown survive (semantic
+emphasis, links, images, headings, lists, code). Tags that map to the
+same markdown notation as another tag get canonicalized to a single
+form (`<b>` and `<strong>` both encode as `**bold**` and both come
+back as `<strong>`). Tags with no markdown representation are dropped
+unless they have a semantic equivalent the pipeline can substitute
+(`<mark>` → `<em>` because both italicize; `<span>` → text because
+spans carry no semantic meaning markdown can encode).
+
+`<u>` is the outlier — it has no markdown representation but survives
+unchanged. This is a deliberate pipeline preservation, not a fallback.
+
+#### Detection
+
+When generating block content programmatically, scan the output before
+upload to catch tags that the pipeline will strip or rewrite. Strip
+outcomes lose content; rewrite outcomes are usually safe but may
+surprise CSS selectors:
+
+```bash
+# Stripped wrappers (text loses class / styling)
+grep -nE '<(span|ins)[ >]' path/to/da-output.html
+
+# <br> in a STRIP position: immediately before a closing tag (trailing or lonely),
+# or between two block-level siblings (block boundary already breaks)
+grep -nE '<br[ /]*>[[:space:]]*</|</(p|div|ul|ol|h[1-6]|blockquote|pre|table)>[[:space:]]*<br[ /]*>' path/to/da-output.html
+
+# Rewrite-list tags (formatting preserved, but CSS selectors targeting these stop matching)
+grep -nE '<(b|i|s|mark|kbd)[ >]' path/to/da-output.html
+```
+
+For more rigorous detection, a Node script can parse the DA HTML, walk
+into every block cell (depth-3 `<div>` inside any `<div class="…">`),
+and verify the tag set per cell against the allowed list above.
+
+#### Relationship to §6 (default content)
+
+§6 lists allowed elements for content *outside* blocks. The cell
+normalization rules here are *stricter and different*:
+
+- `<u>`, `<s>`, `<br>` are listed in §6 as allowed default-content
+  elements. Inside cells: `<u>` is preserved, `<s>` is **rewritten to
+  `<del>`**, `<br>` is **position-dependent**.
+- `<ul>`, `<ol>`, `<li>` are in §6 and also work in cells.
+- `<span>`, `<b>`, `<i>`, `<mark>`, `<kbd>`, `<ins>` aren't in §6 (they
+  are not standard default-content tags) and are stripped or rewritten
+  inside cells.
+
+**Rule of thumb:** when generating block-heavy content programmatically,
+restrict yourself to the §3.9 preserve list everywhere — it always
+works, both inside cells and as default content. If you need richer
+inline formatting in default content, consult §6 separately.
+
 ## 4. Section Metadata block
 
 Section Metadata is a special block placed **inside** the section it
@@ -518,6 +750,12 @@ authoring docs.
 | `<sub>`, `<sup>` | Subscript / superscript. |
 | `<u>`, `<s>` | Underline / strikethrough. |
 | `<br>` | Line break. |
+
+For content **inside block cells**, a stricter inline-tag normalization
+applies — `<s>` is rewritten to `<del>`, `<br>` is position-dependent,
+and additional tags (`<b>`, `<i>`, `<mark>`, `<kbd>`, `<span>`, `<ins>`)
+that are not in this default-content list have specific cell-level
+behavior. See §3.9.
 
 ### Heading anchor IDs
 

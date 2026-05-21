@@ -1,6 +1,6 @@
 ---
 name: eds-da-content
-description: Reference for producing Adobe Document Authoring (DA, da.live) and Edge Delivery Services (EDS, also known as AEM Edge Delivery, aem.live, Helix, Franklin, Project Helix) compatible content. Use whenever generating HTML for DA upload, uploading media binaries to DA, publishing to aem.live, working with AEM pages backed by DA, or driving the DA admin API (auth, source PUT, preview/publish). Covers block HTML format (canonical `<div class="…">` form and accepted `<table>` alternate), section structure, page/section metadata blocks, icons, links, images, default content, document skeleton constraints, the DA Source API contract, IMS auth, media storage patterns, supported formats and size limits, Media Bus vs Content Bus delivery, and the silent-failure rules that corrupt content.
+description: Reference for producing Adobe Document Authoring (DA, da.live) and Edge Delivery Services (EDS, also known as AEM Edge Delivery, aem.live, Helix, Franklin, Project Helix) compatible content. Use whenever generating HTML for DA upload, uploading media binaries to DA, publishing to aem.live, working with AEM pages backed by DA, or driving the DA admin API (auth, source PUT, preview/publish). Covers block HTML format (canonical `<div class="…">` form and accepted `<table>` alternate), section structure, page/section metadata blocks, icons, links, images, default content, document skeleton constraints, block cell content normalization rules (which inline tags survive, get rewritten, or get stripped inside block cells), the DA Source API contract, IMS auth, media storage patterns, supported formats and size limits, Media Bus vs Content Bus delivery, and the silent-failure rules that corrupt content.
 ---
 
 # DA + EDS content reference
@@ -78,7 +78,7 @@ but do NOT need preview/publish — they're served directly from
 `content.da.live` once uploaded. See
 [references/media.md](./references/media.md).
 
-## The 10 silent-failure rules
+## The 11 silent-failure rules
 
 These rules, if violated, produce broken content without any error from DA,
 the pipeline, or the renderer. Memorize them; verify them in generated
@@ -140,6 +140,16 @@ output before upload.
     24 hours. Always pre-flight expiry against `expires_at` in
     `.hlx/.da-token.json` before a long upload run.
     → [platform.md §3](./references/platform.md)
+
+11. **Block cell content uses stricter inline-tag normalization than
+    default content.** Inside block cells, the pipeline rewrites
+    `<b>`/`<i>`/`<s>`/`<mark>`/`<kbd>` to their semantic equivalents
+    (`<strong>`/`<em>`/`<del>`/`<em>`/`<code>`), strips `<span>` and
+    `<ins>`, and applies positional rules to `<br>`. Visual styling
+    survives the rewrites but CSS selectors targeting the original tags
+    or stripped classes stop matching. Generate cell content using only
+    the §3.9 preserve list to avoid silent reshaping.
+    → [html-content.md §3.9](./references/html-content.md)
 
 ## Glossary
 
