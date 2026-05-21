@@ -76,6 +76,39 @@ The `?projectRoot=` query parameter is appended automatically by `serve`.
 When reloading with `goto`, reuse the full preview URL (which includes
 the query parameter) so project mode stays active.
 
+### CLI gotchas
+
+- **`serve --project` is a boolean flag, not a value flag.** The
+  directory is a positional argument. `serve --entry=file.html --project /shared/dir`
+  works; `serve --project=/shared/dir` fails with "unknown option".
+- **`git clone --depth 1` breaks downstream git operations.** Shallow
+  clones cause failures when creating branches or running git commands
+  later in a migration. Always clone without `--depth`:
+  `git clone https://github.com/owner/repo.git /path/to/target`.
+- **`node -e "<inline>"` has no VFS `fs` globals or `require()`.** The
+  Slicc `node -e` shim doesn't expose VFS globals. Use `node <file.js>`
+  instead — the file form gets VFS `fs` globals and top-level `await`.
+  Never use `node -e` for VFS file I/O.
+
+## Migration Skill Architecture
+
+These architectural choices aren't obvious from reading the code — they
+come from Slicc's execution model and explicit scope decisions:
+
+- **No `migrate_page` custom tool.** Phase 1 uses explicit browser/bash
+  steps instead of a Slicc tool. Keeps the skill self-contained and
+  inspectable.
+- **No DA upload (Phase 5 removed).** Skills stop at local preview + git
+  commit; DA upload is a separate concern handled outside the skill.
+- **Cone-only execution.** The cone (parent agent) orchestrates
+  everything except Phase 3 block generation, which dispatches scoops in
+  parallel. Scoops cannot create other scoops, so anything that needs to
+  spawn sub-agents must live in the cone.
+- **`dismiss-overlays` owns its `overlay-dismiss.js`.** The script is
+  co-located with the skill that defines the behavior, not bundled into
+  `migrate-page/scripts/`. Other skills delegate to `dismiss-overlays`
+  rather than duplicating the script.
+
 ## Skill Authoring Rules
 
 - Skills are SKILL.md files with YAML frontmatter (`name`, `description`, `allowed-tools`)
