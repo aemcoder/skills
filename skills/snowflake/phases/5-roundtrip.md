@@ -16,8 +16,12 @@ browser, skim (using the override-then-bundled resolution from
 `SKILL.md`):
 - `learnings.md` — the entries on Media Bus URL handling, CORS for
   fonts, scroll-animation screenshot quirks, asset hosting modes
-- `eds-da-mechanics.md` — for the pipeline shape and admin API
-  details if you need to dig into a failure
+- `eds-da-mechanics.md` — for the EDS pipeline shape (loadEager,
+  body.appear, `.plain.html`, lifecycle classes) — the overlay-runtime
+  lore
+- [`eds-da-content/references/platform.md`](../../eds-da-content/references/platform.md)
+  — for the DA admin / Source API contract, IMS auth, preview/publish
+  if you need to debug an upload or lifecycle failure
 
 ## 5.1 — Local round-trip
 

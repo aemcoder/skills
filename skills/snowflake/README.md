@@ -28,7 +28,7 @@ skills/snowflake/
 ├── knowledge/
 │   ├── methodology.md             Canonical phase rules
 │   ├── architecture.md            Overlay engine + slot writer reference
-│   ├── eds-da-mechanics.md        EDS pipeline + DA admin API reference
+│   ├── eds-da-mechanics.md        EDS pipeline reference (overlay-runtime lore; DA HTML and admin API in eds-da-content skill)
 │   └── learnings.md               Cross-project findings (5 runs)
 ├── scripts/
 │   ├── transform-da-to-eds.mjs    DA divs-with-class → drafts HTML

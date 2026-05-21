@@ -37,6 +37,21 @@ Typical user phrasing:
   the conversion surfaces a substrate gap. Substrate evolution is a
   separate change with its own PR review.
 
+## Skill dependencies
+
+Snowflake cites DA HTML rules and DA admin API contract from the
+[`eds-da-content`](../eds-da-content/SKILL.md) skill. **Load
+`eds-da-content` alongside Snowflake.** Phases 3 (Generate) and 5
+(Round-trip) reference it directly; the methodology and learnings
+documents link into specific sections.
+
+If `eds-da-content` is not available, the methodology citations will
+still describe what to do at a high level, but the verified
+preserve/rewrite/strip tables, the Source API contract, and the
+media-storage patterns won't be reachable — falling back on
+out-of-date inline copies is what this cleanup was designed to
+prevent.
+
 ## Prerequisites
 
 Before invoking, confirm with the user:
@@ -89,7 +104,7 @@ phases/
 knowledge/
   methodology.md               ← canonical phase rules (read by every phase)
   architecture.md              ← overlay engine design + slot writer reference
-  eds-da-mechanics.md          ← EDS pipeline and DA admin API reference
+  eds-da-mechanics.md          ← EDS pipeline reference (overlay-runtime lore); DA admin API and HTML rules live in the eds-da-content skill
   learnings.md                 ← cross-project findings (5 runs distilled)
 substrate/
   VERSION                      ← bundled substrate semver
@@ -284,13 +299,16 @@ Every phase prompt assumes this procedure; phases don't re-state it.
 ## Reading order for first invocation
 
 1. This file (you're reading it).
-2. `knowledge/methodology.md` (canonical phase rules — every phase
+2. Confirm the `eds-da-content` skill is available (see "Skill
+   dependencies" above). You don't need to read it linearly — phase
+   prompts cite specific sections — but it must be loadable.
+3. `knowledge/methodology.md` (canonical phase rules — every phase
    needs this), with the override resolution above.
-3. `knowledge/architecture.md` (overlay engine and slot writer
+4. `knowledge/architecture.md` (overlay engine and slot writer
    semantics — Generate phase needs this most).
-4. `knowledge/learnings.md` (cross-project findings — Generate and
+5. `knowledge/learnings.md` (cross-project findings — Generate and
    Round-trip should at least skim this; specific entries are
    referenced by individual phase prompts).
-5. The phase prompt for the current phase.
+6. The phase prompt for the current phase.
 
 Then start at Phase 0.

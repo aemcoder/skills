@@ -149,71 +149,88 @@ Two transformations the template needs that aren't slot-related:
 
 ### Critical rules for the DA doc
 
-These rules are the foundation of a working DA doc. DO NOT re-derive
-them empirically. See `learnings.md` for the underlying mechanics.
+The DA HTML rules live in the `eds-da-content` skill. Load that skill
+before writing the DA doc, especially:
 
-1. **Use divs-with-class shape, NOT tables.** The EDS pipeline does
-   NOT auto-convert DA-source `<table><th>BlockName</th></table>`
-   into `<div class="blockname">`. Tables in DA source get flattened
-   to a soup of `<p>` tags with the block name dropped. Emit
-   divs-with-class directly:
+- [`html-content.md §3`](../../eds-da-content/references/html-content.md) — block format (canonical `<div class="…">` form, three-layer conversion model, decoration output).
+- [`html-content.md §3.9`](../../eds-da-content/references/html-content.md) — cell content normalization (preserve / rewrite / strip lists, `<br>` positional rules, `<p>` unwrapping).
+- [`html-content.md §5`](../../eds-da-content/references/html-content.md) — Page Metadata block (`<div class="metadata">`).
+- [`html-content.md §9`](../../eds-da-content/references/html-content.md) — image URL rules (full URLs only; no repo-relative or document-relative paths).
+
+The rules below capture only the Snowflake-specific points that are
+overlay-pattern decisions or interact with the overlay engine. They do
+NOT restate eds-da-content's universal rules.
+
+1. **Use the canonical `<div class="…">` form for blocks.** The DA
+   pipeline supports both `<div>` and `<table>` forms — for
+   programmatic authoring, divs are recommended because the round-trip
+   with DA storage is identity (no normalization step on the way to
+   render). See [eds-da-content/references/html-content.md §3.1 and
+   §3.6](../../eds-da-content/references/html-content.md) for the
+   three-layer conversion model and the form-selection rationale.
+   Snowflake emits one outer `<div>` per section, each containing one
+   `<div class="<first-class>">` block:
 
    ```html
-   <body>
-     <header></header>
-     <main>
-       <div>
-         <div class="hero">
-           <div><div>title</div><div>Be found everywhere search happens</div></div>
-           <div><div>cta-primary</div><div><a href="/signup/">Sign Up</a></div></div>
-         </div>
+   <main>
+     <div>
+       <div class="hero">
+         <div><div>title</div><div>Be found everywhere search happens</div></div>
+         <div><div>cta-primary</div><div><a href="/signup/">Sign Up</a></div></div>
        </div>
-       ... one outer-div per block ...
-       <div>
-         <div class="metadata">
-           <div><div>template</div><div><TEMPLATE_NAME></div></div>
-           <div><div>title</div><div><PAGE_TITLE></div></div>
-         </div>
+     </div>
+     ... one outer-div per section ...
+     <div>
+       <div class="metadata">
+         <div><div>template</div><div><TEMPLATE_NAME></div></div>
+         <div><div>title</div><div><PAGE_TITLE></div></div>
        </div>
-     </main>
-     <footer></footer>
-   </body>
+     </div>
+   </main>
    ```
 
-2. **Metadata MUST be a `<div class="metadata">` block inside
-   `<main>`.** A `<footer><table><tr><th>Metadata</th></tr>...` is
-   silently ignored by the pipeline — `<meta name="template">` will
-   NOT appear in the rendered head, the overlay engine bails out,
-   and standard EDS decoration tries to load `/blocks/<name>/<name>.js`
-   for every block (one 404 per block).
+2. **The metadata block MUST live inside `<main>`.** Per
+   [eds-da-content/references/html-content.md §5](../../eds-da-content/references/html-content.md),
+   Page Metadata is "the last element of the last section inside
+   `<main>`". The overlay-specific consequence of getting this wrong:
+   if metadata lands in `<footer>` or is misspelled, the pipeline
+   emits no `<meta name="template">`, the overlay engine bails out,
+   and standard EDS decoration falls through — producing one 404 per
+   block as the renderer tries to load `/blocks/<name>/<name>.js` for
+   every block in the doc.
 
-3. **No inline `<span class="...">`, `<b>`, `<i>`, `<u>`, `<mark>`,
-   `<br>` in cell content.** The pipeline's markdown-ish normaliser
-   strips anything not on its preserve list. **Preserve list:**
-   `<strong>`, `<em>`, `<a>`, `<img>`, `<picture>`, `<h1>`-`<h6>`,
-   `<p>`. (The preserve list is empirical, accumulated across multiple
-   conversion runs.) Use `<strong>`/`<em>` for inline emphasis; for
-   typography accents inside titles, use `<strong>` or restructure
-   to put the class on the parent element instead. For line breaks
-   inside a slot value, restructure to two `<p>` tags (or two slots)
-   rather than `<br>`.
+3. **Block cell content goes through pipeline normalization** — see
+   [eds-da-content/references/html-content.md §3.9](../../eds-da-content/references/html-content.md)
+   for the verified preserve / rewrite / strip behavior. Notable
+   consequences for the Generate phase:
+   - `<span class="…">` is **stripped** (class lost). Source pages
+     that use spans as CSS hooks need either CSS-only fixes
+     (`:has()`, sibling selectors) or semantic-element swaps. Don't
+     write classed spans into DA cells.
+   - `<b>`, `<i>`, `<s>`, `<mark>`, `<kbd>` are **rewritten** to
+     semantic equivalents (content survives; tag changes). Page CSS
+     targeting the original tag stops matching.
+   - `<br>` is **position-dependent**. Trailing/lonely/between-block
+     `<br>` is stripped; mid-flow `<br>` survives. When unsure,
+     restructure to two `<p>` elements.
+   - `<u>`, `<del>`, `<sub>`, `<sup>`, `<code>`, `<ul>`/`<ol>`/`<li>`
+     are preserved unchanged. (Snowflake's earlier learnings claimed
+     `<u>` was stripped — superseded by §3.9, which verifies `<u>`
+     preserves and `<mark>` rewrites to `<em>` rather than stripping.)
+   - `<ins>` and `<span>` (with or without class) are **stripped** —
+     tag wrapper disappears, text survives bare.
 
-4. **`<img>` URLs in DA cells MUST be absolute.** The EDS Media Bus
-   processes `<img src>` values in DA-source HTML and only handles
-   absolute URLs. Root-relative paths (`/assets/foo.png`) are
-   resolved against the DA content host (`content.da.live`), where
-   the asset isn't found → the pipeline serves
-   `<img src="about:error">` and the browser surfaces an
-   `ERR_UNKNOWN_URL_SCHEME` error. Always emit absolute URLs in DA
-   cell `<img>` values:
+4. **`<img>` URLs in DA cells MUST be absolute.** See
+   [eds-da-content/references/html-content.md §9](../../eds-da-content/references/html-content.md).
+   Snowflake-specific note: there is an asymmetry between DA cells and
+   template/fragment HTML. Template and fragment refs CAN be
+   root-relative (`/assets/foo.png`) because the browser resolves
+   those against the rendered page host (= code-bus host). The DA
+   pipeline is what's stricter, not the browser. For Snowflake the
+   acceptable absolute forms are:
    - Public source page: `https://<source-host>/<path>/image.png`
    - Vendored same-branch assets: `https://<branch>--<repo>--<owner>.aem.page/assets/...`
    - DA media: `https://content.da.live/<org>/<repo>/media_<sha>...`
-
-   Note the asymmetry with template/fragment HTML refs, which CAN be
-   root-relative — the browser resolves those against the rendered
-   page host (= code-bus host) so `/assets/...` works there. The DA
-   pipeline is what's stricter, not the browser.
 
 ### Slot rules in the template
 
@@ -388,7 +405,10 @@ Goal: feed the next run.
   generator and different page, benefit from knowing this?" If yes,
   it goes in the cross-project learnings.
 - If a finding contradicts something in `architecture.md` or
-  `eds-da-mechanics.md`, update those docs in the same commit.
+  `eds-da-mechanics.md`, update those docs in the same commit. If the
+  finding is about DA HTML rules (not the overlay engine), it belongs
+  in the `eds-da-content` skill — file a separate PR against that
+  skill rather than duplicating into Snowflake.
 - If you discover a generic tool worth keeping, move it to a shared
   `tools/` directory with a README.
 
