@@ -173,13 +173,10 @@ not vendored-absolute) — should find none.
 
 ### 3.8 — DA-source body fragment
 
-Write `output/da/<page-slug>.html` in the **canonical `<div
-class="…">` block form** (see [eds-da-content/references/html-content.md
-§3.2](../../eds-da-content/references/html-content.md)). Tables also
-work, but divs are preferred for programmatic authoring because the
-round-trip with DA storage is identity. The full block format, page
-metadata block, and cell content normalization rules are in the
-`eds-da-content` skill — read them before writing this file.
+Write `output/da/<page-slug>.html` in the canonical `<div class="…">`
+block form (see `eds-da-content` §3.2). Read `eds-da-content` §3, §3.9,
+§5, and §9 before writing this file — block format, cell content
+normalization, page metadata, and image URL rules all live there.
 
 Structure:
 
@@ -205,30 +202,17 @@ Structure:
 </body>
 ```
 
-The metadata block MUST be inside `<main>` (not in `<footer>`), or
-the pipeline ignores it and standard EDS decoration falls back —
-breaking the overlay. See [eds-da-content §5](../../eds-da-content/references/html-content.md)
-for the page metadata format and recognized keys.
+Snowflake-specific reminders (universal rules are in `eds-da-content`):
 
-Cell content rules — the pipeline normalizes inline content inside
-block cells. See [eds-da-content §3.9](../../eds-da-content/references/html-content.md)
-for the verified preserve / rewrite / strip tables. Snowflake-relevant
-implications:
-
-- **`<span class="…">` is stripped** (class lost). Source pages
-  that use spans as styling hooks need a different fix — typically
-  a CSS-only rewrite using structural selectors (`:has()`, sibling
-  combinators), or a semantic-element swap (`<strong>`, `<em>`,
-  `<mark>` → in DA the latter rewrites to `<em>`, see §3.9).
-- **`<b>`, `<i>`, `<s>`, `<mark>`, `<kbd>` are rewritten** to their
-  semantic equivalents — content survives, tag changes. Page CSS
-  targeting the original tag stops matching.
-- **`<br>` is positional** — preserve mid-flow, strip trailing /
-  lonely / between-block. When unsure, restructure to two `<p>`s.
-- **Image URLs in cells MUST be absolute** (see
-  [eds-da-content §9](../../eds-da-content/references/html-content.md)).
-  Use the absolute branch URL form when assets are vendored:
-  `https://<branch>--<repo>--<owner>.aem.page/assets/...`.
+- Metadata block MUST sit inside `<main>` — placement in `<footer>`
+  breaks the overlay engine (no `<meta name="template">` → engine
+  bails → standard EDS decoration 404s on every block).
+- Never write `<span class="…">` into cells — class is lost on
+  normalization, breaking any CSS hook the source page relied on.
+- For vendored assets, DA cells use the absolute branch URL form:
+  `https://<branch>--<repo>--<owner>.aem.page/assets/...` (DA cells
+  don't accept root-relative paths even though template/fragment
+  HTML does).
 
 ### 3.9 — Self-checks before declaring Generate done
 
@@ -252,20 +236,13 @@ grep -REn "=\"assets/" "$PROJ/output/templates" "$PROJ/output/fragments" "$PROJ/
 # (would need a DOM parse — skip for now if jsdom not available;
 #  document this gap in the future-validator roadmap)
 
-# 4) DA doc has no <span class> (stripped silently, breaks CSS hooks)
-#    and no <table> (Snowflake uses the canonical div form). Other tags
-#    that the pipeline rewrites (<b>, <i>, <s>, <mark>, <kbd>) are
-#    allowed — they survive with rewritten wrappers. Tags that preserve
-#    unchanged (<u>, <del>, <ins>, <sub>, <sup>, <code>) are fine too.
-#    See eds-da-content §3.9 for the verified preserve/rewrite/strip
-#    tables.
+# 4) DA doc has no <span class> (stripped) and no <table> (Snowflake
+#    uses div form). See eds-da-content §3.9 for full normalization.
 grep -cE "<table|<span class" "$PROJ/output/da/"*.html
 # expected: 0 (per file)
 
-# 4a) WARN-level: <br> is position-dependent. Trailing/lonely/between-
-#     block <br> is stripped. If any <br> appears, inspect manually or
-#     restructure to two <p> tags.
-grep -nE "<br>" "$PROJ/output/da/"*.html && echo "WARN: <br> found — check position per eds-da-content §3.9" || echo "OK"
+# 4a) WARN: <br> is position-dependent (eds-da-content §3.9).
+grep -nE "<br>" "$PROJ/output/da/"*.html && echo "WARN: <br> found — verify position" || echo "OK"
 
 # 5) DA cell <img> URLs are absolute
 grep -oE "<img[^>]*src=\"[^\"]+\"" "$PROJ/output/da/"*.html \

@@ -149,85 +149,31 @@ Two transformations the template needs that aren't slot-related:
 
 ### Critical rules for the DA doc
 
-The DA HTML rules live in the `eds-da-content` skill. Load that skill
-before writing the DA doc, especially:
+DA HTML format, cell content normalization, page metadata, and image
+URL rules live in the `eds-da-content` skill (§3, §3.9, §5, §9 of
+`html-content.md`). Load it before writing the DA doc.
 
-- [`html-content.md §3`](../../eds-da-content/references/html-content.md) — block format (canonical `<div class="…">` form, three-layer conversion model, decoration output).
-- [`html-content.md §3.9`](../../eds-da-content/references/html-content.md) — cell content normalization (preserve / rewrite / strip lists, `<br>` positional rules, `<p>` unwrapping).
-- [`html-content.md §5`](../../eds-da-content/references/html-content.md) — Page Metadata block (`<div class="metadata">`).
-- [`html-content.md §9`](../../eds-da-content/references/html-content.md) — image URL rules (full URLs only; no repo-relative or document-relative paths).
+The points below are Snowflake-specific — overlay-pattern decisions
+or consequences that aren't in `eds-da-content`:
 
-The rules below capture only the Snowflake-specific points that are
-overlay-pattern decisions or interact with the overlay engine. They do
-NOT restate eds-da-content's universal rules.
+1. **Metadata block lives inside `<main>`, not `<footer>`.** If the
+   block is misplaced or misnamed, the pipeline emits no
+   `<meta name="template">`, the overlay engine bails, standard EDS
+   decoration falls through, and the renderer logs one 404 per block
+   trying to load `/blocks/<name>/<name>.js`.
 
-1. **Use the canonical `<div class="…">` form for blocks.** The DA
-   pipeline supports both `<div>` and `<table>` forms — for
-   programmatic authoring, divs are recommended because the round-trip
-   with DA storage is identity (no normalization step on the way to
-   render). See [eds-da-content/references/html-content.md §3.1 and
-   §3.6](../../eds-da-content/references/html-content.md) for the
-   three-layer conversion model and the form-selection rationale.
-   Snowflake emits one outer `<div>` per section, each containing one
-   `<div class="<first-class>">` block:
+2. **Never write `<span class="…">` into DA cells.** Per
+   `eds-da-content` §3.9 the span is stripped and the class is lost —
+   any page CSS targeting that class stops matching. Rewrite source-
+   page styling hooks to CSS-on-structure (`:has()`, sibling
+   selectors) or swap to a preserved semantic element before emitting.
 
-   ```html
-   <main>
-     <div>
-       <div class="hero">
-         <div><div>title</div><div>Be found everywhere search happens</div></div>
-         <div><div>cta-primary</div><div><a href="/signup/">Sign Up</a></div></div>
-       </div>
-     </div>
-     ... one outer-div per section ...
-     <div>
-       <div class="metadata">
-         <div><div>template</div><div><TEMPLATE_NAME></div></div>
-         <div><div>title</div><div><PAGE_TITLE></div></div>
-       </div>
-     </div>
-   </main>
-   ```
-
-2. **The metadata block MUST live inside `<main>`.** Per
-   [eds-da-content/references/html-content.md §5](../../eds-da-content/references/html-content.md),
-   Page Metadata is "the last element of the last section inside
-   `<main>`". The overlay-specific consequence of getting this wrong:
-   if metadata lands in `<footer>` or is misspelled, the pipeline
-   emits no `<meta name="template">`, the overlay engine bails out,
-   and standard EDS decoration falls through — producing one 404 per
-   block as the renderer tries to load `/blocks/<name>/<name>.js` for
-   every block in the doc.
-
-3. **Block cell content goes through pipeline normalization** — see
-   [eds-da-content/references/html-content.md §3.9](../../eds-da-content/references/html-content.md)
-   for the verified preserve / rewrite / strip behavior. Notable
-   consequences for the Generate phase:
-   - `<span class="…">` is **stripped** (class lost). Source pages
-     that use spans as CSS hooks need either CSS-only fixes
-     (`:has()`, sibling selectors) or semantic-element swaps. Don't
-     write classed spans into DA cells.
-   - `<b>`, `<i>`, `<s>`, `<mark>`, `<kbd>` are **rewritten** to
-     semantic equivalents (content survives; tag changes). Page CSS
-     targeting the original tag stops matching.
-   - `<br>` is **position-dependent**. Trailing/lonely/between-block
-     `<br>` is stripped; mid-flow `<br>` survives. When unsure,
-     restructure to two `<p>` elements.
-   - `<u>`, `<del>`, `<sub>`, `<sup>`, `<code>`, `<ul>`/`<ol>`/`<li>`
-     are preserved unchanged. (Snowflake's earlier learnings claimed
-     `<u>` was stripped — superseded by §3.9, which verifies `<u>`
-     preserves and `<mark>` rewrites to `<em>` rather than stripping.)
-   - `<ins>` and `<span>` (with or without class) are **stripped** —
-     tag wrapper disappears, text survives bare.
-
-4. **`<img>` URLs in DA cells MUST be absolute.** See
-   [eds-da-content/references/html-content.md §9](../../eds-da-content/references/html-content.md).
-   Snowflake-specific note: there is an asymmetry between DA cells and
-   template/fragment HTML. Template and fragment refs CAN be
-   root-relative (`/assets/foo.png`) because the browser resolves
-   those against the rendered page host (= code-bus host). The DA
-   pipeline is what's stricter, not the browser. For Snowflake the
-   acceptable absolute forms are:
+3. **`<img>` URLs in DA cells are stricter than template/fragment
+   HTML.** DA cells require absolute URLs (`eds-da-content` §9).
+   Template and fragment HTML can use root-relative `/assets/...`
+   because the browser resolves those against the rendered page host
+   (= code-bus host). The DA pipeline is what's stricter, not the
+   browser. Acceptable absolute forms in Snowflake DA cells:
    - Public source page: `https://<source-host>/<path>/image.png`
    - Vendored same-branch assets: `https://<branch>--<repo>--<owner>.aem.page/assets/...`
    - DA media: `https://content.da.live/<org>/<repo>/media_<sha>...`

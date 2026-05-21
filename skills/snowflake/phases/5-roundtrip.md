@@ -19,9 +19,9 @@ browser, skim (using the override-then-bundled resolution from
 - `eds-da-mechanics.md` — for the EDS pipeline shape (loadEager,
   body.appear, `.plain.html`, lifecycle classes) — the overlay-runtime
   lore
-- [`eds-da-content/references/platform.md`](../../eds-da-content/references/platform.md)
-  — for the DA admin / Source API contract, IMS auth, preview/publish
-  if you need to debug an upload or lifecycle failure
+- `eds-da-content` (`platform.md`) — DA admin / Source API contract,
+  IMS auth, preview/publish if you need to debug an upload or
+  lifecycle failure
 
 ## 5.1 — Local round-trip
 

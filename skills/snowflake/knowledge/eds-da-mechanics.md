@@ -97,24 +97,19 @@ block name; rows and cells are `<div>` children.
 **Implication:** our DA document emits one `<div class="<name>">`
 block per semantic block, with `slot-name | content` rows. Reading
 slot values is `block.querySelectorAll(':scope > div')` then mapping
-cell pairs. See [eds-da-content §3.2](../../eds-da-content/references/html-content.md)
-for the canonical block shape.
+cell pairs. See `eds-da-content` §3.2 for the canonical block shape.
 
 ## DA — Document Authoring
 
-DA storage model, document skeleton, admin API (source PUT, preview,
-publish), IMS auth, image storage patterns (AEM Assets, dot-folders,
-`/media`), media formats and size limits, and the `aem content` CLI
-all live in the `eds-da-content` skill:
+DA storage model, document skeleton, admin API, IMS auth, image
+storage patterns, media formats and limits, and the `aem content`
+CLI all live in the `eds-da-content` skill. Load it whenever a
+failure involves DA HTML format, the Source API, or media binaries.
 
-- [`eds-da-content/references/html-content.md`](../../eds-da-content/references/html-content.md) — document skeleton, block format, page/section metadata, default content, icons, links, image rules, encoding constraints.
-- [`eds-da-content/references/media.md`](../../eds-da-content/references/media.md) — storage patterns, upload paths, supported formats, size limits, Media Bus / Content Bus delivery.
-- [`eds-da-content/references/platform.md`](../../eds-da-content/references/platform.md) — DA Source API contract, IMS auth, preview/publish lifecycle, path constraints, rate limits, `aem content` CLI.
-
-Load whichever reference matches the failure you're diagnosing. The
-sections in this file that follow (Cross-cutting and below) document
-EDS-pipeline behavior specifically relevant to the overlay engine —
-they're not DA-side concerns and aren't covered by `eds-da-content`.
+The sections in this file that follow (Cross-cutting and below)
+document EDS-pipeline behavior specifically relevant to the overlay
+engine — they're not DA-side concerns and aren't covered by
+`eds-da-content`.
 
 ## Cross-cutting
 

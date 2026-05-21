@@ -155,15 +155,10 @@ excludes them.
 
 **Surfaced on:** glossier refresh (run 008) — sale prices.
 
-The EDS post-pipeline (the renderer that produces `<page>.plain.html` from the
-DA HTML source) **drops `<span class="...">` wrappers** that have no semantic
-role — they're treated as presentational and not preserved through the
-markdown round-trip. The `<span>` tags themselves disappear; their text content
-survives as bare text in the parent element.
-
-Other inline elements survive: `<del>`, `<ins>`, `<strong>`, `<em>`, `<mark>`,
-`<code>`, `<kbd>`, `<sub>`, `<sup>`, anchors, images. These have semantic
-meaning so markdown preserves them.
+The EDS post-pipeline drops `<span class="...">` wrappers — the tag
+disappears and the class is lost, text content survives bare in the
+parent. See `eds-da-content` §3.9 for the full preserve/rewrite/strip
+behavior across all inline tags.
 
 ### Why this bites
 
@@ -206,9 +201,13 @@ load-bearing semantically, choose ONE of:
    .product-card__price del { color: var(--color-fg-muted); }
    ```
 
-2. **Swap `<span>` for a semantic element** that survives the pipeline:
-   `<strong>`, `<em>`, `<mark>`, `<b>`, `<i>` all pass through. Update the
-   page CSS to target the element instead of the class:
+2. **Swap `<span>` for a semantic element** that survives the pipeline.
+   Per `eds-da-content` §3.9 the safest targets are tags in the
+   preserve list (`<strong>`, `<em>`, `<u>`, `<del>`, `<code>`,
+   `<sub>`, `<sup>`). Rewrite-target tags (`<b>`, `<i>`, `<s>`,
+   `<mark>`, `<kbd>`) work too but their wrapper tag changes on the
+   way out — page CSS must target the rewritten tag, not the source
+   one. Update the page CSS to target the element instead of the class:
 
    ```html
    <p><del>CHF 20.90</del> <strong>CHF 14.63</strong></p>
@@ -220,11 +219,6 @@ load-bearing semantically, choose ONE of:
      font-weight: inherit;  /* override default <strong> bold */
    }
    ```
-
-   Pick the semantically least-wrong element. `<strong>` for "the price you
-   should focus on" is reasonable; `<mark>` if it's a highlight; `<em>` for
-   stylistic emphasis. Avoid `<b>`/`<i>` unless the original was bold/italic
-   for purely visual reasons.
 
 ### How to detect in Phase 2 (Analyze)
 
@@ -767,42 +761,6 @@ engine writes that URL into background-image — so the overlay-
 rendered page gets responsive, optimised images even when the source
 markup is CSS-driven.
 
-## 2026-05-19 — `<br>` is stripped by the pipeline normaliser [SUPERSEDED 2026-05-21]
-
-**SUPERSEDED** by the verified preserve/rewrite/strip tables in
-[eds-da-content/references/html-content.md §3.9](../../eds-da-content/references/html-content.md).
-The actual behavior is more nuanced than this entry described:
-
-- `<br>` is **position-dependent**, not unconditionally stripped.
-  Mid-flow `<br>` (text on both sides, inside `<p>`, inside `<li>`)
-  is preserved. Trailing / lonely / between-block `<br>` is stripped.
-- `<u>` is **preserved** (not stripped as this entry claimed).
-- `<b>`, `<i>`, `<mark>` are **rewritten** to semantic equivalents
-  (`<strong>`, `<em>`, `<em>` respectively) — content survives with
-  a different tag, not stripped to bare text.
-- Snowflake's original preserve list captured tags that survive
-  *unchanged*. It missed the rewrite path.
-
-Practical guidance for the Generate phase is unchanged: if a `<br>`
-carries a block-level semantic break, restructuring to two `<p>` is
-safer than relying on the positional behavior. The original entry
-below is kept for run-history traceability.
-
----
-
-The pipeline's inline-stripping behaviour (already known to strip
-`<b>`, `<span class>`) also strips `<br>`. A DA cell containing
-`<p><strong>Title</strong><br>trailing text</p>` becomes
-`Titletrailing text` on one line.
-
-**Updated preserve list (empirical):**
-`<strong>`, `<em>`, `<a>`, `<img>`, `<picture>`, `<h1>`-`<h6>`, `<p>`.
-**Stripped:** `<b>`, `<i>`, `<u>`, `<mark>`, `<span class>`, `<br>`.
-
-For content that needs a line break inside a slot value, the
-Generate phase should restructure to two `<p>` tags (or two slots)
-rather than one `<p>` with `<br>`.
-
 ## 2026-05-19 — When `data-section` is absent, derive first-class from a label or eyebrow
 
 Not every source has `data-section` attributes — hand-crafted pages
@@ -947,33 +905,6 @@ system-installed on the developer's machine (e.g. Adobe Clean for
 users with Adobe apps installed). It only surfaces when a font
 nobody has locally needs to load.
 
-## 2026-05-18 — `<b>` is stripped by the pipeline normaliser (use `<strong>`) [SUPERSEDED 2026-05-21]
-
-**SUPERSEDED** by the verified preserve/rewrite/strip tables in
-[eds-da-content/references/html-content.md §3.9](../../eds-da-content/references/html-content.md).
-`<b>` is **rewritten** to `<strong>` by the pipeline — content
-survives wrapped in the new tag, not flattened to bare text. The
-visual outcome (bold text) is preserved; what changes is the DOM
-tag, so CSS selectors targeting `b` stop matching.
-
-The generic rule still holds: prefer `<strong>` / `<em>` for inline
-emphasis in DA cell values to avoid surprise rewrites. The original
-entry below is kept for run-history traceability.
-
----
-
-`<b>` is not on the pipeline's preserve list — even without a class.
-Cell values like `<b>0.25%</b>` and `<b>$1.25M</b>` (typography
-accents) survive as plain text after the pipeline pass.
-
-Pipeline preserve list (empirical): `<strong>`, `<em>`, `<a>`,
-`<img>`, `<picture>`, `<h1>`-`<h6>`, `<p>`. Anything else gets
-flattened to its text content.
-
-**Generic rule.** In DA cell values, **only use `<strong>` and
-`<em>`** for inline emphasis. Avoid `<b>`, `<i>`, `<u>`, `<mark>`,
-`<span class>`.
-
 ## 2026-05-18 — Templates without an animation engine cost ~150 KB of wasted CDN load
 
 If `delayed.js` always loads GSAP + ScrollTrigger + Lenis before
@@ -1019,135 +950,17 @@ placeholder convention in `notes.md`; the Generate subagent reads
 that and applies the right skip pattern. Don't hardcode either
 convention into methodology — sniff and pass.
 
-## 2026-05-18 — EDS pipeline does not convert DA-source `<table>` → `<div class="blockname">` [SUPERSEDED 2026-05-21]
+## 2026-05-18 — Metadata block must sit inside `<main>`, not `<footer>`
 
-**SUPERSEDED — this finding was incorrect.** Subsequent investigation
-(traced through `adobe/da-admin`, `adobe/da-nx`, `adobe/da-live`, and
-`adobe/da-universal` source) and folded into
-[eds-da-content/references/html-content.md §3](../../eds-da-content/references/html-content.md)
-shows that the Helix preview pipeline **does** normalize DA-source
-`<table>` blocks to `<div class="…">` form via the `md2da` step.
-Both `<div>` and `<table>` block forms produce byte-identical rendered
-output.
+Empirically, a `<footer><table>...</table></footer>` in DA source is
+ignored by the pipeline — zero `<meta>` tags emitted in the rendered
+head beyond EDS-injected viewport / twitter:* defaults. The overlay
+engine then bails (no `<meta name="template">` → standard EDS
+decoration falls through → one 404 per block trying to load
+`/blocks/<name>/<name>.{css,js}`).
 
-The original entry was likely capturing a different failure mode —
-probably the `aem content` CLI's pre-upload normalization stripping
-the table (see [eds-da-content/references/platform.md §7](../../eds-da-content/references/platform.md))
-— and misattributing it to the preview pipeline.
-
-The conclusion that **divs are the right form for Snowflake** still
-stands, but for a different reason: divs are the canonical storage
-form (what the editor saves, what storage returns on GET), so the
-round-trip with DA is identity. See
-[eds-da-content/references/html-content.md §3.1 and §3.6](../../eds-da-content/references/html-content.md).
-
-The original entry below is kept for run-history traceability.
-
----
-
-This contradicts a common assumption. The team docs say "Blocks are
-`<table>`s with a header row carrying the block name + options" —
-that's the convention for **Word / Google Docs** source where the
-ingest pipeline runs the table-to-block conversion. For **DA-sourced**
-documents, the pipeline does NOT do that conversion. What DA stores
-is what the renderer ships, modulo light markdown-ish inner-content
-normalisation.
-
-Observed behaviour when DA source contains `<table>` blocks:
-- `<th>BlockName</th>` row → dropped entirely (block name lost).
-- `<td>cell content</td>` → flattened to bare `<p>cell content</p>`.
-- The whole table → a single `<div>` wrapping a sequence of `<p>` tags.
-- No `<div class="blockname">` wrapper at all.
-
-**The canonical DA-source shape is divs-with-class, already in
-post-pipeline form**, like:
-
-```html
-<main>
-  <div>
-    <div class="hero">
-      <div><div>slot-name</div><div>slot-value</div></div>
-      ...
-    </div>
-  </div>
-</main>
-```
-
-Anything calling itself a "DA-to-EDS converter" should emit this
-shape directly, NOT the Word-Docs-style table convention.
-
-## 2026-05-18 — Metadata must be a `<div class="metadata">` block inside `<main>`, not a `<table>` in `<footer>` [PARTIALLY SUPERSEDED 2026-05-21]
-
-**Partially superseded.** The "must be inside `<main>`" finding stands
-— see [eds-da-content §5](../../eds-da-content/references/html-content.md)
-("the last element of the last section inside `<main>`"). The
-"`<div class="metadata">` not a `<table>`" claim, however, is too
-strong: a **`<table>` Metadata block inside `<main>`** also works
-(the pipeline normalizes it to the div form). What Snowflake actually
-observed was a metadata table in `<footer>` being ignored — the
-problem was the location, not the format. Both `<div class="metadata">`
-and `<table>` with `<td colspan="2">Metadata</td>` work as long as
-they sit inside `<main>`.
-
-The Snowflake rule "use the div form" still holds for the same
-canonical-storage reason as other blocks, not because tables fail.
-
-Original entry below kept for run-history traceability.
-
----
-
-Team docs said "the footer typically holds a Metadata table that
-the pipeline expands into `<meta>` tags." Empirically, a
-`<footer><table>...</table></footer>` in DA source is **ignored**
-by the pipeline. Zero `<meta>` tags appear in the rendered head
-other than the EDS-injected viewport / twitter:* defaults.
-
-What works: a `<div class="metadata">` block inside `<main>` with
-the same row shape as any other block:
-
-```html
-<main>
-  <div>...content blocks...</div>
-  <div>
-    <div class="metadata">
-      <div><div>template</div><div>home</div></div>
-      <div><div>title</div><div>Page Title</div></div>
-    </div>
-  </div>
-</main>
-```
-
-After upload and preview, `<meta name="template" content="home">`
-and `<meta name="title" content="Page Title">` appear in the
-rendered head, and the overlay engine can resolve the template
-name. Without this, the engine bails (no template → standard EDS
-decoration falls through → 40-plus 404s trying to load
-`/blocks/<name>/<name>.{css,js}` for every detected block).
-
-Footer in DA source seems to be a vestigial slot; main-with-
-metadata-block is the canonical way.
-
-## 2026-05-18 — Pipeline normalises inline HTML inside cells; `<span class="accent">` is stripped
-
-Confirmed and expanded in
-[eds-da-content/references/html-content.md §3.9](../../eds-da-content/references/html-content.md)
-(verified preserve / rewrite / strip tables for cell content). This
-entry captured the `<span class>` case correctly; see §3.9 for the
-full behavior of other inline tags.
-
-A slot value like
-`Be found <span class="accent">everywhere</span> search happens`
-is emitted by the pipeline as just `Be found everywhere search
-happens` — the span is removed.
-
-The pipeline runs a markdown-ish normaliser over inner cell content
-that keeps `<strong>` / `<em>` / `<h1>`-`<h6>` / `<a>` / `<img>` but
-discards arbitrary `<span class="...">`.
-
-For typography accents the EDS-friendly path is `<strong>` (which
-gets button-primary treatment in default decoration; needs class
-scoping if used inside a heading) or a class on the parent element
-rather than an inline span.
+Snowflake emits metadata as `<div class="metadata">` inside `<main>`.
+Block format itself is covered by `eds-da-content` §5.
 
 ## 2026-05-18 — DA stores HTML literally; tables survive intact
 

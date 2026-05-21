@@ -39,18 +39,10 @@ Typical user phrasing:
 
 ## Skill dependencies
 
-Snowflake cites DA HTML rules and DA admin API contract from the
-[`eds-da-content`](../eds-da-content/SKILL.md) skill. **Load
-`eds-da-content` alongside Snowflake.** Phases 3 (Generate) and 5
-(Round-trip) reference it directly; the methodology and learnings
-documents link into specific sections.
-
-If `eds-da-content` is not available, the methodology citations will
-still describe what to do at a high level, but the verified
-preserve/rewrite/strip tables, the Source API contract, and the
-media-storage patterns won't be reachable — falling back on
-out-of-date inline copies is what this cleanup was designed to
-prevent.
+Snowflake cites DA HTML rules and the DA admin API contract from the
+`eds-da-content` skill. **Load `eds-da-content` alongside Snowflake.**
+Phases 3 (Generate) and 5 (Round-trip) reference it directly;
+methodology and learnings link into specific sections by name.
 
 ## Prerequisites
 
