@@ -89,9 +89,12 @@ output before upload.
    injects head/scripts/styles from Code Bus at delivery.
    → [html-content.md §1](./references/html-content.md)
 
-2. **Block tables need a merged first cell.** First row must be a single
-   `<td>` containing the block name. Multi-cell first rows or empty first
-   cells render as plain HTML tables (no JS, no CSS).
+2. **Block tables need a merged first cell with `colspan` matching the
+   content width.** Header is `<tr><td colspan="N">Name</td></tr>` where
+   `N` is the cell count of the widest content row. Single-column blocks
+   can omit `colspan`. Multi-column blocks without `colspan` render as
+   plain HTML tables (no JS, no CSS). Multi-cell first rows or empty
+   first cells also break.
    → [html-content.md §3](./references/html-content.md)
 
 3. **Block names use alphanumeric + single hyphens only.** No underscores,
