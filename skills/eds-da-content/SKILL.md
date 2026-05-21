@@ -93,9 +93,11 @@ output before upload.
    outermost `<div>` carries `class="<block-name> [<variant>…]"`. The
    first class token is the block name and resolves to
    `/blocks/<name>/<name>.{js,css}`. For the accepted table-form
-   alternate, the first row must be a single merged `<td>` containing
-   the block name. Misshapen blocks render as plain HTML without block
-   JS or CSS.
+   alternate, the header is `<tr><td colspan="N">Name</td></tr>` where
+   `N` matches the cell count of the widest content row; single-column
+   blocks may omit `colspan`. Misshapen blocks (missing div class,
+   multi-column table missing `colspan`, empty header cell) render as
+   plain HTML without block JS or CSS.
    → [html-content.md §3](./references/html-content.md)
 
 3. **Block names use alphanumeric + single hyphens only.** No underscores,

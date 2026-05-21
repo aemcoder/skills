@@ -279,6 +279,36 @@ markup is byte-identical to the div-form rendering.
 `[verified]` from `aem.js` `decorateBlock` for decoration; from
 `da-nx/nx/utils/converters.js:33-60` for normalization.
 
+#### Table-form header: colspan requirement
+
+The example above uses a single-column block (Hero), so the header row's
+single `<td>` already spans the table. For **multi-column** table-form
+blocks, the header `<td>` must declare `colspan="N"` where `N` matches
+the width of the widest content row. Without it, the parser sees a
+one-cell row followed by multi-cell rows and rejects the structure as a
+block — the table renders as plain HTML. `[verified]` 2026-05-20 by
+empirical upload test (single-column blocks unaffected; multi-column
+blocks without `colspan` render as plain tables).
+
+| Content row width | Header `<td>` requires |
+|---|---|
+| 1 cell | `colspan` optional (`<tr><td>Name</td></tr>` is fine) |
+| 2 cells | `<td colspan="2">Name</td>` |
+| 3 cells | `<td colspan="3">Name</td>` |
+| 4 cells | `<td colspan="4">Name</td>` |
+
+Single-column blocks (Hero with one big content cell, Quote) work
+without `colspan` because the header's single cell already spans the
+full table width. Multi-column blocks (Columns, Cards, Stats, Section
+Metadata, Metadata) require `colspan`.
+
+If different content rows have different cell counts (uncommon but
+legal), use the maximum: e.g., row 1 with 3 cells + row 2 with 2 cells
+→ header `colspan="3"`.
+
+The div form has no equivalent constraint — block identity is carried
+by the outermost `<div>`'s `class`, not by row geometry.
+
 ### 3.6 Which form should I generate?
 
 | Situation | Form |
@@ -314,6 +344,7 @@ These render as plain HTML (silent failure — the block JS never loads):
 | Pattern | Why it breaks |
 |---|---|
 | First row NOT merged into a single cell | EDS treats the table as plain HTML. `[verified]` |
+| Multi-column content rows but header `<td>` missing `colspan` | EDS treats the table as plain HTML. The header must visually span all content columns; without `colspan` the parser sees a one-cell row followed by multi-cell rows and rejects the structure as a block. `[verified]` 2026-05-20 |
 | Empty header cell | No block name → not recognized as a block. `[verified]` |
 | Nested `<table>` inside a block cell | EDS doesn't support nested blocks; the inner table renders as plain HTML. `[verified]` |
 | Missing `<tbody>` | Some HTML generators omit `<tbody>`; DA's ProseMirror schema is strict. Use `<table><tr>...</tr></table>` consistently or always wrap in `<tbody>`. `[verified]` from `da-live` source. |
@@ -339,11 +370,12 @@ The block class is exactly `section-metadata` (kebab-case, one token).
 applied to the table-form header `"Section Metadata"`.
 
 Alternate (table) form — equivalent, accepted when imported from
-Word/Google-docs flows:
+Word/Google-docs flows. Content rows have 2 cells, so the header
+requires `colspan="2"` (§3.5):
 
 ```html
 <table>
-  <tr><td>Section Metadata</td></tr>
+  <tr><td colspan="2">Section Metadata</td></tr>
   <tr><td>Style</td><td>dark, center</td></tr>
   <tr><td>Background</td><td>https://content.da.live/{org}/{repo}/media/bg.jpg</td></tr>
 </table>
@@ -408,11 +440,12 @@ The block class must be exactly `metadata` (single token, lowercase).
 Misspelled class (`meta-data`, `metadatas`, missing class) → not
 recognized → no `<meta>` tags emitted. `[verified]`
 
-Alternate (table) form — equivalent:
+Alternate (table) form — equivalent. Content rows have 2 cells, so the
+header requires `colspan="2"` (§3.5):
 
 ```html
 <table>
-  <tr><td>Metadata</td></tr>
+  <tr><td colspan="2">Metadata</td></tr>
   <tr><td>title</td><td>My Page Title</td></tr>
   <tr><td>description</td><td>Page summary</td></tr>
   <tr><td>image</td><td><img src="https://content.da.live/{org}/{repo}/media/og.png"></td></tr>
