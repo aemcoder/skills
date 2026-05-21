@@ -94,152 +94,22 @@ decoration, a block authored as a table named "Hero" renders as:
 The first class on a `main > div > div` element is treated as the
 block name; rows and cells are `<div>` children.
 
-**Implication:** our DA document can have one block table per
-semantic block, with `slot-name | content` rows. Reading slot values
-is `block.querySelectorAll(':scope > div')` then mapping cell pairs.
+**Implication:** our DA document emits one `<div class="<name>">`
+block per semantic block, with `slot-name | content` rows. Reading
+slot values is `block.querySelectorAll(':scope > div')` then mapping
+cell pairs. See `eds-da-content` §3.2 for the canonical block shape.
 
 ## DA — Document Authoring
 
-### Storage model
-**[verified, from team docs]** DA stores HTML files at
-`https://admin.da.live/source/{org}/{repo}/{path}` (auth required).
-The same content is publicly readable at
-`https://content.da.live/{org}/{repo}/{path}` (no auth for image
-types) and editable at `https://da.live/edit#/{org}/{repo}/{path}`
-(auth required).
+DA storage model, document skeleton, admin API, IMS auth, image
+storage patterns, media formats and limits, and the `aem content`
+CLI all live in the `eds-da-content` skill. Load it whenever a
+failure involves DA HTML format, the Source API, or media binaries.
 
-### Document shape — a body fragment, not a full HTML page
-**[verified, from team docs]** A DA document is a body fragment:
-```html
-<body>
-  <header></header>
-  <main>
-    <div>...</div>      <!-- one div per section -->
-  </main>
-  <footer></footer>
-</body>
-```
-No `<!DOCTYPE>`, no `<html>`, no `<head>`. Sections inside `<main>`
-are separated by `<div>` boundaries. Blocks are `<table>`s with a
-header row carrying the block name + options. The footer typically
-holds a Metadata table that the pipeline expands into `<meta>` tags
-in the rendered page's `<head>`.
-
-### Admin API — source endpoints
-**[verified, from team docs]**
-
-| Verb     | Pattern                                                                  | Notes                                        |
-|----------|--------------------------------------------------------------------------|----------------------------------------------|
-| GET      | `https://admin.da.live/source/{org}/{repo}/{path}.html`                  | Read source HTML; auth via IMS bearer token. |
-| PUT      | `https://admin.da.live/source/{org}/{repo}/{path}.html`                  | Write/overwrite. Body is the DA HTML doc.    |
-| DELETE   | `https://admin.da.live/source/{org}/{repo}/{path}.html`                  | Remove.                                      |
-| PUT      | `https://admin.da.live/source/{org}/{repo}/{path-to-image}`              | Image upload; body is `multipart/form-data` with field `data`. Returns 201 with `{source: {editUrl, contentUrl}, aem: {previewUrl, liveUrl}}`. |
-
-Read-only public delivery (no auth for image types) is at
-`https://content.da.live/{org}/{repo}/{path}`.
-
-### Image storage — three patterns
-**[verified, from team docs +
-[docs.da.live/authors/guides/adding-media](https://docs.da.live/authors/guides/adding-media)]**
-
-| Pattern                       | Where binaries live                  | Reference URL                                                       | Use case                                     |
-|-------------------------------|--------------------------------------|---------------------------------------------------------------------|----------------------------------------------|
-| **AEM Assets**                | External AEMaaCS DAM                 | AEM-managed                                                         | Curated/governed assets; requires AEMaaCS.   |
-| **Drag-and-drop dot-folder**  | `/{parent}/.{docname}/<file>`        | `https://content.da.live/{org}/{repo}/{parent}/.{docname}/<file>`   | Author drops image into a doc; per-doc.      |
-| **`/media` shared folder**    | `/media/<file>` (any depth allowed)  | `https://content.da.live/{org}/{repo}/media/<file>`                 | Reused across docs / branches / iterations.  |
-
-The dot-folder pattern is what the DA editor produces when an author
-drags an image in; it's per-document and uses absolute
-`content.da.live` URLs. Relative paths like `./assets/img.png`
-resolve against the editor URL (which doesn't host content), so they
-break in the editor view.
-
-The `/media` shared pattern works equivalently via direct PUT:
-`https://admin.da.live/source/{org}/{repo}/media/<file>` auto-creates
-the folder if missing. The asset is content-addressed in EDS's Media
-Bus (same `media_<sha>.<ext>` URL across branches once previewed),
-so it's branch-independent and dedupes naturally.
-
-For migration-driven runs, prefer
-`/media/<site-slug>/<filename>` so images don't collide across
-projects.
-
-### `aem content` CLI — git-style workflow
-**[verified, from team docs]**
-```bash
-aem content clone --path /        # auth via browser, pulls into ./content/
-aem content add <files>           # stage
-aem content commit -m "..."       # local commit
-aem content push [--force]        # upload to DA
-aem content status / diff / merge # inspect / sync
-```
-Auth token cached at `.hlx/.da-token.json` (gitignored). We can read
-it from there to authorize direct PUTs:
-```bash
-TOKEN=$(jq -r .access_token .hlx/.da-token.json)
-```
-
-### Preview + publish — required step, separate from push
-**[verified, from team docs]** `aem content push` (or a direct PUT
-to `admin.da.live/source/...`) only stages drafts in DA's
-source/content endpoints. The page does **not** appear at
-`aem.page` or `aem.live` URLs until you explicitly *preview*
-(makes `aem.page` work) and *publish* (makes `aem.live` work):
-```bash
-TOKEN=$(jq -r .access_token .hlx/.da-token.json)
-curl -X POST -H "Authorization: Bearer $TOKEN" \
-  "https://admin.hlx.page/preview/{owner}/{repo}/{branch}/{path}"
-curl -X POST -H "Authorization: Bearer $TOKEN" \
-  "https://admin.hlx.page/live/{owner}/{repo}/{branch}/{path}"
-```
-`{path}` matches the DA-stored content path **without** the `.html`
-extension. Index pages can use trailing `/`. `{branch}` matches the
-GitHub branch (so the previewed page is reachable at
-`https://{branch}--{repo}--{owner}.aem.page/{path}`).
-
-### Media format & size limits
-**[verified, from team docs +
-[aem.live/docs/limits](https://www.aem.live/docs/limits),
-[aem.live/docs/media](https://www.aem.live/docs/media)]**
-
-Supported types via Content Bus + Media Bus: HTML (extensionless),
-JSON, MP4, PDF, SVG, JPG/JPEG, PNG, AVIF, WEBP. Anything else needs
-Code Bus or 3rd-party hosting.
-
-Per-file caps:
-
-| Type            | Max   | Notes                                                       |
-|-----------------|-------|-------------------------------------------------------------|
-| PNG / JPG / AVIF| 20 MB | per file                                                    |
-| **SVG**         | **40 KB** | tight — complex illustrations often exceed              |
-| WEBP            | (docs: "no upload"; empirically works) | rename will fail — type is sniffed |
-| MP4             | 36 MB | short videos only; long-form → AEM Assets / streaming       |
-| PDF             | 20 MB |                                                             |
-| Favicon `.ico`  | 16 KB |                                                             |
-
-Other limits worth knowing:
-- Default image delivery generates 750px (mobile) + 2000px (desktop)
-  variants in webp + the original format.
-- EDS doesn't upscale beyond source dimensions.
-- Recommended max source: 2000×2000 px.
-- Path: lowercase `a-z`, digits, dashes only. Max 900 chars.
-- Response payload: 6 MB compressed.
-- Rate limit: 200 req/sec per IP per hostname.
-- Pages per site: 1 M. Files per Code Bus ref: 500.
-
-### Structured content delivery (form-based)
-**[verified, from docs.da.live]** Pages defined by a JSON Schema
-(form-based authoring) are delivered as JSON at
-`https://da-sc.adobeaem.workers.dev/<env>/<org>/<site>/<path>`. This
-is a separate mechanism from regular HTML delivery — likely not what
-we want for the overlay, since we *want* HTML output that EDS can
-serve directly.
-
-### MCP server
-**[verified, from da.live docs]** A hosted MCP server exists at
-`https://mcp.adobeaemcloud.com/adobe/mcp/da` for programmatic access.
-Handles IMS auth automatically. Useful as an alternative to direct
-admin-API PUTs.
+The sections in this file that follow (Cross-cutting and below)
+document EDS-pipeline behavior specifically relevant to the overlay
+engine — they're not DA-side concerns and aren't covered by
+`eds-da-content`.
 
 ## Cross-cutting
 

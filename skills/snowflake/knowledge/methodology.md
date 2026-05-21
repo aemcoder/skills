@@ -149,71 +149,34 @@ Two transformations the template needs that aren't slot-related:
 
 ### Critical rules for the DA doc
 
-These rules are the foundation of a working DA doc. DO NOT re-derive
-them empirically. See `learnings.md` for the underlying mechanics.
+DA HTML format, cell content normalization, page metadata, and image
+URL rules live in the `eds-da-content` skill (§3, §3.9, §5, §9 of
+`html-content.md`). Load it before writing the DA doc.
 
-1. **Use divs-with-class shape, NOT tables.** The EDS pipeline does
-   NOT auto-convert DA-source `<table><th>BlockName</th></table>`
-   into `<div class="blockname">`. Tables in DA source get flattened
-   to a soup of `<p>` tags with the block name dropped. Emit
-   divs-with-class directly:
+The points below are Snowflake-specific — overlay-pattern decisions
+or consequences that aren't in `eds-da-content`:
 
-   ```html
-   <body>
-     <header></header>
-     <main>
-       <div>
-         <div class="hero">
-           <div><div>title</div><div>Be found everywhere search happens</div></div>
-           <div><div>cta-primary</div><div><a href="/signup/">Sign Up</a></div></div>
-         </div>
-       </div>
-       ... one outer-div per block ...
-       <div>
-         <div class="metadata">
-           <div><div>template</div><div><TEMPLATE_NAME></div></div>
-           <div><div>title</div><div><PAGE_TITLE></div></div>
-         </div>
-       </div>
-     </main>
-     <footer></footer>
-   </body>
-   ```
+1. **Metadata block lives inside `<main>`, not `<footer>`.** If the
+   block is misplaced or misnamed, the pipeline emits no
+   `<meta name="template">`, the overlay engine bails, standard EDS
+   decoration falls through, and the renderer logs one 404 per block
+   trying to load `/blocks/<name>/<name>.js`.
 
-2. **Metadata MUST be a `<div class="metadata">` block inside
-   `<main>`.** A `<footer><table><tr><th>Metadata</th></tr>...` is
-   silently ignored by the pipeline — `<meta name="template">` will
-   NOT appear in the rendered head, the overlay engine bails out,
-   and standard EDS decoration tries to load `/blocks/<name>/<name>.js`
-   for every block (one 404 per block).
+2. **Never write `<span class="…">` into DA cells.** Per
+   `eds-da-content` §3.9 the span is stripped and the class is lost —
+   any page CSS targeting that class stops matching. Rewrite source-
+   page styling hooks to CSS-on-structure (`:has()`, sibling
+   selectors) or swap to a preserved semantic element before emitting.
 
-3. **No inline `<span class="...">`, `<b>`, `<i>`, `<u>`, `<mark>`,
-   `<br>` in cell content.** The pipeline's markdown-ish normaliser
-   strips anything not on its preserve list. **Preserve list:**
-   `<strong>`, `<em>`, `<a>`, `<img>`, `<picture>`, `<h1>`-`<h6>`,
-   `<p>`. (The preserve list is empirical, accumulated across multiple
-   conversion runs.) Use `<strong>`/`<em>` for inline emphasis; for
-   typography accents inside titles, use `<strong>` or restructure
-   to put the class on the parent element instead. For line breaks
-   inside a slot value, restructure to two `<p>` tags (or two slots)
-   rather than `<br>`.
-
-4. **`<img>` URLs in DA cells MUST be absolute.** The EDS Media Bus
-   processes `<img src>` values in DA-source HTML and only handles
-   absolute URLs. Root-relative paths (`/assets/foo.png`) are
-   resolved against the DA content host (`content.da.live`), where
-   the asset isn't found → the pipeline serves
-   `<img src="about:error">` and the browser surfaces an
-   `ERR_UNKNOWN_URL_SCHEME` error. Always emit absolute URLs in DA
-   cell `<img>` values:
+3. **`<img>` URLs in DA cells are stricter than template/fragment
+   HTML.** DA cells require absolute URLs (`eds-da-content` §9).
+   Template and fragment HTML can use root-relative `/assets/...`
+   because the browser resolves those against the rendered page host
+   (= code-bus host). The DA pipeline is what's stricter, not the
+   browser. Acceptable absolute forms in Snowflake DA cells:
    - Public source page: `https://<source-host>/<path>/image.png`
    - Vendored same-branch assets: `https://<branch>--<repo>--<owner>.aem.page/assets/...`
    - DA media: `https://content.da.live/<org>/<repo>/media_<sha>...`
-
-   Note the asymmetry with template/fragment HTML refs, which CAN be
-   root-relative — the browser resolves those against the rendered
-   page host (= code-bus host) so `/assets/...` works there. The DA
-   pipeline is what's stricter, not the browser.
 
 ### Slot rules in the template
 
@@ -388,7 +351,10 @@ Goal: feed the next run.
   generator and different page, benefit from knowing this?" If yes,
   it goes in the cross-project learnings.
 - If a finding contradicts something in `architecture.md` or
-  `eds-da-mechanics.md`, update those docs in the same commit.
+  `eds-da-mechanics.md`, update those docs in the same commit. If the
+  finding is about DA HTML rules (not the overlay engine), it belongs
+  in the `eds-da-content` skill — file a separate PR against that
+  skill rather than duplicating into Snowflake.
 - If you discover a generic tool worth keeping, move it to a shared
   `tools/` directory with a README.
 

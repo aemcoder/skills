@@ -173,9 +173,12 @@ not vendored-absolute) — should find none.
 
 ### 3.8 — DA-source body fragment
 
-Write `output/da/<page-slug>.html` as **divs-with-class shape, NOT
-tables** (the pipeline does NOT auto-convert DA-source tables to
-div-with-class blocks). Structure:
+Write `output/da/<page-slug>.html` in the canonical `<div class="…">`
+block form (see `eds-da-content` §3.2). Read `eds-da-content` §3, §3.9,
+§5, and §9 before writing this file — block format, cell content
+normalization, page metadata, and image URL rules all live there.
+
+Structure:
 
 ```html
 <body>
@@ -199,18 +202,17 @@ div-with-class blocks). Structure:
 </body>
 ```
 
-The metadata block MUST be inside `<main>` (not in `<footer>`), or
-the pipeline ignores it and standard EDS decoration falls back —
-breaking the overlay.
+Snowflake-specific reminders (universal rules are in `eds-da-content`):
 
-Cell content rules (empirical, accumulated across many runs):
-- Preserve list: `<strong>`, `<em>`, `<a>`, `<img>`, `<picture>`,
-  `<h1>`-`<h6>`, `<p>`. Everything else is stripped.
-- For `<br>` line breaks in the source, either drop them (slot value
-  is the joined text) or restructure to two `<p>` tags.
-- All `<img src="...">` URLs in DA cells MUST be absolute (Media Bus
-  requirement). Use the absolute branch URL form when assets are
-  vendored.
+- Metadata block MUST sit inside `<main>` — placement in `<footer>`
+  breaks the overlay engine (no `<meta name="template">` → engine
+  bails → standard EDS decoration 404s on every block).
+- Never write `<span class="…">` into cells — class is lost on
+  normalization, breaking any CSS hook the source page relied on.
+- For vendored assets, DA cells use the absolute branch URL form:
+  `https://<branch>--<repo>--<owner>.aem.page/assets/...` (DA cells
+  don't accept root-relative paths even though template/fragment
+  HTML does).
 
 ### 3.9 — Self-checks before declaring Generate done
 
@@ -234,9 +236,13 @@ grep -REn "=\"assets/" "$PROJ/output/templates" "$PROJ/output/fragments" "$PROJ/
 # (would need a DOM parse — skip for now if jsdom not available;
 #  document this gap in the future-validator roadmap)
 
-# 4) DA doc has no <table>, no <span class>, no <br>, <b>, <i>, <u>, <mark>
-grep -cE "<table|<span class|<br>|<b>|<i>|<u>|<mark>" "$PROJ/output/da/"*.html
+# 4) DA doc has no <span class> (stripped) and no <table> (Snowflake
+#    uses div form). See eds-da-content §3.9 for full normalization.
+grep -cE "<table|<span class" "$PROJ/output/da/"*.html
 # expected: 0 (per file)
+
+# 4a) WARN: <br> is position-dependent (eds-da-content §3.9).
+grep -nE "<br>" "$PROJ/output/da/"*.html && echo "WARN: <br> found — verify position" || echo "OK"
 
 # 5) DA cell <img> URLs are absolute
 grep -oE "<img[^>]*src=\"[^\"]+\"" "$PROJ/output/da/"*.html \
