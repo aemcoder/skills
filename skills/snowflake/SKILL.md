@@ -29,13 +29,15 @@ Typical user phrasing:
   `<div class="blockname">`). That's a different workflow
   (`migrate-page`). The overlay pattern is for keeping the original
   generator's DOM intact.
-- Does **not** migrate the page assets into DA `/media/` (out of
-  scope; the skill documents two acceptable alternatives — vendor in
-  repo, or DA media migration done separately).
 - Does **not** modify the EDS substrate code in the target repo
   (`scripts/scripts.js` overlay engine, lifecycle CSS, etc.) unless
   the conversion surfaces a substrate gap. Substrate evolution is a
   separate change with its own PR review.
+
+The skill **does** support three asset strategies (see
+`methodology.md` §3): `absolute` (rewrite to source-host URLs),
+`vendor` (copy into `./assets/`), and `da-media` (upload to
+`/media/<scope>/` via the bundled `da-media-upload.mjs` script).
 
 ## Skill dependencies
 
@@ -111,6 +113,7 @@ install-substrate.mjs          ← idempotent substrate installer (used by phase
 scripts/
   transform-da-to-eds.mjs      ← Node script: DA divs-with-class → drafts HTML
   dom-equality.mjs             ← Node script: compare source vs rendered DOM
+  da-media-upload.mjs          ← Node script: PUT binaries to DA /media/<scope>/, emit content.da.live URL mapping (used by assetStrategy=da-media)
 examples/
   README.md                    ← pointers to worked examples (closed iterations)
 HOST-NOTES.md                  ← per-host adapter notes (not loaded by agent)
