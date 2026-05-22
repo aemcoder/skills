@@ -805,8 +805,8 @@ Icons can live in two places:
   developers, deployed via git. The default.
 - **DA `/media`** (any path) — referenced via a full
   `https://content.da.live/...` URL in CSS or via `<img>` inside the icon
-  span. See [media.md §2.3](./media.md) for the `/media` storage pattern
-  and [media.md §5.1](./media.md) for the 40 KB SVG cap.
+  span. See [media.md §3.3](./media.md) for the `/media` storage pattern
+  and [media.md §6.1](./media.md) for the 40 KB SVG cap.
 
 For static SVG icons under 40 KB, Code Bus is simpler. For authored icons
 that need to change without code deploys, DA `/media` is the right choice.
@@ -880,20 +880,24 @@ Authors should NOT manually add `target="_blank"` — let decoration handle it.
 ## 9. Images in HTML
 
 The single most common silent failure in programmatic HTML generation:
-incorrect image URLs.
+unreachable image URLs.
 
 ### Required URL form
 
-Every `<img src>`, `<source src>`, and `<video><source src>` in a DA-uploaded
-document MUST be a full URL. `[verified]`
+Every `<img src>` and `<source srcset>` in a DA-uploaded document MUST be
+a full URL that the preview step can fetch. The preview walks every
+`<img>` and `<source>` element, fetches the URL, hashes the bytes, and
+stores them in Media Bus — that's how the delivered page gets responsive
+`<picture>` variants. See [media.md §2 (Asset lifecycle)](./media.md) for
+the full flow.
 
-Acceptable hosts:
+Hosts that work:
 
 | Host | Use case | Notes |
 |---|---|---|
-| `https://content.da.live/{org}/{repo}/<path>` | Preferred — branch-independent | Always the latest uploaded version |
-| `https://{branch}--{repo}--{owner}.aem.page/<path>` | Works — branch-locked | Avoid except for cross-branch references |
-| `https://other-host.com/<path>` | External image | Preserved as-is; EDS will not copy it locally |
+| `https://content.da.live/{org}/{repo}/<path>` | Preferred for assets you control | Preview re-fetches each time; binary must exist at upload time of preview |
+| `https://{branch}--{repo}--{owner}.aem.page/<path>/media_<hash>.<ext>` | Already in Media Bus | Recognized; preview skips re-fetch |
+| `https://other-host.com/<path>` | External image | **Sideloaded** — preview copies the bytes into Media Bus on first run; no DA pre-upload required `[verified]` |
 
 ### Forbidden URL forms
 
@@ -902,14 +906,24 @@ delivery:
 
 | Form | Why |
 |---|---|
-| Repo-relative paths (`/path/foo.png`) | The pipeline cannot resolve them against an authoritative root. `[verified]` from EDS docs. |
-| Document-relative paths (`./foo.png`, `../foo.png`) | Resolve against the editor URL, which doesn't host content. `[verified]` |
-| Editor-relative paths | Same problem. `[verified]` |
+| Repo-relative paths (`/path/foo.png`) | No host → preview can't fetch. `[verified]` |
+| Document-relative paths (`./foo.png`, `../foo.png`) | No host → preview can't fetch. `[verified]` |
+| `https://{branch}--{repo}--{owner}.aem.page/<path>.png` (non-`media_*` path) | aem.page doesn't serve plain binaries at arbitrary paths → preview fetch 404s. `[verified]` |
+| `https://content.da.live/{other-org}/{other-repo}/<path>` (cross-tenant) | Path doesn't exist → preview fetch 404s. `[verified]` |
+| External URL that DNS-fails, returns 4xx/5xx, returns HTML/non-image content, or times out (>5s) | Preview fetch fails. `[verified]` |
 
-### Image must exist before HTML references it
+### When you need to pre-upload binaries
 
-The referenced binary must already be uploaded to DA when the HTML
-document is uploaded. Upload binaries first, then the HTML.
+Pre-uploading is **not** required for external URLs — the preview
+sideloads them automatically. Pre-upload (PUT to
+`admin.da.live/source/...`) when you want:
+
+- A stable `content.da.live` URL the preview can re-fetch (independent
+  of third-party host availability).
+- Bytes under DA's control (e.g., for governance, asset reuse, or
+  pre-migration prep).
+- Predictable Media Bus hashes (the preview re-fetches the same DA path
+  on every preview; same bytes → same hash).
 
 For storage patterns (DAM, dot-folder, `/media`), supported formats, size
 limits, and the Source API call to upload binaries, see
@@ -948,11 +962,15 @@ The transformation:
 
 `[verified]` from EDS pipeline docs.
 
-### Author `<picture>` only to override defaults
+### Author `<picture>` only when bare `<img>` won't do
 
-Author a `<picture>` element directly only when you need to override the
-pipeline defaults (e.g., explicit art direction). The pipeline preserves
-authored `<source>` elements and adds its own as fallbacks.
+In most cases, write a bare `<img>` and let the preview produce the
+`<picture>`. Hand-authored `<picture>` markup is a less safe path because
+the preview rewrites the whole element — both `<source srcset>` and
+`<img src>` URLs are sideloaded, but the authored `<source>` elements
+are replaced by pipeline-generated ones, not preserved alongside them.
+`[verified]` empirically. If you need explicit art direction (different
+images per breakpoint), test on `aem.page` before relying on it.
 
 ```html
 <picture>
@@ -1048,17 +1066,33 @@ curl -X POST -H "Authorization: Bearer $TOKEN" \
   "https://admin.hlx.page/preview/{org}/{repo}/{branch}/{path-no-extension}"
 ```
 
-### Ordering: binaries first, HTML second
+### Ordering: binaries must exist before preview, not before HTML upload
 
-If the HTML references images, videos, or other media via
-`https://content.da.live/...` URLs, those binaries must already exist at
-the referenced paths when the HTML is uploaded. Otherwise the document
-will render but the references will resolve to 404s.
+The fetch that matters for image sideloading happens at **preview** time
+(`admin.hlx.page/preview/...`), not at HTML upload time. So the strict
+constraint is:
 
-Upload order:
+- All `<img src>` / `<source srcset>` URLs the document references must
+  be reachable at the moment preview runs. External URLs need to be
+  live; `content.da.live/{org}/{repo}/<path>` URLs need their binary
+  uploaded to DA.
 
-1. Upload all referenced binaries via the DA Source API (per
-   [media.md](./media.md)).
+A safe, simple sequence:
+
+1. Upload referenced binaries via the DA Source API (per
+   [media.md](./media.md)), so any `content.da.live/...` references will
+   resolve.
 2. Upload the HTML document via the DA Source API (§11 above).
-3. Trigger preview for the document (binaries don't need preview).
-4. Trigger publish for the document if going to production.
+3. Trigger preview to sideload all `<img>` URLs (external and DA-hosted)
+   into Media Bus.
+
+Upload order between HTML and binaries does not matter functionally —
+DA stores bytes verbatim regardless of dependency state. What does
+matter is that everything is in place before the preview call. A failed
+preview-time fetch produces `<img src="about:error">` in the delivered
+HTML (see [media.md §2](./media.md)).
+
+After preview succeeds, optionally trigger publish (see
+[platform.md §6](./platform.md)) to make the document available on
+`aem.live`. Binaries don't need their own preview/publish — they ride
+along on the document's preview.

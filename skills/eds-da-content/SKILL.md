@@ -74,9 +74,11 @@ curl -X POST \
 ```
 
 Image binaries upload the same way (PUT to `admin.da.live/source/...`)
-but do NOT need preview/publish — they're served directly from
-`content.da.live` once uploaded. See
-[references/media.md](./references/media.md).
+but do NOT need their own preview/publish call — they're served
+directly from `content.da.live` once uploaded. They DO get pulled into
+Media Bus (content-addressed, with responsive variants) when a
+*document* that references them is previewed — see
+[references/media.md §2](./references/media.md) for the asset lifecycle.
 
 ## The 11 silent-failure rules
 
@@ -113,23 +115,34 @@ output before upload.
    silently ignored — no `<meta>` tags emitted.
    → [html-content.md §5](./references/html-content.md)
 
-5. **Image URLs must be full URLs.** Repo-relative (`/path/foo.png`) and
-   document-relative (`./foo.png`) paths render as `<img src="about:error">`.
-   Use `https://content.da.live/{org}/{repo}/<path>` or external URLs.
-   → [html-content.md §9](./references/html-content.md)
+5. **`<img src>` URLs must be reachable from EDS preview infrastructure.**
+   The preview step fetches every `<img src>` and `<source srcset>` URL,
+   content-hashes the bytes, and stores them in Media Bus — that's how
+   the delivered page gets responsive `<picture>` variants. Any URL that
+   doesn't return image bytes (DNS failure, 4xx/5xx, HTML response,
+   timeout > 5s) produces `<img src="about:error">`. Host-less paths
+   (repo-relative `/path/foo.png`, document-relative `./foo.png`) also
+   fail because the ingester has nothing to fetch. External URLs work
+   fine and are sideloaded on first preview.
+   → [media.md §2](./references/media.md), [html-content.md §9](./references/html-content.md)
 
-6. **Referenced binaries must exist before the HTML is uploaded.** Upload
-   binaries first, then the HTML. Otherwise the document loads but media
-   references 404.
-   → [html-content.md §9](./references/html-content.md), [html-content.md §11](./references/html-content.md)
+6. **Pre-upload binaries only when you need URL stability.** Sideloading
+   means you do NOT need to upload an image to DA before referencing it
+   from your HTML — any reachable URL works. Pre-upload (to
+   `/media/<scope>/<file>`) when you want the binary under DA's control:
+   immune to third-party host changes, addressable by a stable
+   `content.da.live` URL, and re-fetched into Media Bus on each preview.
+   → [media.md §2.5](./references/media.md), [media.md §13.2](./references/media.md)
 
 7. **DA Source API requires `multipart/form-data` with field name `data`.**
    Other field names (`file`, `image`) return 200 OK with no file written.
    → [platform.md §2](./references/platform.md)
 
 8. **SVG hard cap is 40 KB.** PNG/JPG/AVIF/WEBP cap is 20 MB. MP4 cap is
-   36 MB. Exceeding fails delivery silently.
-   → [media.md §5.1](./references/media.md)
+   36 MB. Over-cap SVGs cause the preview POST to fail with
+   `409 AEM_BACKEND_FETCH_FAILED` ("Images N have failed validation");
+   pre-check sizes before upload.
+   → [media.md §6.1](./references/media.md)
 
 9. **Preview / publish is a required separate step.** Uploading to DA does
    NOT make the document visible at `aem.page` / `aem.live`. POST to
