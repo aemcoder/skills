@@ -432,12 +432,30 @@ EDS enforces per-file and aggregate limits at the delivery layer. These are oper
 
 Source: [aem.live/docs/limits](https://www.aem.live/docs/limits). [verified]
 
-**SVG 40 KB is the constraint that bites most.** Hand-authored multi-shape illustrations, especially those with embedded `<filter>` definitions, multi-stop gradients, or dozens of `<path>` shapes, frequently exceed 40 KB. Mitigations:
+**SVG 40 KB is the constraint that bites most.** Hand-authored multi-shape illustrations, especially those with embedded `<filter>` definitions, multi-stop gradients, or dozens of `<path>` shapes, frequently exceed 40 KB.
 
-1. Optimize with [SVGO](https://github.com/svg/svgo) — aggressive `removeViewBox=false`, `mergePaths`, `removeUnknownsAndDefaults`.
-2. Simplify path coordinates (reduce precision to 1–2 decimal places).
-3. Replace embedded raster `<image>` elements (which inflate SVG size dramatically) with a separate raster file referenced by URL.
-4. Rasterize the SVG to PNG/AVIF if the SVG is fundamentally illustrative rather than icon-shaped.
+**Failure mode is loud, not silent.** When a DA document references an
+over-cap SVG via `<img>`, the preview POST to
+`admin.hlx.page/preview/...` returns `409 AEM_BACKEND_FETCH_FAILED`
+with a body like `Images N have failed validation`. The document is
+not previewed at all — not "partially rendered with broken images".
+`[verified]` empirically (Snowflake migration, 2026-05-19, on SVGs
+of 45 KB, 76 KB, 251 KB, etc.).
+
+Mitigations:
+
+1. **Pre-flight check.** During HTML generation, HEAD each SVG URL
+   referenced from `<img>` and verify `content-length < 40000`.
+2. Optimize with [SVGO](https://github.com/svg/svgo) — aggressive `removeViewBox=false`, `mergePaths`, `removeUnknownsAndDefaults`.
+3. Simplify path coordinates (reduce precision to 1–2 decimal places).
+4. Replace embedded raster `<image>` elements (which inflate SVG size dramatically) with a separate raster file referenced by URL.
+5. Rasterize the SVG to PNG/AVIF if the SVG is fundamentally illustrative rather than icon-shaped.
+
+**Asymmetry to be aware of.** The 40 KB cap applies to SVGs the
+preview ingester fetches (i.e., images in DA `<img>` slots). SVGs
+served directly from Code Bus (`/icons/`, `/blocks/.../*.svg`) or
+referenced from authored HTML that doesn't go through preview
+ingestion have no such cap — the browser fetches them directly.
 
 ### 6.2 Image dimensions
 

@@ -139,7 +139,9 @@ output before upload.
    → [platform.md §2](./references/platform.md)
 
 8. **SVG hard cap is 40 KB.** PNG/JPG/AVIF/WEBP cap is 20 MB. MP4 cap is
-   36 MB. Exceeding fails delivery silently.
+   36 MB. Over-cap SVGs cause the preview POST to fail with
+   `409 AEM_BACKEND_FETCH_FAILED` ("Images N have failed validation");
+   pre-check sizes before upload.
    → [media.md §6.1](./references/media.md)
 
 9. **Preview / publish is a required separate step.** Uploading to DA does
