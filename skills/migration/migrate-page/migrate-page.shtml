@@ -1,4 +1,4 @@
-<div data-sprinkle-title="Migrate Page" data-sprinkle-autoopen data-sprinkle-icon='<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-briefcase-conveyor-belt-icon lucide-briefcase-conveyor-belt"><path d="M10 20v2"/><path d="M14 20v2"/><path d="M18 20v2"/><path d="M21 20H3"/><path d="M6 20v2"/><path d="M8 16V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v12"/><rect x="4" y="6" width="16" height="10" rx="2"/></svg>' class="sprinkle-stack" style="padding: 20px; max-width: 520px; margin: 0 auto;">
+<div data-sprinkle-title="Migrate Page" data-sprinkle-autoopen data-sprinkle-icon="briefcase-conveyor-belt" class="sprinkle-stack" style="padding: 20px; max-width: 520px; margin: 0 auto;">
 
   <div id="mp-ready" class="mp-view">
     <div class="sprinkle-heading mp-view-heading" tabindex="-1">Migrate Page</div>
@@ -166,86 +166,8 @@
 
 #mp-migrating .sprinkle-btn-group { margin-top: 16px; }
 
-/* ── Text readability (light-theme) ──────── */
-.sprinkle-heading {
-  color: var(--s2-gray-900, #131313);
-}
-.sprinkle-body {
-  color: var(--s2-content-default, #131313);
-}
-.sprinkle-detail {
-  color: var(--s2-gray-600, #717171);
-}
-dl.sprinkle-kv-list dt {
-  color: var(--s2-gray-600, #717171);
-}
-dl.sprinkle-kv-list dd {
-  color: var(--s2-content-default, #131313);
-}
-
-/* ── Buttons ─────────────────────────────── */
-.sprinkle-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  height: 32px;
-  padding: 0 16px;
-  border: 1px solid var(--s2-gray-200, #e1e1e1);
-  border-radius: 10px;
-  line-height: 1;
-  background: var(--s2-gray-25, #fff);
-  color: var(--s2-gray-800, #292929);
-  font-size: var(--s2-font-size-100, 14px);
-  font-weight: 700;
-  font-family: var(--s2-font-family,
-    'Adobe Clean', -apple-system, system-ui, sans-serif);
-  cursor: pointer;
-  box-shadow: var(--s2-shadow-container,
-    0 2px 8px rgba(0,0,0,.08), 0 1px 4px rgba(0,0,0,.04));
-  transition: background 130ms ease,
-    border-color 130ms ease, transform 130ms ease;
-}
-.sprinkle-btn:hover {
-  background: #fff;
-  border-color: var(--s2-gray-300, #dadada);
-}
-.sprinkle-btn:active {
-  transform: scale(0.98);
-}
-.sprinkle-btn:focus-visible {
-  outline: 2px solid var(--s2-border-focus, #3b63fb);
-  outline-offset: 2px;
-}
-.sprinkle-btn:disabled,
-.sprinkle-btn[disabled] {
-  opacity: 0.4;
-  pointer-events: none;
-}
-
-.sprinkle-btn--primary {
-  background: var(--s2-accent, #3b63fb);
-  color: var(--s2-gray-25, #fff);
-  border-color: transparent;
-  box-shadow: none;
-}
-.sprinkle-btn--primary:hover {
-  background: var(--s2-accent-hover, #2b54db);
-}
-.sprinkle-btn--primary:active {
-  background: var(--s2-accent-down, #1e44c4);
-  transform: scale(0.98);
-}
-
-.sprinkle-btn--secondary {
-  background: var(--s2-gray-25, #fff);
-  border-color: var(--s2-gray-200, #e1e1e1);
-  color: var(--s2-gray-800, #292929);
-}
-.sprinkle-btn--secondary:hover {
-  background: var(--s2-gray-50, #f8f8f8);
-  border-color: var(--s2-gray-300, #dadada);
-}
+/* ── Override system cursor: default — buttons must feel interactive ─ */
+.sprinkle-btn { cursor: pointer; }
 </style>
 
 <script>
