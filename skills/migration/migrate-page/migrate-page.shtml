@@ -166,6 +166,8 @@
 
 #mp-migrating .sprinkle-btn-group { margin-top: 16px; }
 
+/* ── Override system cursor: default — buttons must feel interactive ─ */
+.sprinkle-btn { cursor: pointer; }
 </style>
 
 <script>
