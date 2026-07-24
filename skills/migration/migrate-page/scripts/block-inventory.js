@@ -11,11 +11,14 @@
 const fsp = require('node:fs/promises');
 
 async function fileSize(path) {
+  let stat;
   try {
-    return (await fsp.stat(path)).size;
-  } catch {
-    return undefined;
+    stat = await fsp.stat(path);
+  } catch (err) {
+    if (err.code === 'ENOENT') return undefined;
+    throw err;
   }
+  return stat.isFile() ? stat.size : undefined;
 }
 
 async function scanBlockInventory(projectPath) {
@@ -24,8 +27,9 @@ async function scanBlockInventory(projectPath) {
   let dirEntries;
   try {
     dirEntries = await fsp.readdir(projectPath + '/blocks', { withFileTypes: true });
-  } catch {
-    return entries;
+  } catch (err) {
+    if (err.code === 'ENOENT') return entries;
+    throw err;
   }
 
   for (const entry of dirEntries) {
