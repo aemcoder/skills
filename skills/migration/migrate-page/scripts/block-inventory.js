@@ -5,8 +5,8 @@
  *   const { writeBlockInventory } = require('/workspace/skills/migrate-page/scripts/block-inventory.js');
  *   writeBlockInventory('/shared/repo-name'); // writes .migration/block-inventory.json, prints + returns summary
  *
- * CLI (real node only; may silently no-op under the SLICC bridge because
- * require.main is never module there — prefer the programmatic form):
+ * CLI (real node only; may silently no-op under the SLICC bridge, where the
+ * direct-execution guard never fires — prefer the programmatic form):
  *   node block-inventory.js <project-path>
  *
  * Synchronous on purpose: SLICC's fs bridge only guarantees flush-on-exit for
@@ -26,19 +26,28 @@ function fileSize(p) {
   return stat.isFile() ? stat.size : undefined;
 }
 
+function isDirectory(p) {
+  try {
+    return fs.statSync(p).isDirectory();
+  } catch (err) {
+    if (err.code === 'ENOENT') return false;
+    throw err;
+  }
+}
+
 function scanBlockInventory(projectPath) {
   const entries = [];
-  let dirEntries;
+  const blocksDir = projectPath + '/blocks';
+  let names;
   try {
-    dirEntries = fs.readdirSync(projectPath + '/blocks', { withFileTypes: true });
+    names = fs.readdirSync(blocksDir);
   } catch (err) {
     if (err.code === 'ENOENT') return entries;
     throw err;
   }
-  for (const entry of dirEntries) {
-    if (!entry.isDirectory()) continue;
-    const name = entry.name;
-    const blockDir = projectPath + '/blocks/' + name;
+  for (const name of names) {
+    const blockDir = blocksDir + '/' + name;
+    if (!isDirectory(blockDir)) continue;
     const jsSize = fileSize(blockDir + '/' + name + '.js');
     const cssSize = fileSize(blockDir + '/' + name + '.css');
     if (jsSize === undefined && cssSize === undefined) continue;

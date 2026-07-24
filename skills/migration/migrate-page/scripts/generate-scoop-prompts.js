@@ -5,8 +5,8 @@
  *   const { generateConfigsFromFile } = require('/workspace/skills/migrate-page/scripts/generate-scoop-prompts.js');
  *   const configs = generateConfigsFromFile('/shared/repo/.migration'); // returns Array<{name,model,prompt}>
  *
- * CLI (real node only; may silently no-op under the SLICC bridge because
- * require.main is never module there — prefer the programmatic form):
+ * CLI (real node only; may silently no-op under the SLICC bridge, where the
+ * direct-execution guard never fires — prefer the programmatic form):
  *   node generate-scoop-prompts.js <migration-dir> [model]
  *
  * Synchronous file read on purpose (SLICC flush semantics — see block-inventory.js).
