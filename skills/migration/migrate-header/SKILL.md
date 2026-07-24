@@ -36,12 +36,35 @@ typically pre-built in the EDS repo — you customize CSS only.
 
 Navigate to the source page and extract the header's content:
 
+> **Browser access:** driving playwright requires `write: /.playwright/**`.
+> The orchestrator should pre-authorize this before dispatching you; if you hit
+> a sudo prompt for `/.playwright` on the first `playwright-cli` call, that is
+> expected — it should be granted with an `always` rule so it does not recur.
+
 ```bash
 playwright-cli tab-new {sourceUrl}
 ```
 
 Capture the **targetId** from the output (e.g., `ABC123`). All subsequent
 `playwright-cli` commands for this tab MUST include `--tab={sourceTabId}`.
+
+**MANDATORY — resize to a desktop viewport before ANY screenshot or
+extraction:**
+
+```bash
+playwright-cli resize --tab={sourceTabId} 1440 900
+```
+
+New tabs open at a default viewport of ~780px (a mobile breakpoint). Capturing
+or measuring the component at that width yields a mobile-layout screenshot and
+can drive wrong fidelity decisions (e.g. baking a mobile breakpoint into the
+block CSS). Never skip this. Optionally hard-fail if the resize did not take:
+
+```bash
+playwright-cli eval --tab={sourceTabId} "window.innerWidth >= 1024"
+```
+
+If this returns `false`, STOP and re-resize — do not extract at mobile width.
 
 The cone dismissed overlays (cookie banners, consent dialogs) during
 Phase 1 and set consent cookies. Since all tabs share the same browser
@@ -321,6 +344,13 @@ When converting source HTML to nav.plain.html:
 - **Announcements:** wrap in `<p>` with inline links
 
 ### Mega Menu Transformation
+
+> **Known limitation — mega-menu richness is flattened.** Rich mega-menu
+> content (per-link descriptions, promo imagery, multi-column feature blocks)
+> is reduced to flat nested link lists. All link destinations are preserved,
+> but the descriptive text and imagery are dropped by design. This is an
+> expected fidelity tradeoff, not a bug — note it in your report rather than
+> iterating to reproduce the source's mega-menu visuals.
 
 Source:
 ```html

@@ -88,12 +88,35 @@ Your prompt will include these parameters:
 The visual tree is for decomposition only — it does NOT contain the actual
 content. Navigate to the source page and extract content directly:
 
+> **Browser access:** driving playwright requires `write: /.playwright/**`.
+> The orchestrator should pre-authorize this before dispatching you; if you hit
+> a sudo prompt for `/.playwright` on the first `playwright-cli` call, that is
+> expected — it should be granted with an `always` rule so it does not recur.
+
 ```bash
 playwright-cli tab-new {sourceUrl}
 ```
 
 Capture the **targetId** from the output (e.g., `ABC123`). All subsequent
 `playwright-cli` commands for this tab MUST include `--tab={sourceTabId}`.
+
+**MANDATORY — resize to a desktop viewport before ANY screenshot or
+extraction:**
+
+```bash
+playwright-cli resize --tab={sourceTabId} 1440 900
+```
+
+New tabs open at a default viewport of ~780px (a mobile breakpoint). Capturing
+or measuring the component at that width yields a mobile-layout screenshot and
+can drive wrong fidelity decisions (e.g. baking a mobile breakpoint into the
+block CSS). Never skip this. Optionally hard-fail if the resize did not take:
+
+```bash
+playwright-cli eval --tab={sourceTabId} "window.innerWidth >= 1024"
+```
+
+If this returns `false`, STOP and re-resize — do not extract at mobile width.
 
 The cone dismissed overlays (cookie banners, consent dialogs) during
 Phase 1 and set consent cookies. Since all tabs share the same browser
