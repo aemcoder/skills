@@ -85,10 +85,14 @@ the query parameter) so project mode stays active.
   clones cause failures when creating branches or running git commands
   later in a migration. Always clone without `--depth`:
   `git clone https://github.com/owner/repo.git /path/to/target`.
-- **`node -e "<inline>"` has no VFS `fs` globals or `require()`.** The
-  Slicc `node -e` shim doesn't expose VFS globals. Use `node <file.js>`
-  instead — the file form gets VFS `fs` globals and top-level `await`.
-  Never use `node -e` for VFS file I/O.
+- **Slicc's `node` bridges standard Node FS APIs (since ~2026-07-20).**
+  `require('fs')`, `require('node:fs')`, and `require('fs/promises')`
+  return a unified bridge: async methods are RPC-backed to the VFS, sync
+  methods hit a coherent local cache flushed back after the script
+  exits. Skill scripts run with `node <file.js>` must use standard
+  `require('node:fs')`-style APIs — never the legacy VFS globals
+  (`fs.readDir`, bare `fs`), which don't exist under real node (PLG
+  labs) and are no longer needed under Slicc.
 
 ## Migration Skill Architecture
 
@@ -116,7 +120,8 @@ come from Slicc's execution model and explicit scope decisions:
 - Installation via `upskill aemcoder/skills --path skills/migration --all`
 - Skills reference Slicc shell commands (`playwright-cli`, `serve`, `bash`) not raw APIs
 - Wrap `eval` calls in IIFEs to avoid variable redeclaration across calls
-- Use `fs.fetchToFile(url, path)` for binary downloads, never `fs.writeFile()` with binary data
+- Use `fs.fetchToFile(url, path)` for binary downloads (JS tool context,
+  not node scripts), never `fs.writeFile()` with binary data
 
 ## Testing Skills from a Branch
 
