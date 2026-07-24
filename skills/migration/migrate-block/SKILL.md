@@ -477,6 +477,34 @@ visual iteration.
 perfectly while reporting `naturalWidth: 0`. Trust the combined
 `complete` + HTTP-status check, or a screenshot.**
 
+### 6e. Structure Sanity-Check (before pixel iteration)
+
+Visual iteration is excellent for CSS gaps but the WRONG loop for JS/structural
+bugs — a wrong child/row/cell count will never be fixed by a CSS tweak, so
+catch it here before spending screenshot iterations. Assert the decorated
+block's structure against what the source implies:
+
+```bash
+playwright-cli eval --tab={previewTabId} "(() => {
+  const block = document.querySelector('.{blockName}.block');
+  if (!block) return JSON.stringify({ error: 'block not found' });
+  const rows = block.querySelectorAll(':scope > div');
+  return JSON.stringify({
+    rows: rows.length,
+    cellsPerRow: [...rows].map(r => r.querySelectorAll(':scope > div').length),
+    imgs: block.querySelectorAll('img').length,
+    // add block-specific expected counts, e.g. for tabs: number of tab panels/buttons
+    tabButtons: block.querySelectorAll('[role=tab], .tab-button, button').length,
+  });
+})()"
+```
+
+Compare against the source component's structure (from your Step 1 extraction):
+row count, cells per row, image count, and any block-specific repetition (tabs,
+cards, accordion items). **If a count is wrong, fix the `.plain.html` content
+model or the block JS FIRST — do not proceed to pixel iteration.** A block that
+looks close but has the wrong number of cards/tabs/rows is not done.
+
 ---
 
 ## Step 7: Visual Verification (Max 3 Iterations)
