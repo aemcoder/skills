@@ -523,17 +523,25 @@ when deployed to a whitelisted production domain.
 Do NOT navigate back to the source page. Reuse this screenshot for every
 iteration.
 
-**Before the first iteration**, take a snapshot to find your block's ref:
-```bash
-playwright-cli snapshot --tab={previewTabId}
-# Find the ref for your block element (e.g., e8) — note it for all iterations
-```
+**Capture target:** anchor the screenshot to a STABLE SELECTOR, not a
+hand-picked ref from `snapshot` — refs can be ambiguous or drift between
+iterations, especially for short/interactive blocks (e.g. a collapsed
+accordion). `playwright-cli screenshot` accepts a unique CSS selector
+directly as its target, so pass the selector itself:
+- Prefer `.{blockName}-wrapper` (the EDS-generated wrapper around the
+  block) — it gives a consistent frame even when the block itself is
+  short or collapsed.
+- If no wrapper exists, use `.{blockName}.block` directly.
+- Do NOT fall back to full-page or re-guessing a ref hoping for a better
+  crop — the selector is deterministic across reloads, so one capture
+  target is correct for every iteration.
 
 For each iteration:
 
-1. **Screenshot the preview** by ref (reuse the same ref across iterations):
+1. **Screenshot the preview** by selector (reuse the same selector across
+   iterations):
    ```bash
-   playwright-cli screenshot --tab={previewTabId} e8 --max-width=1440 --filename={projectPath}/.migration/preview-{blockName}-iter{N}.png
+   playwright-cli screenshot --tab={previewTabId} ".{blockName}-wrapper" --max-width=1440 --filename={projectPath}/.migration/preview-{blockName}-iter{N}.png
    ```
 
 2. **Compare:** Read both screenshots (source from Step 1, preview from

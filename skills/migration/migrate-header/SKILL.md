@@ -598,16 +598,18 @@ playwright-cli eval --tab={previewTabId} "(() => {
 })()"
 ```
 
-**Before the first iteration**, take a snapshot to find the header ref:
-```bash
-playwright-cli snapshot --tab={previewTabId}
-# Find the ref for the header element (e.g., e2) — note it for all iterations
-```
+**Capture target:** anchor the screenshot to a STABLE SELECTOR, not a
+hand-picked ref from `snapshot` — refs can be ambiguous or drift between
+iterations. `playwright-cli screenshot` accepts a unique CSS selector
+directly as its target, so pass the selector itself: prefer `.header.block`
+(or its `.header-wrapper`, if present) over the bare `header` element, and
+reuse that same selector for every iteration — do NOT fall back to
+full-page or re-guessing a ref hoping for a better crop.
 
 For each iteration:
-1. **Screenshot the preview header** by ref (reuse across iterations):
+1. **Screenshot the preview header** by selector (reuse across iterations):
    ```bash
-   playwright-cli screenshot --tab={previewTabId} e2 --max-width=1440 --filename={projectPath}/.migration/preview-header-iter{N}.png
+   playwright-cli screenshot --tab={previewTabId} ".header.block" --max-width=1440 --filename={projectPath}/.migration/preview-header-iter{N}.png
    ```
 2. **Compare** source (from Step 1) and preview: focus on background color, logo size, nav spacing, layout
 3. **Fix:** Batch ALL CSS fixes for this iteration into a SINGLE `edit_file`
