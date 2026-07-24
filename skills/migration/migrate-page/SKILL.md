@@ -540,7 +540,12 @@ following the decomposition order:
 - Blocks inside sections: `<div class="blockname">` with the content
   from the scoop's `.plain.html` (copy the block div, not the section wrapper)
 - Section styles from decomposition → add `<div class="section-metadata">`
-- Images use `/drafts/images/` root-relative paths
+- Images use `/drafts/images/` root-relative paths — **local preview
+  only**. DA ingestion does not resolve arbitrary code-bus paths; they
+  become `<img src="about:error">` on the live page. Rewriting srcs for
+  DA (absolute URLs or DA-hosted media) is owned by the DA upload flow —
+  see the `eds-da-content` skill (`references/media.md`). This skill's
+  deliverable intentionally stops at local preview.
 - Default-content items (from decomposition): extract from source page
   and write as plain HTML (headings, paragraphs, lists) in their section
 - Do NOT include a `<div class="metadata">` block with nav/footer paths.
