@@ -36,9 +36,9 @@ playwright-cli tab-new https://example.com
 # Output: "Created tab <targetId> at https://example.com"
 # Capture <targetId> as {sourceTabId}
 
-# serve also returns a targetId
-serve --entry=drafts/hero-preview.html
-# Output: "serving ... (targetId: <targetId>)"
+# open also returns a targetId (and does NOT broadcast/steal focus)
+open /shared/my-site/drafts/hero-preview.html
+# Output: "... (targetId: <targetId>)"
 # Capture <targetId> as {previewTabId}
 ```
 
@@ -54,26 +54,31 @@ playwright-cli tab-close --tab={sourceTabId}
 
 Commands without --tab: `tab-list` (lists all tabs), `tab-new` (creates a tab).
 
-### Serve-Once + Reload Pattern
+### Open + Reload Pattern (local EDS preview)
 
 For EDS block/page preview testing:
 
-1. Call `serve` **once** to open the preview tab
+1. Call `open` **once** to open the preview tab
 2. Capture both the `targetId` and the `previewUrl` from output
 3. After editing CSS/JS, reload with `goto --tab={previewTabId} {previewUrl}`
-4. Do NOT re-run `serve` for each iteration
+4. Do NOT re-run `open` for each iteration
 
 If the preview tab is closed or `--tab` fails with an invalid target,
-re-run `serve` to get a new tab and targetId.
+re-run `open` to get a new tab and targetId.
+
+`serve` is only for *sharing* a preview with followers — it broadcasts and
+force-opens a focused tab; use `open` for self-verification.
 
 ### EDS Preview Path Resolution
 
 Under unified preview, root-absolute paths (`/styles/styles.css`,
 `/scripts/...`, `/drafts/images/...`) resolve natively against the project in
 VFS — no flag required. The old `serve --project <dir>` flag is **obsolete
-and ignored** (kept as a no-op for backward compatibility). The
-`?projectRoot=` query parameter may still appear in the preview URL; when
-reloading with `goto`, reuse the full preview URL as returned by `serve`.
+and ignored** (kept as a no-op for backward compatibility), and the bare
+`open <preview-file>` command auto-detects the projectRoot the same way and
+appends the `?projectRoot=` query parameter itself. This parameter may still
+appear in the preview URL; when reloading with `goto`, reuse the full preview
+URL as returned by `open`.
 
 ### CLI gotchas
 
@@ -121,7 +126,7 @@ come from Slicc's execution model and explicit scope decisions:
 - Skills are SKILL.md files with YAML frontmatter (`name`, `description`, `allowed-tools`)
 - Slicc discovers skills at `/workspace/skills/{name}/SKILL.md` (one level deep)
 - Installation via `upskill aemcoder/skills --path skills/migration --all`
-- Skills reference Slicc shell commands (`playwright-cli`, `serve`, `bash`) not raw APIs
+- Skills reference Slicc shell commands (`playwright-cli`, `open`, `serve`, `bash`) not raw APIs
 - Wrap `eval` calls in IIFEs to avoid variable redeclaration across calls
 - Use `fs.fetchToFile(url, path)` for binary downloads (JS tool context,
   not node scripts), never `fs.writeFile()` with binary data
