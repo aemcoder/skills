@@ -538,25 +538,26 @@ Write `{projectPath}/drafts/header-preview.html`:
 The EDS header block will automatically load `nav.plain.html` via the
 `<meta name="nav">` tag and render the full header.
 
-### 6b. Serve the Preview
+### 6b. Open the Preview (project-mode, non-intrusive)
 
 ```bash
-serve --entry=drafts/header-preview.html
+open {projectPath}/drafts/header-preview.html
 ```
 
-Root-absolute paths resolve natively under unified preview — the old
-`--project {projectPath}` flag is **obsolete and ignored**. See the "Known
-limitation — `serve` steals focus" note in `migrate-block` Step 6b; the same
-applies here (and the header re-serves across up to 5 iterations, so reload with
-`goto` rather than re-running `serve`).
+The `open` command routes the file through the EDS project-mode preview service
+worker (root-absolute paths resolve natively) and returns a leader-side,
+playwright-controllable tab — with no follower broadcast and no focus grab. See
+the "Use `open`, not `serve`" note in `migrate-block` Step 6b; the same applies
+here (and the header re-serves — now re-opens — across up to 5 iterations, so
+reload with `goto` rather than re-running `open`).
 
 Capture the **targetId** and the **preview URL** from the output. All
 subsequent `playwright-cli` commands for this preview tab MUST include
 `--tab={previewTabId}`. To pick up CSS/JS changes, just reload the
-existing tab with `goto` — do not re-run `serve` for every iteration.
+existing tab with `goto` — do not re-run `open` for every iteration.
 
 If the preview tab is closed or a `--tab` command fails with an invalid
-target, re-run `serve` to get a new tab and targetId.
+target, re-run `open` to get a new tab and targetId.
 
 ### 6c. Verify EDS Framework
 
@@ -630,7 +631,7 @@ For each iteration:
 3. **Fix:** Batch ALL CSS fixes for this iteration into a SINGLE `edit_file`
    call. Do not make separate edits for each property. Edit `header.css`
    custom properties only.
-4. **Reload:** Refresh to pick up CSS changes (reuse URL from Step 6b — do NOT re-run `serve`):
+4. **Reload:** Refresh to pick up CSS changes (reuse URL from Step 6b — do NOT re-run `open`):
    `playwright-cli goto --tab={previewTabId} {previewUrl}`
 
 **Common header-specific fixes:**
