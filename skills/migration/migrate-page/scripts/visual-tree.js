@@ -644,6 +644,8 @@
   return {
     tree: root,
     text: text,
-    nodeMap: nodeMap
+    nodeMap: nodeMap,
+    viewport: { width: window.innerWidth, height: window.innerHeight },
+    nodeCount: Object.keys(nodeMap).length
   };
 })();

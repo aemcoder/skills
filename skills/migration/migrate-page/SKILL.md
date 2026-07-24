@@ -101,7 +101,7 @@ Where `{repo-name}` is the repo portion of owner/repo, `{page-slug}` is derived
 from the URL path (e.g., `/products/widget` → `products-widget`), and
 `{timestamp}` is a short identifier (e.g., `Date.now().toString(36)`).
 
-### Step 1.2: Navigate to Source Page
+### Step 1.2: Navigate to Source Page and Set Desktop Viewport
 
 Open the source URL in a new browser tab:
 
@@ -111,6 +111,17 @@ playwright-cli tab-new {sourceUrl}
 
 Capture the **targetId** from the output (e.g., `SRC123`). All subsequent
 `playwright-cli` commands for this source tab MUST include `--tab={sourceTabId}`.
+
+**MANDATORY — resize to a desktop viewport before ANY extraction step:**
+
+```bash
+playwright-cli resize --tab={sourceTabId} 1440 900
+```
+
+New tabs open at a default viewport of ~780px. The visual-tree extractor
+ignores elements narrower than 900px, so extraction at the default width
+produces an unusable 1-node tree and a mobile-width screenshot — every
+Phase 1 artifact would be wrong. Never skip this step.
 
 ### Step 1.3: Dismiss Overlays (opt-in, skipped by default)
 
@@ -146,6 +157,19 @@ Run the visual tree extraction and save directly to file:
 ```bash
 playwright-cli eval-file --tab={sourceTabId} /workspace/skills/migrate-page/scripts/visual-tree.js --output=/shared/{repo-name}/.migration/visual-tree.json
 ```
+
+**Guard — verify the tree is usable before continuing:**
+
+```bash
+grep -o '"nodeCount":[0-9]*' /shared/{repo-name}/.migration/visual-tree.json
+grep -o '"viewport":{[^}]*}' /shared/{repo-name}/.migration/visual-tree.json
+```
+
+**If `nodeCount` < 5, or `viewport.width` < 1024: HARD ERROR — do not
+proceed.** The extraction ran at a too-narrow viewport (or the page did
+not render). Re-run the resize from Step 1.2, then re-run Steps 1.4–1.6.
+Never continue to Phase 2 with a degenerate tree — decomposition is
+impossible from a 1-node tree.
 
 ### Step 1.7: Full-Page Screenshot
 
