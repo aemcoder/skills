@@ -89,7 +89,10 @@ function buildHeaderPrompt(block, sourceUrl, projectPath, bounds) {
 Read /workspace/skills/migrate-header/SKILL.md and follow it exactly.
 This is a HEADER migration, not a regular block. Follow the header skill
 exactly — it handles nav.plain.html generation, section-metadata styles,
-dropdown detection, and header-specific CSS patterns.`;
+dropdown detection, and header-specific CSS patterns.
+Before iterating CSS, seed --nav-height and fonts from
+${projectPath}/.migration/brand.json (see the header skill's Step 5) to save
+iterations.`;
 }
 
 function buildFooterPrompt(block, sourceUrl, projectPath, bounds) {
