@@ -136,6 +136,7 @@ playwright-cli screenshot --tab={sourceTabId} e3 --max-width=1440 --filename={pr
 ```
 
 **Close the source tab** after extraction:
+
 ```bash
 playwright-cli tab-close --tab={sourceTabId}
 ```
@@ -162,13 +163,17 @@ than 7 minutes on header analysis before writing the initial files.
 Examine the extracted HTML and screenshot to determine the header type:
 
 ### Single-Row Header
+
 **Indicators:**
+
 - Logo, navigation, and utility links on the same horizontal level
 - Single background color across the entire header
 - No visual separation between sections
 
 ### Multi-Section Header
+
 **Indicators:**
+
 - Multiple distinct horizontal rows stacked vertically
 - Separate logo area from navigation
 - Announcement/promo bar above or below nav
@@ -176,6 +181,7 @@ Examine the extracted HTML and screenshot to determine the header type:
 - Different background colors for different sections
 
 Also detect dropdown types for each nav item:
+
 - **Simple dropdown:** nested `<ul>` contains only `<li>` with `<a>` links
 - **Mega dropdown:** nested content includes headings (`<h1>`-`<h6>`),
   paragraphs (`<p>`), images, or rich content blocks
@@ -205,6 +211,7 @@ structure MUST match what the JS expects:
 If `blocks/header/` exists, **keep the existing JS**. You only customize CSS.
 
 If `blocks/header/` does NOT exist, create both files. The JS should:
+
 - Load `nav.plain.html` as a fragment via `getMetadata('nav')`
 - Build sections based on section-metadata Style values
 - Handle hamburger toggle for mobile
@@ -256,6 +263,7 @@ Write to `{projectPath}/drafts/nav.plain.html`.
 ```
 
 **Structure:**
+
 - Logo (first element): SVG source → `<p><a><span class="icon icon-{name}"></span> <strong>Wordmark</strong></a></p>`; raster source → `<p><a><img></a></p>`
 - Navigation: `<ul>` with nested `<li>` for dropdowns
 - Utility: `<p>` with pipe-separated links (last element before metadata)
@@ -302,6 +310,7 @@ Write to `{projectPath}/drafts/nav.plain.html`.
 ```
 
 **Structure:**
+
 - Each section is a separate `<div>` with its own section-metadata
 - Section Style values: `brand`, `top-bar`, `main-nav`, `utility`
 - Mobile Style only on `main-nav` section
@@ -309,7 +318,7 @@ Write to `{projectPath}/drafts/nav.plain.html`.
 ### Section Styles Reference
 
 | Style | Purpose | Typical Content |
-|-------|---------|-----------------|
+| ------- | --------- | ----------------- |
 | `brand` | Logo/company identity | Image, company name |
 | `top-bar` | Announcements, promo | Text, promo links |
 | `main-nav` | Primary navigation | `<ul>` with dropdowns |
@@ -318,7 +327,7 @@ Write to `{projectPath}/drafts/nav.plain.html`.
 ### Mobile Style Reference
 
 | Mobile Style | Behavior |
-|-------------|----------|
+| ------------- | ---------- |
 | `accordion` | Submenus expand in place (default) |
 | `slide-in` | Submenus slide from right with back button |
 | `fullscreen` | Submenus take full viewport with fade |
@@ -326,6 +335,7 @@ Write to `{projectPath}/drafts/nav.plain.html`.
 ### Content Transformation Rules
 
 When converting source HTML to nav.plain.html:
+
 - **Remove** all classes, inline styles, data attributes
 - **Keep** only HTML structure, text content, and href attributes
 - **Logo (SVG source):** shape-only icon at `{projectPath}/icons/{icon-name}.svg`
@@ -353,6 +363,7 @@ When converting source HTML to nav.plain.html:
 > iterating to reproduce the source's mega-menu visuals.
 
 Source:
+
 ```html
 <div class="mega-menu">
   <div class="mega-column">
@@ -364,6 +375,7 @@ Source:
 ```
 
 Becomes:
+
 ```html
 <ul>
   <li>
@@ -509,6 +521,7 @@ may require a near-complete CSS rewrite.
 ### 6a. Create Preview Page
 
 Read head.html from the project:
+
 ```
 read_file({ "path": "{projectPath}/head.html" })
 ```
@@ -548,7 +561,7 @@ The `open` command routes the file through the EDS project-mode preview service
 worker (root-absolute paths resolve natively) and returns a leader-side,
 playwright-controllable tab — with no follower broadcast and no focus grab. See
 the "Use `open`, not `serve`" note in `migrate-block` Step 6b; the same applies
-here (and the header re-serves — now re-opens — across up to 5 iterations, so
+here (and the header may re-open across up to 5 iterations, so
 reload with `goto` rather than re-running `open`).
 
 Capture the **targetId** and the **preview URL** from the output. All
@@ -604,6 +617,7 @@ Do NOT navigate back to the source page. Reuse for every iteration.
 
 For thin headers (<150px tall), also use `eval`-based measurements for
 precision — screenshots may be too small for reliable pixel comparison:
+
 ```bash
 playwright-cli eval --tab={previewTabId} "(() => {
   const h = document.querySelector('header');
@@ -623,10 +637,13 @@ reuse that same selector for every iteration — do NOT fall back to
 full-page or re-guessing a ref hoping for a better crop.
 
 For each iteration:
+
 1. **Screenshot the preview header** by selector (reuse across iterations):
+
    ```bash
    playwright-cli screenshot --tab={previewTabId} ".header.block" --max-width=1440 --filename={projectPath}/.migration/preview-header-iter{N}.png
    ```
+
 2. **Compare** source (from Step 1) and preview: focus on background color, logo size, nav spacing, layout
 3. **Fix:** Batch ALL CSS fixes for this iteration into a SINGLE `edit_file`
    call. Do not make separate edits for each property. Edit `header.css`
@@ -635,6 +652,7 @@ For each iteration:
    `playwright-cli goto --tab={previewTabId} {previewUrl}`
 
 **Common header-specific fixes:**
+
 - Background color mismatch → `--header-background`
 - Logo too large/small → raster logo: `.header.block .header-brand img { max-height }`; icon+wordmark logo: `--brand-icon-height` / `--brand-wordmark-size` on `.icon-{icon-name} svg/img` and `.header-brand strong`
 - Nav link spacing → `--header-nav-gap`
@@ -643,6 +661,7 @@ For each iteration:
 - Section padding → `--header-section-padding`
 
 **Stop conditions:**
+
 - After iteration 5: finalize
 - If improvement < 3%: accept and stop
 
