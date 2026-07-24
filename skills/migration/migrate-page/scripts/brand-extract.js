@@ -1,4 +1,4 @@
-(function() {
+(async function() {
   var HEADING_SIZE_MAP = {
     H1: 'xxl', H2: 'xl', H3: 'l',
     H4: 'm', H5: 's', H6: 'xs'
@@ -8,6 +8,14 @@
     xxl: '36px', xl: '28px', l: '24px',
     m: '20px', s: '18px', xs: '16px'
   };
+
+  var GENERIC_FONT_FAMILIES = [
+    '-apple-system', 'system-ui', 'sans-serif', 'serif',
+    'arial', 'helvetica', 'georgia', 'times new roman'
+  ];
+
+  var GOOGLE_FONTS_PROBE_TIMEOUT_MS = 5000;
+  var MIN_BODY_TEXT_LENGTH = 40;
 
   function parsePrimaryFont(familySet) {
     var first = (familySet.split(',')[0] || '').trim();
@@ -23,7 +31,41 @@
     };
   }
 
-  function extractHeadingSizes() {
+  function parsePx(value) {
+    var n = parseFloat(value);
+    return isNaN(n) ? 0 : n;
+  }
+
+  // Picks the paragraph-like element with the largest rendered area, so a
+  // display-styled first <p> (e.g. a hero lede) doesn't get mistaken for
+  // body copy. Falls back to the first <p>, then document.body.
+  function findLargestTextElement() {
+    var candidates = document.querySelectorAll('main p, article p, section p, p, li');
+    var best = null;
+    var bestArea = 0;
+    for (var i = 0; i < candidates.length; i++) {
+      var el = candidates[i];
+      if (el.getClientRects().length === 0) continue;
+      var text = (el.innerText || '').trim();
+      if (text.length < MIN_BODY_TEXT_LENGTH) continue;
+      var rect = el.getBoundingClientRect();
+      var area = rect.width * rect.height;
+      if (area > bestArea) {
+        bestArea = area;
+        best = el;
+      }
+    }
+    return best;
+  }
+
+  // The element used as the "body" baseline: the largest qualifying text
+  // block, or the first <p>, or document.body. Shared by extractBodyFont()
+  // and the heading-size sanity check so both agree on what "body" means.
+  function resolveBodyElement() {
+    return findLargestTextElement() || document.querySelector('p') || document.body;
+  }
+
+  function extractHeadingSizes(bodyElement) {
     var sizes = {};
     var tiers = ['xxl', 'xl', 'l', 'm', 's', 'xs'];
     for (var i = 0; i < tiers.length; i++) {
@@ -32,24 +74,38 @@
         desktop: ''
       };
     }
+
+    var bodySizePx = parsePx(window.getComputedStyle(bodyElement).fontSize);
+
     var tags = Object.keys(HEADING_SIZE_MAP);
     for (var j = 0; j < tags.length; j++) {
       var tag = tags[j];
       var tier = HEADING_SIZE_MAP[tag];
-      var el = document.querySelector(tag.toLowerCase());
-      if (el) {
-        sizes[tier].desktop = window.getComputedStyle(el).fontSize;
+      var elements = document.querySelectorAll(tag.toLowerCase());
+      var bestEl = null;
+      var bestSizePx = 0;
+      for (var k = 0; k < elements.length; k++) {
+        var el = elements[k];
+        if (el.getClientRects().length === 0) continue;
+        var sizePx = parsePx(window.getComputedStyle(el).fontSize);
+        if (sizePx > bestSizePx) {
+          bestSizePx = sizePx;
+          bestEl = el;
+        }
+      }
+      // Sanity-check against body size: a heading tier that isn't actually
+      // larger than body text is implausible (e.g. a 14px eyebrow latched
+      // onto by an earlier, less-selective query) — leave it unset rather
+      // than emit a wrong value.
+      if (bestEl && bestSizePx > bodySizePx) {
+        sizes[tier].desktop = window.getComputedStyle(bestEl).fontSize;
       }
     }
     return sizes;
   }
 
-  function extractBodyFont() {
-    var mainP = document.querySelector('main p');
-    if (mainP) return extractFontInfo(mainP);
-    var firstP = document.querySelector('p');
-    if (firstP) return extractFontInfo(firstP);
-    return extractFontInfo(document.body);
+  function extractBodyFont(bodyElement) {
+    return extractFontInfo(bodyElement);
   }
 
   function extractHeadingFont() {
@@ -250,7 +306,27 @@
     return favicons;
   }
 
-  function detectFontSources() {
+  function isGenericFont(family) {
+    if (!family) return true;
+    return GENERIC_FONT_FAMILIES.indexOf(family.toLowerCase()) !== -1;
+  }
+
+  function probeGoogleFont(family) {
+    var url = 'https://fonts.googleapis.com/css2?family=' + encodeURIComponent(family);
+    var controller = new AbortController();
+    var timer = setTimeout(function () { controller.abort(); }, GOOGLE_FONTS_PROBE_TIMEOUT_MS);
+    return fetch(url, { method: 'GET', signal: controller.signal })
+      .then(function (resp) { return resp.ok ? url : null; })
+      .catch(function () { return null; })
+      .then(function (result) { clearTimeout(timer); return result; });
+  }
+
+  // Scrapes existing <link> tags for typekit/Google Fonts hints, then probes
+  // Google Fonts directly for the resolved body/heading families in case the
+  // page never linked them explicitly (e.g. self-hosted or @font-face'd).
+  // googleFonts entries are css2 URLs, consistent between both sources so
+  // downstream code doesn't need to distinguish "linked" vs "probed" hints.
+  async function detectFontSources(bodyFamily, headingFamily) {
     var sources = { typekit: null, googleFonts: [] };
     var links = document.querySelectorAll('link[rel="stylesheet"]');
     for (var i = 0; i < links.length; i++) {
@@ -263,19 +339,33 @@
         sources.googleFonts.push(href);
       }
     }
+
+    var families = [bodyFamily, headingFamily].filter(function (f, idx, arr) {
+      return f && !isGenericFont(f) && arr.indexOf(f) === idx;
+    }).slice(0, 2);
+
+    var probeResults = await Promise.all(families.map(probeGoogleFont));
+    for (var p = 0; p < probeResults.length; p++) {
+      var url = probeResults[p];
+      if (url && sources.googleFonts.indexOf(url) === -1) {
+        sources.googleFonts.push(url);
+      }
+    }
+
     return sources;
   }
 
-  var bodyFont = extractBodyFont();
+  var bodyElement = resolveBodyElement();
+  var bodyFont = extractBodyFont(bodyElement);
   var headingFont = extractHeadingFont();
-  var headingSizes = extractHeadingSizes();
+  var headingSizes = extractHeadingSizes(bodyElement);
   var baseColors = extractBaseColors();
   var linkColor = extractLinkColor();
   var linkHover = extractLinkHoverColor();
   var lightDark = extractLightDarkColors();
-  var fontSources = detectFontSources();
+  var fontSources = await detectFontSources(bodyFont.family, headingFont.family);
 
-  return {
+  return JSON.stringify({
     fonts: {
       body: bodyFont,
       heading: headingFont,
@@ -296,5 +386,5 @@
       navHeight: extractNavHeight()
     },
     favicons: extractFavicons()
-  };
-})()
+  });
+})();
