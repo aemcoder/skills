@@ -34,9 +34,8 @@ node -e '
 ' "$TMP/project/.migration/block-inventory.json" || fail "block-inventory.json contents"
 
 # --- block-inventory.js: error path (no args) ---
-if node "$SCRIPTS/block-inventory.js" 2>/dev/null; then
-	fail "block-inventory.js with no args should exit non-zero"
-fi
+err="$(node "$SCRIPTS/block-inventory.js" 2>&1 1>/dev/null)" && fail "block-inventory.js with no args should exit non-zero"
+[[ "$err" == *"Usage"* ]] || fail "block-inventory.js no-args stderr missing usage message: $err"
 
 # --- generate-scoop-prompts.js: happy path ---
 out="$(node "$SCRIPTS/generate-scoop-prompts.js" "$TMP/project/.migration")"
@@ -60,11 +59,18 @@ echo "$out" | node -e '
 ' || fail "generate-scoop-prompts output"
 
 # --- generate-scoop-prompts.js: error paths ---
-if node "$SCRIPTS/generate-scoop-prompts.js" 2>/dev/null; then
-	fail "generate-scoop-prompts.js with no args should exit non-zero"
-fi
-if node "$SCRIPTS/generate-scoop-prompts.js" "$TMP" 2>/dev/null; then
-	fail "generate-scoop-prompts.js without decomposition.json should exit non-zero"
-fi
+err="$(node "$SCRIPTS/generate-scoop-prompts.js" 2>&1 1>/dev/null)" && fail "generate-scoop-prompts.js with no args should exit non-zero"
+[[ "$err" == *"Usage"* ]] || fail "generate-scoop-prompts.js no-args stderr missing usage message: $err"
+
+err="$(node "$SCRIPTS/generate-scoop-prompts.js" "$TMP" 2>&1 1>/dev/null)" && fail "generate-scoop-prompts.js without decomposition.json should exit non-zero"
+[[ "$err" == *"decomposition.json"* ]] || fail "generate-scoop-prompts.js missing-file stderr doesn't name the file: $err"
+
+# --- generate-scoop-prompts.js: error path (decomposition.json missing "url") ---
+NOURL="$(mktemp -d)"
+mkdir -p "$NOURL/.migration"
+echo '{"fragments":[]}' >"$NOURL/.migration/decomposition.json"
+err="$(node "$SCRIPTS/generate-scoop-prompts.js" "$NOURL/.migration" 2>&1 1>/dev/null)" && fail "generate-scoop-prompts.js with decomposition.json missing url should exit non-zero"
+[[ "$err" == *"url"* ]] || fail "generate-scoop-prompts.js missing-url stderr doesn't mention url: $err"
+rm -rf "$NOURL"
 
 echo "SMOKE OK"
