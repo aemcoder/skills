@@ -1,14 +1,18 @@
 /**
  * Generate scoop creation configs for page migration.
  *
- * Usage (in slicc JavaScript tool):
- *   const configs = generateScoopConfigs(decomposition, sourceUrl, projectPath);
- *   // Returns array of { name, model, prompt } ready for scoop_scoop
+ * CLI: node generate-scoop-prompts.js <migration-dir> [model]
+ * Reads <migration-dir>/decomposition.json and prints scoop configs as
+ * JSON to stdout. Uses standard node fs — works inside Slicc's node
+ * bridge and under real node (PLG labs).
+ *
+ * Programmatic use: require(...).generateScoopConfigs(decomposition,
+ * sourceUrl, projectPath, model?) returns Array<{ name, model, prompt }>.
  *
  * @param {object} decomposition - The decomposition.json content (parsed)
  * @param {string} sourceUrl - The source page URL
- * @param {string} projectPath - The EDS project path in VFS (e.g., "/shared/vibemigrated")
- * @param {string} [model='claude-opus-4-6'] - Model ID for scoops. Defaults to Opus 4.6.
+ * @param {string} projectPath - The EDS project path (e.g., "/shared/vibemigrated")
+ * @param {string} [model='claude-opus-4-6'] - Model ID for scoops.
  * @returns {Array<{name: string, model: string, prompt: string}>}
  */
 function generateScoopConfigs(decomposition, sourceUrl, projectPath, model = 'claude-opus-4-6') {
@@ -104,19 +108,41 @@ The skill tells you how to read head.html from the project.
 Do NOT inline CSS or JS as a substitute for the EDS framework.`;
 }
 
-// Export for use when eval'd by another script
-if (typeof module !== 'undefined') module.exports = { generateScoopConfigs };
+module.exports = { generateScoopConfigs };
 
-// CLI: node generate-scoop-prompts.js <migration-dir> [model]
-if (typeof process !== 'undefined' && process.argv?.[2]) {
+async function main() {
+  const fsp = require('node:fs/promises');
   const migrationDir = process.argv[2];
-  const decomposition = JSON.parse(
-    await fs.readFile(migrationDir + '/decomposition.json', { encoding: 'utf-8' })
-  );
-  const projectPath = migrationDir.replace(/\/.migration\/?$/, '');
+  if (!migrationDir) {
+    console.error('Usage: node generate-scoop-prompts.js <migration-dir> [model]');
+    process.exit(1);
+  }
+  const decompositionPath = migrationDir + '/decomposition.json';
+  let decomposition;
+  try {
+    decomposition = JSON.parse(await fsp.readFile(decompositionPath, 'utf8'));
+  } catch (err) {
+    console.error(
+      'generate-scoop-prompts: cannot read ' + decompositionPath + ': ' + err.message
+    );
+    process.exit(1);
+  }
+  if (!decomposition.url) {
+    console.error(
+      'generate-scoop-prompts: ' + decompositionPath + ' has no "url" field'
+    );
+    process.exit(1);
+  }
+  const projectPath = migrationDir.replace(/\/\.migration\/?$/, '');
   const model = process.argv[3] || 'claude-opus-4-6';
-  const configs = generateScoopConfigs(
-    decomposition, decomposition.url, projectPath, model
+  console.log(
+    JSON.stringify(generateScoopConfigs(decomposition, decomposition.url, projectPath, model))
   );
-  console.log(JSON.stringify(configs));
+}
+
+if (require.main === module) {
+  main().catch((err) => {
+    console.error('generate-scoop-prompts failed: ' + err.message);
+    process.exit(1);
+  });
 }
