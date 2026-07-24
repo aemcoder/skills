@@ -158,18 +158,25 @@ Run the visual tree extraction and save directly to file:
 playwright-cli eval-file --tab={sourceTabId} /workspace/skills/migrate-page/scripts/visual-tree.js --output=/shared/{repo-name}/.migration/visual-tree.json
 ```
 
-**Guard — verify the tree is usable before continuing:**
+**Guard — verify the tree is usable before continuing (this command exits
+non-zero and prints a diagnostic when the tree is degenerate):**
 
 ```bash
-grep -o '"nodeCount":[0-9]*' /shared/{repo-name}/.migration/visual-tree.json
-grep -o '"viewport":{[^}]*}' /shared/{repo-name}/.migration/visual-tree.json
+node -e '
+  const fs = require("node:fs");
+  const d = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+  const width = d.viewport && d.viewport.width;
+  if (d.nodeCount < 5 || width < 1024) {
+    console.error("Unusable visual tree: nodeCount=" + d.nodeCount + ", viewport.width=" + width);
+    process.exit(1);
+  }
+' /shared/{repo-name}/.migration/visual-tree.json
 ```
 
-**If `nodeCount` < 5, or `viewport.width` < 1024: HARD ERROR — do not
-proceed.** The extraction ran at a too-narrow viewport (or the page did
-not render). Re-run the resize from Step 1.2, then re-run Steps 1.4–1.6.
-Never continue to Phase 2 with a degenerate tree — decomposition is
-impossible from a 1-node tree.
+**If this command fails: HARD ERROR — do not proceed.** The extraction ran
+at a too-narrow viewport (or the page did not render). Re-run the resize
+from Step 1.2, then re-run Steps 1.4–1.6. Never continue to Phase 2 with a
+degenerate tree — decomposition is impossible from a 1-node tree.
 
 ### Step 1.7: Full-Page Screenshot
 
