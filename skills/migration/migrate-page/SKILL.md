@@ -233,6 +233,24 @@ After Phase 1, these files exist in `/shared/{repo-name}/.migration/`:
 | `metadata.json` | Title, description, OG tags |
 | `block-inventory.json` | Existing blocks in the EDS project |
 
+> **SLICC node-bridge constraints (for the helper scripts run via `node`).**
+> The `node` runtime inside SLICC is a bridge, not full Node. Scripts invoked
+> with `node`/`node -e` (block-inventory.js, generate-scoop-prompts.js) MUST
+> avoid, because these pass under real node but break in the bridge:
+> - `fs.readdirSync(dir, { withFileTypes: true })` — no real `Dirent` objects;
+>   list names then test with `fs.statSync(p).isDirectory()`.
+> - `child_process` `spawn*`/`exec*` — not available in the bridge realm.
+> - `process.stdin` streaming / `/dev/stdin` — not available.
+> - `require.main === module` CLI guards — never true; use a
+>   `path.resolve(process.argv[1]) === __filename` guard and expose a
+>   programmatic entry as the primary invocation.
+> - Async `fs`/`fs/promises` for writes you depend on — the bridge only
+>   guarantees flush-on-exit for the SYNCHRONOUS fs cache; use `*Sync`.
+>
+> The smoke test (`tests/migrate-page-scripts/smoke.sh`) statically guards the
+> two CLI scripts against these idioms, since it runs under real node and can't
+> exercise the bridge at runtime.
+
 ---
 
 ## Phase 2: Decomposition

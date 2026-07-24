@@ -93,6 +93,10 @@ the query parameter) so project mode stays active.
   `require('node:fs')`-style APIs — never the legacy VFS globals
   (`fs.readDir`, bare `fs`), which don't exist under real node (PLG
   labs) and are no longer needed under Slicc.
+  Prefer the **synchronous** methods for writes you depend on — only the sync
+  cache is guaranteed to flush on exit; async writes can race bridge teardown.
+  Also avoid `readdirSync(..., { withFileTypes: true })` (no `Dirent` objects
+  in the bridge) and `child_process`.
 
 ## Migration Skill Architecture
 

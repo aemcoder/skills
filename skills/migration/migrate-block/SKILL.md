@@ -693,6 +693,10 @@ never runs.
 
 ## Known EDS Behaviors
 
+> **Note:** helper scripts run via `node` must follow the SLICC node-bridge
+> constraints documented in `migrate-page` (no `withFileTypes`, no `spawn*`, no
+> stdin streaming, no `require.main`, sync fs only).
+
 ### Button Auto-Decoration
 
 EDS's `decorateButtons()` (called during `decorateMain()`) automatically
