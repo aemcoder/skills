@@ -380,6 +380,21 @@ Becomes:
 
 Edit `{projectPath}/blocks/header/header.css`.
 
+### Seed known tokens from brand.json first
+
+Before iterating on CSS, read `{projectPath}/.migration/brand.json` and seed the
+values it already measured — this typically saves 1-2 visual iterations:
+
+- `spacing.navHeight` → your `--nav-height` (the source header height; do not
+  start from a guessed 64px).
+- `fonts.heading.family` → the nav/brand/heading font (e.g. Syncopate).
+- `fonts.body.family` → nav link / utility text font.
+- `colors.background` / `colors.text` → header background and text.
+
+Apply these as your STARTING custom-property values, then iterate only on what
+the screenshot comparison still shows off. Do not re-derive tokens the extractor
+already measured.
+
 **ALL rules MUST use `.header.block` specificity:**
 
 ```css
