@@ -1,0 +1,32 @@
+{
+  "url": "https://example.com/page",
+  "fragments": [
+    {
+      "path": "/nav",
+      "children": [
+        { "type": "block", "name": "nav-bar", "id": "r1",
+          "bounds": { "x": 0, "y": 0, "width": 1440, "height": 80 } }
+      ]
+    },
+    {
+      "path": "/page",
+      "children": [
+        { "type": "default-content", "name": "intro" },
+        {
+          "type": "section",
+          "children": [
+            { "type": "block", "name": "cards", "id": "r3",
+              "bounds": { "x": 0, "y": 400, "width": 1440, "height": 600 } }
+          ]
+        }
+      ]
+    },
+    {
+      "path": "/footer",
+      "children": [
+        { "type": "block", "name": "footer", "id": "r9",
+          "bounds": { "x": 0, "y": 2000, "width": 1440, "height": 400 } }
+      ]
+    }
+  ]
+}
