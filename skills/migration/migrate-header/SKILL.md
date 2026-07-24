@@ -81,6 +81,12 @@ playwright-cli eval --tab={sourceTabId} "(() => {
 })()"
 ```
 
+**Record the logo type** — it decides the Step 4 brand pattern:
+
+- If `logo.src` is an SVG, fetch it (`curl -s {logo.src}`) and check for
+  `<text>` elements. Record `svg-with-text` or `svg-shape-only`.
+- Otherwise record `raster`.
+
 **Screenshot the source header NOW** — reuse for all visual iterations.
 Use snapshot + ref-based screenshot for a tight crop:
 
@@ -172,11 +178,26 @@ If `blocks/header/` does NOT exist, create both files. The JS should:
 
 Write to `{projectPath}/drafts/nav.plain.html`.
 
+> **Brand logos: never ship an SVG as a bare `<img>`.** Downstream DA
+> media optimization rasterizes SVGs (`media_*.svg?...&format=webply`);
+> any SVG relying on `<text>` + web fonts loses its text and can render
+> blank. If the source logo is an SVG (either type recorded in Step 1),
+> decompose it: a **shape-only icon** (no `<text>` elements) committed
+> to `{projectPath}/icons/{icon-name}.svg`, referenced through the EDS
+> icon system (`<span class="icon icon-{icon-name}"></span>` —
+> `decorateIcons` in aem.js serves the raw SVG from the code bus,
+> bypassing DA media optimization), plus the wordmark as **real HTML
+> text**. Verify the icon has no text: `grep -c '<text' icons/{icon-name}.svg`
+> must output 0. Raster logos (PNG/JPG) may remain `<img>` elements.
+
 ### Single-Row Format
 
 ```html
 <div>
-  <p><a href="/"><img src="/drafts/images/logo.png" alt="Company"></a></p>
+  <!-- SVG source logo: icon + HTML wordmark (REQUIRED for SVG) -->
+  <p><a href="/"><span class="icon icon-brand"></span> <strong>Company</strong></a></p>
+  <!-- Raster source logo: plain img is acceptable -->
+  <!-- <p><a href="/"><img src="/drafts/images/logo.png" alt="Company"></a></p> -->
   <ul>
     <li><a href="/products">Products</a>
       <ul>
@@ -196,7 +217,7 @@ Write to `{projectPath}/drafts/nav.plain.html`.
 ```
 
 **Structure:**
-- Logo: `<p><a><img></a></p>` (first element)
+- Logo (first element): SVG source → `<p><a><span class="icon icon-{name}"></span> <strong>Wordmark</strong></a></p>`; raster source → `<p><a><img></a></p>`
 - Navigation: `<ul>` with nested `<li>` for dropdowns
 - Utility: `<p>` with pipe-separated links (last element before metadata)
 - Single section-metadata with Style + Mobile Style
@@ -205,7 +226,7 @@ Write to `{projectPath}/drafts/nav.plain.html`.
 
 ```html
 <div>
-  <p><img src="/drafts/images/logo.png" alt="Company"></p>
+  <p><span class="icon icon-brand"></span> <strong>Company</strong></p>
   <div class="section-metadata">
     <div><div>Style</div><div>brand</div></div>
   </div>
@@ -268,9 +289,16 @@ Write to `{projectPath}/drafts/nav.plain.html`.
 When converting source HTML to nav.plain.html:
 - **Remove** all classes, inline styles, data attributes
 - **Keep** only HTML structure, text content, and href attributes
-- **Logo:** wrap in `<p><a><img></a></p>`, download image to `/drafts/images/`
-  using `fs.fetchToFile(url, path)`. Do NOT use `fs.writeFile()` for images —
-  it corrupts binary data by coercing bytes to UTF-8.
+- **Logo (SVG source):** shape-only icon at `{projectPath}/icons/{icon-name}.svg`
+  (no `<text>` elements) + `<span class="icon icon-{icon-name}"></span>` +
+  wordmark as HTML text. Never a bare SVG `<img>` — DA rasterization drops
+  font-dependent `<text>` (see the Step 4 callout).
+- **Logo (raster source):** wrap in `<p><a><img></a></p>`, download image to
+  `/drafts/images/` using `fs.fetchToFile(url, path)`. Do NOT use
+  `fs.writeFile()` for images — it corrupts binary data by coercing bytes to
+  UTF-8. Note: `/drafts/...` root-relative paths resolve in local preview
+  only; DA upload flows must rewrite them per the `eds-da-content` skill
+  (`references/media.md`).
 - **Nav links:** clean `<ul><li><a>` hierarchy, preserve dropdown nesting
 - **Mega menus:** convert columns to `<li>` items, normalize headings to `<h3>`
 - **Utility:** convert to `<ul>` list or pipe-separated `<p>` links
@@ -385,6 +413,28 @@ mobile layout to appear on desktop.
 The key: the desktop `@media (width >= 900px)` block MUST explicitly include
 `nav[aria-expanded='true']` to override the mobile expanded layout.
 
+### Brand icon + wordmark sizing
+
+When the brand uses the icon + HTML-text pattern, size both explicitly —
+defaults render the icon at 16px and the wordmark at body size:
+
+```css
+.header.block .icon-brand svg,
+.header.block .icon-brand img {
+  height: var(--brand-icon-height, 32px);
+  width: auto;
+}
+
+.header.block .brand strong {
+  font-size: var(--brand-wordmark-size, 1.25rem);
+  font-weight: 700;
+}
+```
+
+Substitute `icon-brand` with the actual `icon-{icon-name}` class. Match
+`--brand-icon-height` and the wordmark size to the source header
+measurements from Step 1.
+
 **Multi-tier headers:** If the source has two rows (e.g., logo+utility on
 top, nav on bottom), the existing CSS may be flex-based for single-row.
 You may need to replace it entirely with the Grid template above. This is
@@ -490,7 +540,7 @@ precision — screenshots may be too small for reliable pixel comparison:
 playwright-cli eval --tab={previewTabId} "(() => {
   const h = document.querySelector('header');
   const r = h.getBoundingClientRect();
-  const logo = h.querySelector('img');
+  const logo = h.querySelector('img') || h.querySelector('.icon svg') || h.querySelector('.icon');
   const lr = logo ? logo.getBoundingClientRect() : null;
   return JSON.stringify({ totalHeight: r.height, logoHeight: lr?.height, logoWidth: lr?.width });
 })()"
