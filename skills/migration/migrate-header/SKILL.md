@@ -566,7 +566,7 @@ For each iteration:
 
 **Common header-specific fixes:**
 - Background color mismatch → `--header-background`
-- Logo too large/small → `.header.block .header-brand img { max-height }`
+- Logo too large/small → raster logo: `.header.block .header-brand img { max-height }`; icon+wordmark logo: `--brand-icon-height` / `--brand-wordmark-size` on `.icon-{icon-name} svg/img` and `.brand strong`
 - Nav link spacing → `--header-nav-gap`
 - Font size/weight → `--header-nav-font-size`, `--header-nav-font-weight`
 - Dropdown position → `--header-dropdown-padding`, box-shadow
