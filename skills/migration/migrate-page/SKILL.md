@@ -208,14 +208,18 @@ playwright-cli eval-file --tab={sourceTabId} /workspace/skills/migrate-page/scri
 
 ### Step 1.10: Scan Block Inventory
 
-Scan the project's blocks directory and save the inventory:
+Scan the project's blocks directory and save the inventory. Call the exported
+function directly — this is the reliable invocation under the SLICC node
+bridge (a bare `node script.js` CLI call may silently no-op there because
+`require.main === module` is never true):
 
 ```bash
-node /workspace/skills/migrate-page/scripts/block-inventory.js /shared/{repo-name}
+node -e "require('/workspace/skills/migrate-page/scripts/block-inventory.js').writeBlockInventory('/shared/{repo-name}')"
 ```
 
-This writes `block-inventory.json` to `.migration/` and prints a summary
-(block count and names) to stdout.
+This writes `block-inventory.json` to `.migration/` and prints the summary
+(block count and names) to stdout. `writeBlockInventory` is synchronous, so
+the file is flushed before the process exits.
 
 ### Extraction Artifacts
 
@@ -427,12 +431,23 @@ the source URL and project path, and outputs scoop configs as JSON.
 This avoids the cone spending tokens generating repetitive prompt text.
 
 ```bash
-node /workspace/skills/migrate-page/scripts/generate-scoop-prompts.js /shared/{repo-name}/.migration
+node -e "console.log(JSON.stringify(require('/workspace/skills/migrate-page/scripts/generate-scoop-prompts.js').generateConfigsFromFile('/shared/{repo-name}/.migration')))"
 ```
 
-To override the default model (`claude-opus-4-6`), pass it as a second argument.
+Call the exported `generateConfigsFromFile` directly — this is the reliable
+invocation under the SLICC node bridge (a bare `node script.js` CLI call may
+silently no-op there because `require.main === module` is never true). To
+override the default model (`claude-opus-4-6`), pass it as a second argument:
+`generateConfigsFromFile('.../.migration', 'model-id')`.
 
 Parse the JSON output — an array of `{ name, model, prompt }` objects, one per block.
+
+> **Pre-authorize playwright before the fan-out.** Every block scoop drives
+> playwright and will request `write: /.playwright/**` the moment it starts —
+> six near-simultaneous sudo requests that stall the batch until approved.
+> Approve this proactively with an `always`/NOPASSWD rule for `/.playwright/**`
+> in the scoop sandbox before (or immediately as) you create the scoops, so
+> the fan-out doesn't block.
 
 **Step 2 — Create AND feed ALL scoops in a SINGLE response** (N tool calls, 1 LLM turn):
 
