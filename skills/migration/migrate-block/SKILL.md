@@ -418,32 +418,34 @@ service worker doesn't enforce CSP, so the CSP meta can be omitted).
   completed yet — this is expected, focus on the block itself
 - The `overflow: auto !important` fixes SLICC's scrolling limitation
 
-### 6b. Serve the Preview (once)
+### 6b. Open the Preview (project-mode, non-intrusive)
 
 ```bash
-serve --entry=drafts/{blockName}-preview.html
+open {projectPath}/drafts/{blockName}-preview.html
 ```
 
-Root-absolute paths (`/scripts/...`, `/styles/...`, `/drafts/images/...`)
-resolve natively under unified preview — the old `--project {projectPath}` flag
-is **obsolete and ignored**, so it is omitted here.
+The `open` command auto-detects the project root and routes the file through the
+EDS **project-mode preview service worker** — root-absolute paths
+(`/scripts/...`, `/styles/...`, `/drafts/images/...`) resolve natively, and the
+result is a **leader-side, playwright-controllable** tab (you can screenshot and
+drive it). Unlike `serve`, `open` does NOT broadcast the preview to followers or
+force-focus a tab in the human's browser, so it does not steal focus.
 
-Capture the **targetId** from the output (e.g., `DEF456`). All subsequent
+Capture the **targetId** and the **preview URL** from the output. All subsequent
 `playwright-cli` commands for this preview tab MUST include `--tab={previewTabId}`.
+To pick up CSS/JS changes, reload the existing tab with `goto` — do not re-run
+`open` for every iteration.
 
-Also note the **preview URL** from the output — you will reuse it for
-reloads in Step 7. To pick up CSS/JS changes, just reload the existing
-tab with `goto` — do not re-run `serve` for every iteration.
+If the preview tab is closed or a `--tab` command fails with an invalid target,
+re-run `open` to get a new tab and targetId.
 
-If the preview tab is closed or a `--tab` command fails with an invalid
-target, re-run `serve` to get a new tab and targetId.
-
-> **Known limitation — `serve` steals focus.** `serve` broadcasts the preview
-> URL and force-opens it in the leader's browser, interrupting the human on each
-> call. There is no background/no-open mode today, so this is expected. Do not
-> re-run `serve` per iteration (reload with `goto` instead — Step 7) to minimize
-> the interruptions. A non-focus-stealing preview primitive is a tracked
-> runtime follow-up outside these skills.
+> **Use `open`, not `serve`, for local verification.** `serve` broadcasts the
+> preview URL to followers and force-opens it in the leader's browser (focus
+> theft); it is only needed when you actually want to *share* a preview with the
+> human. A block scoop only needs to render + screenshot + self-verify, so `open`
+> is the correct, non-intrusive primitive. Do NOT use
+> `playwright-cli open <file>` — a raw VFS-path open lacks the projectRoot param
+> and loads `about:blank`.
 
 ### 6c. Verify EDS Framework Loaded
 
@@ -565,7 +567,7 @@ For each iteration:
    entire file.
 
 4. **Reload:** Refresh the preview tab to pick up CSS/JS changes (reuse
-   the preview URL from Step 6b — do NOT re-run `serve`):
+   the preview URL from Step 6b — do NOT re-run `open`):
    ```bash
    playwright-cli goto --tab={previewTabId} {previewUrl}
    ```
