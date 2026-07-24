@@ -69,12 +69,17 @@ Extract all header content in one comprehensive call:
 playwright-cli eval --tab={sourceTabId} "(() => {
   const nav = document.querySelector('header') || document.querySelector('nav');
   if (!nav) return JSON.stringify({ error: 'no header/nav found' });
-  const logo = nav.querySelector('img');
+  const logoImg = nav.querySelector('img');
+  const logoSvg = !logoImg ? nav.querySelector('svg') : null;
   const links = [...nav.querySelectorAll('a')].map(a => ({ href: a.href, text: a.textContent.trim() }));
   const styles = getComputedStyle(nav);
   return JSON.stringify({
     html: nav.outerHTML.slice(0, 5000),
-    logo: logo ? { src: logo.src, alt: logo.alt } : null,
+    logo: logoImg
+      ? { kind: 'img', src: logoImg.src, alt: logoImg.alt }
+      : logoSvg
+        ? { kind: 'inline-svg', hasText: !!logoSvg.querySelector('text') }
+        : null,
     links: links.slice(0, 50),
     tokens: { bg: styles.backgroundColor, color: styles.color, height: styles.height, fontSize: styles.fontSize }
   });
@@ -83,9 +88,20 @@ playwright-cli eval --tab={sourceTabId} "(() => {
 
 **Record the logo type** — it decides the Step 4 brand pattern:
 
-- If `logo.src` is an SVG, fetch it (`curl -s {logo.src}`) and check for
-  `<text>` elements. Record `svg-with-text` or `svg-shape-only`.
-- Otherwise record `raster`.
+- `logo` is `null` (no `<img>` or `<svg>` found): no logo detected — flag
+  this for manual reconciliation before Step 4. Do NOT default to raster.
+- `logo.kind === 'inline-svg'`: read `logo.hasText` directly from the
+  extraction result (no fetch needed — the markup is already in hand).
+  Record `svg-with-text` or `svg-shape-only`.
+- `logo.kind === 'img'` and `logo.src` ends in `.svg` or is a
+  `data:image/svg` URI: fetch it (`curl -fsSL -- "{logo.src}"`) and check
+  for `<text>` elements. Record `svg-with-text` or `svg-shape-only`.
+- `logo.kind === 'img'` and `logo.src` has a non-SVG extension (`.png`,
+  `.jpg`, etc.): record `raster`.
+- `logo.kind === 'img'` and `logo.src` has NO recognizable image extension
+  (e.g. an extensionless CDN endpoint): check the response `Content-Type`
+  (`curl -fsSLI -- "{logo.src}"`) — treat `image/svg+xml` as SVG (apply the
+  fetch-and-check-text branch above), anything else as `raster`.
 
 **Screenshot the source header NOW** — reuse for all visual iterations.
 Use snapshot + ref-based screenshot for a tight crop:
@@ -425,7 +441,7 @@ defaults render the icon at 16px and the wordmark at body size:
   width: auto;
 }
 
-.header.block .brand strong {
+.header.block .header-brand strong {
   font-size: var(--brand-wordmark-size, 1.25rem);
   font-weight: 700;
 }
@@ -566,7 +582,7 @@ For each iteration:
 
 **Common header-specific fixes:**
 - Background color mismatch → `--header-background`
-- Logo too large/small → raster logo: `.header.block .header-brand img { max-height }`; icon+wordmark logo: `--brand-icon-height` / `--brand-wordmark-size` on `.icon-{icon-name} svg/img` and `.brand strong`
+- Logo too large/small → raster logo: `.header.block .header-brand img { max-height }`; icon+wordmark logo: `--brand-icon-height` / `--brand-wordmark-size` on `.icon-{icon-name} svg/img` and `.header-brand strong`
 - Nav link spacing → `--header-nav-gap`
 - Font size/weight → `--header-nav-font-size`, `--header-nav-font-weight`
 - Dropdown position → `--header-dropdown-padding`, box-shadow
