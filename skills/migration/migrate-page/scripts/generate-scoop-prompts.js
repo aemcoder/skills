@@ -1,13 +1,15 @@
 /**
  * Generate scoop creation configs for page migration.
  *
- * CLI: node generate-scoop-prompts.js <migration-dir> [model]
- * Reads <migration-dir>/decomposition.json and prints scoop configs as
- * JSON to stdout. Uses standard node fs — works inside Slicc's node
- * bridge and under real node (PLG labs).
+ * PRIMARY (works under SLICC's node bridge and real node):
+ *   const { generateConfigsFromFile } = require('/workspace/skills/migrate-page/scripts/generate-scoop-prompts.js');
+ *   const configs = generateConfigsFromFile('/shared/repo/.migration'); // returns Array<{name,model,prompt}>
  *
- * Programmatic use: require(...).generateScoopConfigs(decomposition,
- * sourceUrl, projectPath, model?) returns Array<{ name, model, prompt }>.
+ * CLI (real node only; may silently no-op under the SLICC bridge because
+ * require.main is never module there — prefer the programmatic form):
+ *   node generate-scoop-prompts.js <migration-dir> [model]
+ *
+ * Synchronous file read on purpose (SLICC flush semantics — see block-inventory.js).
  *
  * @param {object} decomposition - The decomposition.json content (parsed)
  * @param {string} sourceUrl - The source page URL
@@ -99,7 +101,7 @@ function buildFooterPrompt(block, sourceUrl, projectPath, bounds) {
 - Visual tree ID: ${block.id || 'unknown'}
 - Bounds: ${bounds}
 - EDS project: ${projectPath}
-- Special: This is the FOOTER block. Output footer.plain.html, not ${block.name}.plain.html. See "Footer Block — Special Case" in the migrate-block skill.
+- Special: This is the FOOTER block. Output the fragment to \`drafts/footer.plain.html\` (the footer fragment path), NOT to a block-named file, and do NOT wrap the content in a \`<div class="footer">\` block. See "Footer Block — Special Case" in the migrate-block skill.
 - Notes: ${block.notes || block.style || ''}
 
 ## Instructions
@@ -108,41 +110,34 @@ The skill tells you how to read head.html from the project.
 Do NOT inline CSS or JS as a substitute for the EDS framework.`;
 }
 
-module.exports = { generateScoopConfigs };
+function generateConfigsFromFile(migrationDir, model) {
+  const fs = require('node:fs');
+  const decompositionPath = migrationDir + '/decomposition.json';
+  let decomposition;
+  try {
+    decomposition = JSON.parse(fs.readFileSync(decompositionPath, 'utf8'));
+  } catch (err) {
+    throw new Error('cannot read ' + decompositionPath + ': ' + err.message);
+  }
+  if (!decomposition.url) {
+    throw new Error(decompositionPath + ' has no "url" field');
+  }
+  const projectPath = migrationDir.replace(/\/\.migration\/?$/, '');
+  return generateScoopConfigs(decomposition, decomposition.url, projectPath, model || 'claude-opus-4-6');
+}
 
-async function main() {
-  const fsp = require('node:fs/promises');
+module.exports = { generateScoopConfigs, generateConfigsFromFile };
+
+if (process.argv[1] && require('node:path').resolve(process.argv[1]) === __filename) {
   const migrationDir = process.argv[2];
   if (!migrationDir) {
     console.error('Usage: node generate-scoop-prompts.js <migration-dir> [model]');
     process.exit(1);
   }
-  const decompositionPath = migrationDir + '/decomposition.json';
-  let decomposition;
   try {
-    decomposition = JSON.parse(await fsp.readFile(decompositionPath, 'utf8'));
+    console.log(JSON.stringify(generateConfigsFromFile(migrationDir, process.argv[3])));
   } catch (err) {
-    console.error(
-      'generate-scoop-prompts: cannot read ' + decompositionPath + ': ' + err.message
-    );
+    console.error('generate-scoop-prompts: ' + err.message);
     process.exit(1);
   }
-  if (!decomposition.url) {
-    console.error(
-      'generate-scoop-prompts: ' + decompositionPath + ' has no "url" field'
-    );
-    process.exit(1);
-  }
-  const projectPath = migrationDir.replace(/\/\.migration\/?$/, '');
-  const model = process.argv[3] || 'claude-opus-4-6';
-  console.log(
-    JSON.stringify(generateScoopConfigs(decomposition, decomposition.url, projectPath, model))
-  );
-}
-
-if (require.main === module) {
-  main().catch((err) => {
-    console.error('generate-scoop-prompts failed: ' + err.message);
-    process.exit(1);
-  });
 }
