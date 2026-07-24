@@ -452,6 +452,20 @@ If `headerBlock` is false, the header fragment didn't load — check that
 `nav.plain.html` exists at `{projectPath}/drafts/nav.plain.html` and
 the `<meta name="nav">` points to `/drafts/nav`.
 
+### 6d. Verify Images
+
+Run the shared image verifier from the migrate-block skill (installed
+alongside this one):
+
+```bash
+playwright-cli eval-file --tab={previewTabId} /workspace/skills/migrate-block/scripts/verify-images.js
+```
+
+**Required:** `pass: true`. The brand icon is the most common
+`svg-indeterminate` hit — it is healthy when its `httpStatus` is 200.
+**Never trust `naturalWidth` alone for SVG images** — SVGs can render
+perfectly while reporting `naturalWidth: 0`.
+
 ---
 
 ## Step 7: Visual Verification (Max 5 Iterations)

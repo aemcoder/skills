@@ -426,6 +426,23 @@ playwright-cli eval --tab={previewTabId} "JSON.stringify({ hlx: !!window.hlx, co
 
 Do NOT work around framework failures by inlining CSS/JS.
 
+### 6d. Verify Images
+
+Run the shared image verifier (checks EVERY `<img>`, including hidden
+ones, and resolves ambiguous cases with an in-page HTTP fetch):
+
+```bash
+playwright-cli eval-file --tab={previewTabId} /workspace/skills/migrate-block/scripts/verify-images.js
+```
+
+**Required:** `pass: true`. If false, inspect `failures` (each entry has
+`src`, `status`, `httpStatus`) and fix the content or asset paths before
+visual iteration.
+
+**Never trust `naturalWidth` alone for SVG images — SVGs can render
+perfectly while reporting `naturalWidth: 0`. Trust the combined
+`complete` + HTTP-status check, or a screenshot.**
+
 ---
 
 ## Step 7: Visual Verification (Max 3 Iterations)
