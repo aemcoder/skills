@@ -412,11 +412,15 @@ service worker doesn't enforce CSP, so the CSP meta can be omitted).
   completed yet — this is expected, focus on the block itself
 - The `overflow: auto !important` fixes SLICC's scrolling limitation
 
-### 6b. Serve with EDS Project Mode (once)
+### 6b. Serve the Preview (once)
 
 ```bash
-serve --entry=drafts/{blockName}-preview.html --project {projectPath}
+serve --entry=drafts/{blockName}-preview.html
 ```
+
+Root-absolute paths (`/scripts/...`, `/styles/...`, `/drafts/images/...`)
+resolve natively under unified preview — the old `--project {projectPath}` flag
+is **obsolete and ignored**, so it is omitted here.
 
 Capture the **targetId** from the output (e.g., `DEF456`). All subsequent
 `playwright-cli` commands for this preview tab MUST include `--tab={previewTabId}`.
@@ -427,6 +431,13 @@ tab with `goto` — do not re-run `serve` for every iteration.
 
 If the preview tab is closed or a `--tab` command fails with an invalid
 target, re-run `serve` to get a new tab and targetId.
+
+> **Known limitation — `serve` steals focus.** `serve` broadcasts the preview
+> URL and force-opens it in the leader's browser, interrupting the human on each
+> call. There is no background/no-open mode today, so this is expected. Do not
+> re-run `serve` per iteration (reload with `goto` instead — Step 7) to minimize
+> the interruptions. A non-focus-stealing preview primitive is a tracked
+> runtime follow-up outside these skills.
 
 ### 6c. Verify EDS Framework Loaded
 

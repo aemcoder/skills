@@ -37,7 +37,7 @@ playwright-cli tab-new https://example.com
 # Capture <targetId> as {sourceTabId}
 
 # serve also returns a targetId
-serve --entry=drafts/hero-preview.html --project /shared/my-site
+serve --entry=drafts/hero-preview.html
 # Output: "serving ... (targetId: <targetId>)"
 # Capture <targetId> as {previewTabId}
 ```
@@ -58,7 +58,7 @@ Commands without --tab: `tab-list` (lists all tabs), `tab-new` (creates a tab).
 
 For EDS block/page preview testing:
 
-1. Call `serve --project` **once** to open the preview tab
+1. Call `serve` **once** to open the preview tab
 2. Capture both the `targetId` and the `previewUrl` from output
 3. After editing CSS/JS, reload with `goto --tab={previewTabId} {previewUrl}`
 4. Do NOT re-run `serve` for each iteration
@@ -66,21 +66,20 @@ For EDS block/page preview testing:
 If the preview tab is closed or `--tab` fails with an invalid target,
 re-run `serve` to get a new tab and targetId.
 
-### EDS Project Serve Mode
+### EDS Preview Path Resolution
 
-`serve --project <dir>` enables root-relative path resolution in the
-preview service worker. Paths like `/styles/styles.css` resolve against
-the project directory in VFS, emulating a local dev server.
-
-The `?projectRoot=` query parameter is appended automatically by `serve`.
-When reloading with `goto`, reuse the full preview URL (which includes
-the query parameter) so project mode stays active.
+Under unified preview, root-absolute paths (`/styles/styles.css`,
+`/scripts/...`, `/drafts/images/...`) resolve natively against the project in
+VFS — no flag required. The old `serve --project <dir>` flag is **obsolete
+and ignored** (kept as a no-op for backward compatibility). The
+`?projectRoot=` query parameter may still appear in the preview URL; when
+reloading with `goto`, reuse the full preview URL as returned by `serve`.
 
 ### CLI gotchas
 
-- **`serve --project` is a boolean flag, not a value flag.** The
-  directory is a positional argument. `serve --entry=file.html --project /shared/dir`
-  works; `serve --project=/shared/dir` fails with "unknown option".
+- **`serve --project` is obsolete and ignored.** Root-absolute paths resolve
+  natively under unified preview; omit the flag. (Historically it was a
+  boolean flag with the directory as a positional argument.)
 - **`git clone --depth 1` breaks downstream git operations.** Shallow
   clones cause failures when creating branches or running git commands
   later in a migration. Always clone without `--depth`:

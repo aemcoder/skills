@@ -523,11 +523,17 @@ Write `{projectPath}/drafts/header-preview.html`:
 The EDS header block will automatically load `nav.plain.html` via the
 `<meta name="nav">` tag and render the full header.
 
-### 6b. Serve with EDS Project Mode
+### 6b. Serve the Preview
 
 ```bash
-serve --entry=drafts/header-preview.html --project {projectPath}
+serve --entry=drafts/header-preview.html
 ```
+
+Root-absolute paths resolve natively under unified preview — the old
+`--project {projectPath}` flag is **obsolete and ignored**. See the "Known
+limitation — `serve` steals focus" note in `migrate-block` Step 6b; the same
+applies here (and the header re-serves across up to 5 iterations, so reload with
+`goto` rather than re-running `serve`).
 
 Capture the **targetId** and the **preview URL** from the output. All
 subsequent `playwright-cli` commands for this preview tab MUST include
