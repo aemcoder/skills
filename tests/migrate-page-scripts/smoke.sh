@@ -100,13 +100,17 @@ fi
 
 # --- bridge-safety: node CLI scripts must avoid SLICC-node-bridge-incompatible idioms ---
 # The SLICC node bridge lacks Dirent objects (withFileTypes), child_process
-# (spawn/exec), stdin streaming (process.stdin), a reliable require.main, and
-# reliable async-fs flush (fs/promises). These all pass under REAL node, so the
-# functional tests above cannot catch them — this static guard can. Applies only
-# to the two CLI scripts that run under the node bridge, NOT the browser
-# eval-file scripts (which legitimately use browser APIs).
+# (spawn/exec/execFile, in any form), stdin streaming (process.stdin), a
+# reliable require.main, and reliable async-fs flush (fs/promises). These all
+# pass under REAL node, so the functional tests above cannot catch them — this
+# static guard can. We match the child_process MODULE NAME rather than
+# individual method-call forms (spawn/exec/execFile/...) since you cannot use
+# any of them without importing child_process — that's the reliable,
+# false-positive-free signal. Applies only to the two CLI scripts that run
+# under the node bridge, NOT the browser eval-file scripts (which legitimately
+# use browser APIs).
 for script in block-inventory.js generate-scoop-prompts.js; do
-	if grep -nE 'withFileTypes|spawnSync|spawn\(|execSync|exec\(|process\.stdin|require\.main|fs/promises' "$SCRIPTS/$script"; then
+	if grep -nE 'withFileTypes|child_process|process\.stdin|require\.main|fs/promises' "$SCRIPTS/$script"; then
 		fail "$script uses a SLICC-node-bridge-incompatible idiom (matches above) — see the SLICC node-bridge constraints box in migrate-page/SKILL.md"
 	fi
 done
