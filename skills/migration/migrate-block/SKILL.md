@@ -215,6 +215,12 @@ These root-relative paths work in preview because the EDS project mode in
 the service worker resolves them against the project root.
 Do NOT use `/preview/shared/...` or `/shared/...` absolute paths.
 
+> **Preview-only paths.** These `/drafts/images/...` srcs resolve in the
+> project-mode preview but are `about:error` on the live DA page — the rewrite
+> to absolute/DA-hosted URLs is owned by the DA-upload flow (see the
+> `eds-da-content` skill, `references/media.md`). A `.plain.html` shipped as-is
+> WILL have broken images; that’s expected, not a block defect.
+
 ---
 
 ## Step 3: Write .plain.html Content
