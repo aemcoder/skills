@@ -1,11 +1,16 @@
 #!/usr/bin/env bash
 # Smoke tests for the migrate-page node scripts. Run from anywhere:
 #   bash tests/migrate-page-scripts/smoke.sh
+# NOTE: this runs under REAL node. It cannot exercise SLICC's node bridge,
+# where `require.main === module` is never true. That is exactly why the
+# skills document the programmatic `require(...).fn()` entry as primary — the
+# tests below verify that entry works, not just the bare CLI form.
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/../.."
 
 SCRIPTS=skills/migration/migrate-page/scripts
+SCRIPTS_ABS="$(pwd)/$SCRIPTS"
 FIXTURES=tests/migrate-page-scripts/fixtures/project
 
 TMP="$(mktemp -d)"
@@ -33,6 +38,15 @@ node -e '
   if (typeof e.jsSize !== "number" || typeof e.cssSize !== "number") throw new Error("sizes not numeric");
 ' "$TMP/project/.migration/block-inventory.json" || fail "block-inventory.json contents"
 
+# --- block-inventory.js: programmatic entry (the documented-primary path) ---
+rm -rf "$TMP/project/.migration/block-inventory.json"
+out="$(node -e "process.chdir('$TMP/project'); const {writeBlockInventory}=require('$SCRIPTS_ABS/block-inventory.js'); writeBlockInventory('$TMP/project');")"
+echo "$out" | node -e '
+  const data = JSON.parse(require("fs").readFileSync(0, "utf8"));
+  if (data.blockCount !== 1 || data.blocks.join(",") !== "foo") throw new Error("programmatic summary: " + JSON.stringify(data));
+' || fail "block-inventory writeBlockInventory() programmatic summary"
+[[ -f "$TMP/project/.migration/block-inventory.json" ]] || fail "writeBlockInventory did not write the file"
+
 # --- block-inventory.js: error path (no args) ---
 err="$(node "$SCRIPTS/block-inventory.js" 2>&1 1>/dev/null)" && fail "block-inventory.js with no args should exit non-zero"
 [[ "$err" == *"Usage"* ]] || fail "block-inventory.js no-args stderr missing usage message: $err"
@@ -57,6 +71,13 @@ echo "$out" | node -e '
   if (!configs.find((c) => c.name === "cards-block")) throw new Error("no cards-block in: " + names);
   if (names.some((n) => n.includes("intro"))) throw new Error("default-content got a scoop");
 ' || fail "generate-scoop-prompts output"
+
+# --- generate-scoop-prompts.js: programmatic entry (the documented-primary path) ---
+out="$(node -e "console.log(JSON.stringify(require('$SCRIPTS_ABS/generate-scoop-prompts.js').generateConfigsFromFile('$TMP/project/.migration')))")"
+echo "$out" | node -e '
+  const configs = JSON.parse(require("fs").readFileSync(0, "utf8"));
+  if (!Array.isArray(configs) || !configs.find((c) => c.name === "nav-bar-block")) throw new Error("programmatic configs: " + JSON.stringify(configs));
+' || fail "generate-scoop-prompts generateConfigsFromFile() programmatic output"
 
 # --- generate-scoop-prompts.js: error paths ---
 err="$(node "$SCRIPTS/generate-scoop-prompts.js" 2>&1 1>/dev/null)" && fail "generate-scoop-prompts.js with no args should exit non-zero"
