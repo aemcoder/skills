@@ -36,17 +36,21 @@ cone the only viable orchestrator.
 1. Run `playwright-cli tab-list` and find the entry with `active: true`.
    Extract its URL.
 2. If no active HTTP(S) tab exists, send an error and stop:
+
    ```bash
    sprinkle send migrate-page '{"phase":"error","message":"No page to migrate — navigate to a webpage first"}'
    ```
+
 3. Read workspace config: `read_file /workspace/skills/migrate-page/migrate-config.json`
    and parse the `repo` field.
 4. If the file is missing or `repo` is empty, ask the user in chat for
    the repo, then write the config:
+
    ```bash
    write_file /workspace/skills/migrate-page/migrate-config.json
    {"repo":"owner/repo-name","currentMigration":null}
    ```
+
 5. Start Phase 1 with the extracted URL and repo.
 
 ### Progress Reporting
@@ -60,7 +64,7 @@ At each phase transition, run BOTH:
 Phase transition points:
 
 | When | phase | status | detail |
-|------|-------|--------|--------|
+| ------ | ------- | -------- | -------- |
 | Phase 1 starts | `extraction` | `running` | — |
 | Phase 1 complete | `extraction` | `done` | — |
 | Phase 2 starts | `decomposition` | `running` | — |
@@ -165,7 +169,7 @@ non-zero and prints a diagnostic when the tree is degenerate):**
 node -e '
   const fs = require("node:fs");
   const d = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
-  const width = d.viewport && d.viewport.width;
+  const width = d.viewport ? d.viewport.width : 0;
   if (d.nodeCount < 5 || width < 1024) {
     console.error("Unusable visual tree: nodeCount=" + d.nodeCount + ", viewport.width=" + width);
     process.exit(1);
@@ -218,7 +222,7 @@ This writes `block-inventory.json` to `.migration/` and prints a summary
 After Phase 1, these files exist in `/shared/{repo-name}/.migration/`:
 
 | Artifact | Purpose |
-|----------|---------|
+| ---------- | --------- |
 | `screenshot.png` | Full-page screenshot after prep (for decomposition) |
 | `visual-tree.json` | Spatial hierarchy (bounds, backgrounds, selectors) |
 | `brand.json` | Fonts, colors, spacing |
@@ -247,6 +251,7 @@ background signal.
 ### Classification Rules
 
 **THE TYPING TEST:** Can an author create this in Word/Google Docs?
+
 - YES → `default-content`
 - NO → `block`
 
@@ -259,6 +264,7 @@ background signal.
 ### Three Fragments
 
 Every page decomposes into exactly 3 fragments:
+
 1. `/nav` — header/navigation
 2. `/{page-path}` — main content
 3. `/footer` — page footer
@@ -432,6 +438,7 @@ Parse the JSON output — an array of `{ name, model, prompt }` objects, one per
 
 Take the configs from Step 1 and call `scoop_scoop` for each one.
 DO NOT modify or regenerate the prompts — use them exactly as returned.
+
 ```
 scoop_scoop({ "name": configs[0].name, "model": configs[0].model, "prompt": configs[0].prompt })
 scoop_scoop({ "name": configs[1].name, "model": configs[1].model, "prompt": configs[1].prompt })
@@ -444,6 +451,7 @@ The cone does NOT generate prompt text — the script does it mechanically.
 ### How the Script Works
 
 The `generate-scoop-prompts.js` script handles all three block types:
+
 - **Header blocks** (nav-bar, header, navigation, or /nav fragment) → uses `migrate-header` skill
 - **Footer blocks** (footer, footer-links, footer-content, or /footer fragment) → uses `migrate-block` skill with footer special case
 - **All other blocks** → uses `migrate-block` skill
@@ -543,6 +551,7 @@ following the decomposition order:
 ```
 
 **Rules:**
+
 - Each section is a top-level `<div>`
 - Blocks inside sections: `<div class="blockname">` with the content
   from the scoop's `.plain.html` (copy the block div, not the section wrapper)
@@ -586,6 +595,7 @@ Write `/shared/{repo-name}/drafts/{page-path}-preview.html`:
 ```
 
 Serve and verify:
+
 ```bash
 serve --entry=drafts/{page-path}-preview.html --project /shared/{repo-name}
 ```
@@ -602,6 +612,7 @@ playwright-cli eval --tab={previewTabId} "JSON.stringify({ blocks: document.quer
 ```
 
 Wait until all expected blocks show `status: "loaded"`. Then take the screenshot:
+
 ```bash
 playwright-cli screenshot --tab={previewTabId} --fullPage=true --max-width=1440 --filename=/shared/{repo-name}/.migration/preview-assembled.png
 bash: ls -la /shared/{repo-name}/.migration/preview-assembled.png
@@ -622,6 +633,7 @@ git commit -m "feat: migrate {page-path} from {source-domain}"
 ### Step 4.6: Final Summary
 
 Report to the user:
+
 - Number of blocks migrated and their statuses
 - Visual verification results per block (from reports)
 - Brand.css and styles.css: what was updated
@@ -647,7 +659,7 @@ for static content.
 ## Reference: Quality Criteria
 
 | Criterion | Target |
-|-----------|--------|
+| ----------- | -------- |
 | Block visual similarity | >= 85% acceptable, >= 95% ideal |
 | Header visual similarity | >= 85% (interactive states differ) |
 | Max iterations per block | 3 |

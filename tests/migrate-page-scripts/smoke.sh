@@ -71,6 +71,10 @@ mkdir -p "$NOURL/.migration"
 echo '{"fragments":[]}' >"$NOURL/.migration/decomposition.json"
 err="$(node "$SCRIPTS/generate-scoop-prompts.js" "$NOURL/.migration" 2>&1 1>/dev/null)" && fail "generate-scoop-prompts.js with decomposition.json missing url should exit non-zero"
 [[ "$err" == *"url"* ]] || fail "generate-scoop-prompts.js missing-url stderr doesn't mention url: $err"
-rm -rf "$NOURL"
+if command -v trash >/dev/null 2>&1; then
+	trash "$NOURL"
+else
+	rm -rf "$NOURL"
+fi
 
 echo "SMOKE OK"
