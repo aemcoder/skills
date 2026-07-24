@@ -627,10 +627,12 @@ Write `/shared/{repo-name}/drafts/{page-path}-preview.html`:
 </html>
 ```
 
-Serve and verify:
-
+Open the assembled preview and verify (the `open` command routes through the
+EDS project-mode preview service worker and returns a leader-side,
+playwright-controllable tab — no follower broadcast, no focus grab; unlike
+`serve`, which is only for sharing a preview with the human):
 ```bash
-serve --entry=drafts/{page-path}-preview.html --project /shared/{repo-name}
+open /shared/{repo-name}/drafts/{page-path}-preview.html
 ```
 
 Capture the **targetId** from the output. All subsequent commands for this
