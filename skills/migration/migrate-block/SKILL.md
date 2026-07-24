@@ -505,7 +505,8 @@ playwright-cli eval --tab={previewTabId} "(() => {
 })()"
 ```
 
-Compare against the source component's structure (from your Step 1 extraction):
+Compare against the source component's structure (from your Step 1 source
+screenshot and extracted content):
 row count, cells per row, image count, and any block-specific repetition (tabs,
 cards, accordion items). **If a count is wrong, fix the `.plain.html` content
 model or the block JS FIRST — do not proceed to pixel iteration.** A block that
