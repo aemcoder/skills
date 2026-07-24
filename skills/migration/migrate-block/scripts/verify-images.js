@@ -33,16 +33,21 @@
     };
   });
 
-  for (var i = 0; i < records.length; i++) {
-    var rec = records[i];
-    if (rec.status === 'ok' || !/^https?:/.test(rec.src)) continue;
-    try {
-      var resp = await fetch(rec.src);
-      rec.httpStatus = resp.status;
-    } catch (e) {
-      rec.httpStatus = 0;
-    }
+  var FETCH_TIMEOUT_MS = 5000;
+
+  function fetchStatus(url) {
+    var controller = new AbortController();
+    var timer = setTimeout(function () { controller.abort(); }, FETCH_TIMEOUT_MS);
+    return fetch(url, { signal: controller.signal })
+      .then(function (resp) { return resp.status; })
+      .catch(function () { return 0; })
+      .then(function (status) { clearTimeout(timer); return status; });
   }
+
+  await Promise.all(records.map(function (rec) {
+    if (rec.status === 'ok' || !/^https?:/.test(rec.src)) return null;
+    return fetchStatus(rec.src).then(function (status) { rec.httpStatus = status; });
+  }));
 
   var failures = records.filter(function (r) {
     if (r.status === 'broken') return true;
