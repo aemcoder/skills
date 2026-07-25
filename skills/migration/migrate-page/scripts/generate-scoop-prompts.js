@@ -24,7 +24,10 @@ function generateScoopConfigs(decomposition, sourceUrl, projectPath, model = 'cl
     for (const child of fragment.children || []) {
       if (child.type === 'default-content') continue;
 
-      const blocks = child.type === 'section'
+      const isSection = child.type === 'section';
+      const sectionHasHeading = isSection
+        && (child.children || []).some(c => c.type === 'default-content');
+      const blocks = isSection
         ? (child.children || []).filter(c => c.type === 'block')
         : [child];
 
@@ -46,7 +49,7 @@ function generateScoopConfigs(decomposition, sourceUrl, projectPath, model = 'cl
         } else if (isFooter) {
           prompt = buildFooterPrompt(block, sourceUrl, projectPath, bounds);
         } else {
-          prompt = buildBlockPrompt(block, sourceUrl, projectPath, bounds);
+          prompt = buildBlockPrompt(block, sourceUrl, projectPath, bounds, sectionHasHeading);
         }
 
         const config = { name: scoopName, prompt };
@@ -59,7 +62,10 @@ function generateScoopConfigs(decomposition, sourceUrl, projectPath, model = 'cl
   return configs;
 }
 
-function buildBlockPrompt(block, sourceUrl, projectPath, bounds) {
+function buildBlockPrompt(block, sourceUrl, projectPath, bounds, headingOwnedByCone) {
+  const headingNote = headingOwnedByCone
+    ? '\n- Section heading: OWNED BY CONE — do NOT include the section\'s lead-in heading in your block output'
+    : '';
   return `You are migrating a single block to EDS.
 
 ## Parameters
@@ -68,7 +74,7 @@ function buildBlockPrompt(block, sourceUrl, projectPath, bounds) {
 - Visual tree ID: ${block.id || 'unknown'}
 - Bounds: ${bounds}
 - EDS project: ${projectPath}
-- Notes: ${block.notes || block.style || ''}
+- Notes: ${block.notes || block.style || ''}${headingNote}
 
 ## Instructions
 Read /workspace/skills/migrate-block/SKILL.md and follow every step.

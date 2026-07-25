@@ -237,6 +237,7 @@ After Phase 1, these files exist in `/shared/{repo-name}/.migration/`:
 > The `node` runtime inside SLICC is a bridge, not full Node. Scripts invoked
 > with `node`/`node -e` (block-inventory.js, generate-scoop-prompts.js) MUST
 > avoid, because these pass under real node but break in the bridge:
+>
 > - `fs.readdirSync(dir, { withFileTypes: true })` — no real `Dirent` objects;
 >   list names then test with `fs.statSync(p).isDirectory()`.
 > - `child_process` `spawn*`/`exec*` — not available in the bridge realm.
@@ -282,6 +283,15 @@ background signal.
 **Background rule:** Background transitions signal section boundaries.
 
 **Reserved names:** NEVER use "header" or "footer" as block names.
+
+**Section heading ownership:** When a `section` contains a lead-in heading
+(a `default-content` sibling, e.g. an `<h2>` introducing an interactive block)
+alongside a `block`, the heading is **cone-owned**: the cone writes it as
+default-content during Phase 4 assembly, and the block scoop MUST NOT include
+the section heading in its block output. This prevents the heading from
+rendering twice (once by the cone, once inside the block). The prompt generator
+flags these blocks automatically (`generate-scoop-prompts.js` adds a
+`Section heading: OWNED BY CONE` note to the block's prompt).
 
 ### Three Fragments
 
@@ -567,6 +577,11 @@ If anything is missing (Phase 2.5 was skipped or failed), do it now:
 
 Write the main page to `/shared/{repo-name}/drafts/{page-path}.plain.html`.
 
+> **Note:** `{page-path}` here is a local assembly convenience (it mirrors the
+> source page slug). The path the content is actually DEPLOYED to may differ —
+> e.g. a site-root experiment deploys as `index` regardless of the source
+> filename. That reconciliation is owned by the deploy flow, not this skill.
+
 Read each block scoop's `.plain.html` file and combine them into sections
 following the decomposition order:
 
@@ -631,6 +646,7 @@ Open the assembled preview and verify (the `open` command routes through the
 EDS project-mode preview service worker and returns a leader-side,
 playwright-controllable tab — no follower broadcast, no focus grab; unlike
 `serve`, which is only for sharing a preview with the human):
+
 ```bash
 open /shared/{repo-name}/drafts/{page-path}-preview.html
 ```

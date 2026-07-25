@@ -68,8 +68,11 @@ echo "$out" | node -e '
   const footer = configs.find((c) => c.name === "footer-block");
   if (!footer) throw new Error("no footer-block in: " + names);
   if (!footer.prompt.includes("footer.plain.html")) throw new Error("footer prompt missing footer.plain.html");
-  if (!configs.find((c) => c.name === "cards-block")) throw new Error("no cards-block in: " + names);
-  if (names.some((n) => n.includes("intro"))) throw new Error("default-content got a scoop");
+  const cards = configs.find((c) => c.name === "cards-block");
+  if (!cards) throw new Error("no cards-block in: " + names);
+  if (!cards.prompt.includes("Section heading: OWNED BY CONE")) throw new Error("cards-block (under a default-content heading) missing OWNED BY CONE note");
+  if (nav.prompt.includes("Section heading: OWNED BY CONE")) throw new Error("nav-bar-block (no section heading) should NOT have OWNED BY CONE note");
+  if (names.some((n) => n.includes("intro") || n.includes("activity-heading"))) throw new Error("default-content got a scoop");
 ' || fail "generate-scoop-prompts output"
 
 # --- generate-scoop-prompts.js: programmatic entry (the documented-primary path) ---
