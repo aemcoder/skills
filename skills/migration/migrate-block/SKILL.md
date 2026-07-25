@@ -247,6 +247,7 @@ The `.plain.html` file contains ONLY content structure:
 ```
 
 **Structure:**
+
 - Outer `<div>` = section wrapper
 - `<div class="{blockName}">` = block container (class = block name)
 - Each child `<div>` of the block = a row
@@ -256,6 +257,28 @@ The `.plain.html` file contains ONLY content structure:
 
 **NEVER include:** `<html>`, `<head>`, `<body>`, `<script>`, `<style>`,
 inline styles, or any wrapper outside the content divs.
+
+**Section lead-in headings:** If your prompt's `## Parameters` include
+`Section heading: OWNED BY CONE`, the section's lead-in heading (the `<h2>`/`<h3>`
+that introduces this block's section) is written separately by the cone as
+default-content. Do NOT include that heading in your `.plain.html` — start your
+block at its own content, or it will render twice.
+
+### Symbol characters — use HTML entities
+
+DA's markdown round-trip corrupts certain literal symbols to the replacement
+character `�` on the live page. Emit these as HTML entities in `.plain.html`,
+never the literal character:
+
+| Literal | Emit instead |
+| --------- | -------------- |
+| `©` (copyright) | `&#169;` |
+| `™` (trademark) | `&#8482;` |
+| `®` (registered) | `&#174;` |
+
+Example: write `<p>&#169; 2026 Company</p>`, NOT `<p>© 2026 Company</p>`. A
+faithful copy of the source's literal `©` will render broken after DA upload,
+so convert it here at authoring time.
 
 ---
 
@@ -269,6 +292,7 @@ read_file({ "path": "{projectPath}/styles/styles.css" })
 ```
 
 Look for:
+
 - `max-width` on `.section > div` — if present, full-width blocks need a
   wrapper override (see "Full-Width Blocks" in Known EDS Behaviors)
 - `a.button` rules — note the specificity; your block button overrides must
@@ -348,6 +372,7 @@ Authored (.plain.html):            After EDS decoration:
 ```
 
 **Key points:**
+
 - The block `<div>` gets `.block` class + `data-block-name` + `data-block-status`
 - A `-wrapper` div is inserted around the block
 - A `.section` div wraps the section
@@ -355,6 +380,7 @@ Authored (.plain.html):            After EDS decoration:
 - Your `decorate(block)` function receives the `.hero.block` element
 
 **Common side-effects of `decorateMain()`:**
+
 - **WARNING: Bare `<img>` and `<picture>` in cells get wrapped in `<p>` tags.**
   Since HTML does not allow `<p>` inside `<p>`, this mangles the DOM if your
   cell already contains `<p>` elements alongside images. **Always put images
@@ -363,6 +389,7 @@ Authored (.plain.html):            After EDS decoration:
 - `<blockquote>` content may get wrapped in extra `<p>` tags
 
 **CSS selector guide:**
+
 ```css
 .hero > div              /* targets rows ✅ */
 .hero > div > div        /* targets cells ✅ */
@@ -413,6 +440,7 @@ Copy the `<script>` and `<link>` tags from head.html EXACTLY — including
 service worker doesn't enforce CSP, so the CSP meta can be omitted).
 
 **Key points:**
+
 - `<header>` and `<footer>` are empty — EDS fills them from nav/footer fragments
 - Block previews may show empty headers/footers if those scoops haven't
   completed yet — this is expected, focus on the block itself
@@ -456,12 +484,14 @@ playwright-cli eval --tab={previewTabId} "JSON.stringify({ hlx: !!window.hlx, co
 ```
 
 **Required results:**
+
 - `hlx` must be `true`
 - `codeBasePath` must be a string (controls where blocks/styles load from)
 - `bodyAppear` must be `true`
 - Your block must appear in the blocks array with `status: "loaded"`
 
 **If any check fails: STOP.** Debug the preview HTML. Common causes:
+
 - Missing `<script>` tags from head.html
 - Wrong script paths
 - Pre-decorated HTML (remove `.section`, `.block` classes — let EDS add them)
@@ -481,9 +511,12 @@ playwright-cli eval-file --tab={previewTabId} /workspace/skills/migrate-block/sc
 `src`, `status`, `httpStatus`) and fix the content or asset paths before
 visual iteration.
 
-**Never trust `naturalWidth` alone for SVG images — SVGs can render
-perfectly while reporting `naturalWidth: 0`. Trust the combined
-`complete` + HTTP-status check, or a screenshot.**
+**`naturalWidth` alone is never a validity signal.** It reads `0` not only for
+genuinely broken images but also for SVGs that render perfectly, for images in
+hidden panes (tabs/accordion) that never triggered a load, and for media still
+being ingested downstream. Judge validity by the combined `complete` +
+HTTP-status check the verifier runs, or by a screenshot — never by
+`naturalWidth` by itself.
 
 ### 6e. Structure Sanity-Check (before pixel iteration)
 
@@ -514,6 +547,11 @@ cards, accordion items). **If a count is wrong, fix the `.plain.html` content
 model or the block JS FIRST — do not proceed to pixel iteration.** A block that
 looks close but has the wrong number of cards/tabs/rows is not done.
 
+While inspecting the structure, note whether the block hides content in
+inactive containers (tab panels, accordion bodies, carousel slides not all
+visible at once). Record this as `hasHiddenPanes` in your report and completion
+message (Steps 8-9).
+
 ---
 
 ## Step 7: Visual Verification (Max 3 Iterations)
@@ -537,6 +575,7 @@ hand-picked ref from `snapshot` — refs can be ambiguous or drift between
 iterations, especially for short/interactive blocks (e.g. a collapsed
 accordion). `playwright-cli screenshot` accepts a unique CSS selector
 directly as its target, so pass the selector itself:
+
 - Prefer `.{blockName}-wrapper` (the EDS-generated wrapper around the
   block) — it gives a consistent frame even when the block itself is
   short or collapsed.
@@ -549,6 +588,7 @@ For each iteration:
 
 1. **Screenshot the preview** by selector (reuse the same selector across
    iterations):
+
    ```bash
    playwright-cli screenshot --tab={previewTabId} ".{blockName}-wrapper" --max-width=1440 --filename={projectPath}/.migration/preview-{blockName}-iter{N}.png
    ```
@@ -568,11 +608,13 @@ For each iteration:
 
 4. **Reload:** Refresh the preview tab to pick up CSS/JS changes (reuse
    the preview URL from Step 6b — do NOT re-run `open`):
+
    ```bash
    playwright-cli goto --tab={previewTabId} {previewUrl}
    ```
 
 **Stop conditions:**
+
 - After iteration 3: finalize regardless of remaining differences
 - If improvement < 3% from last iteration: accept and stop
 
@@ -630,6 +672,7 @@ Write to `{projectPath}/.migration/reports/{blockName}-report.json`:
     "rows": 2,
     "description": "Hero with image left, text+CTA right"
   },
+  "hasHiddenPanes": false,
   "designTokens": {
     "--block-bg": "#1a1a2e",
     "--block-text": "#ffffff"
@@ -639,12 +682,18 @@ Write to `{projectPath}/.migration/reports/{blockName}-report.json`:
 ```
 
 **Status thresholds:**
+
 - `"success"` — >85% visual match, EDS framework verified
 - `"partial"` — 50-85% visual match, or EDS framework issues
 - `"failed"` — <50% visual match, or framework didn't load
 
 **ALL reports MUST use this exact schema.** Do not add extra top-level keys
 or rename fields.
+
+- `hasHiddenPanes`: `true` if the block hides content in inactive containers
+  (tabs, accordion panels, carousel slides) that are not all visible at once;
+  otherwise `false`. Downstream media warming needs this to know it must
+  activate each pane to load its images.
 
 ## Step 9: Notify Cone
 
@@ -662,6 +711,7 @@ Then `send_message` to the cone with a **JSON string** in this exact format:
   "blockName": "{blockName}",
   "status": "success|partial|failed",
   "iterations": 2,
+  "hasHiddenPanes": false,
   "files": {
     "css": "blocks/{blockName}/{blockName}.css",
     "js": "blocks/{blockName}/{blockName}.js",
@@ -673,6 +723,8 @@ Then `send_message` to the cone with a **JSON string** in this exact format:
 
 - `done` is always `true` — signals the scoop finished (even on failure)
 - `status`: success (>85% match), partial (50-85%), failed (<50% or framework broken)
+- `hasHiddenPanes`: `true` for tabs/accordion/carousel blocks with inactive
+  hidden panes (so the cone activates them before media warming); else `false`
 - `files`: actual paths written, relative to project root
 - `issues`: empty array if none; include actionable descriptions if any
 
@@ -822,6 +874,7 @@ to `/icons/{name}.svg`. Because they're `<img>` elements (not inline SVG),
 **`fill="currentColor"` does NOT work.**
 
 When creating SVG icons for EDS:
+
 - Use explicit fill colors: `fill="#ffffff"` or `fill="#000000"`
 - Do NOT use `fill="currentColor"` — it renders as invisible/black
 
@@ -851,7 +904,7 @@ wrap CTA links: `<p><strong><a href="...">CTA text</a></strong></p>`
 ## Reference: Quality Criteria
 
 | Criterion | Target |
-|-----------|--------|
+| ----------- | -------- |
 | EDS framework verified | hlx=true, bodyAppear=true, block loaded |
 | Visual similarity | >= 85% acceptable, >= 95% ideal |
 | Header similarity | >= 85% (interactive states differ) |
