@@ -256,10 +256,17 @@ After Phase 1, these files exist in `/shared/{repo-name}/.migration/`:
 
 ## Phase 2: Decomposition
 
-Read `visual-tree.json` and `screenshot.png`. The visual tree is used ONLY
-for decomposition (identifying what regions exist and classifying them). It
-is NOT used for content extraction — scoops extract content from the live
-page in Phase 3.
+Read `visual-tree.json`, and **view** `screenshot.png`. The visual tree is
+used ONLY for decomposition (identifying what regions exist and classifying
+them). It is NOT used for content extraction — scoops extract content from
+the live page in Phase 3.
+
+> **NEVER `read_file` a screenshot or any binary.** A full-page PNG here is
+> commonly 1–3 MB; `read_file` returns it as ~1–3M characters, overflows the
+> context window, and can cascade into a context-recovery race. To inspect a
+> screenshot visually, use `open --view --size high {path}` (it downsamples to
+> a vision-friendly render). This applies anywhere a `.png` is "read" in these
+> skills.
 
 ### Visual Tree Format
 
@@ -410,6 +417,14 @@ Write `/shared/{repo-name}/styles/brand.css` with brand values from
 html, body { overflow: auto !important; }
 ```
 
+> **Treat `brand.json` spacing as a hint, not ground truth.** `brand-extract.js`
+> samples `navHeight`/`sectionPadding` heuristically and can under-report (e.g.
+> a sticky bar's inner element yields a too-small `navHeight`, or a
+> `padding:0` element yields `sectionPadding: 0px`). Reconcile against the
+> visual tree, which carries the real rendered header box (e.g. `rc1 ... 1425x75`
+> → a 75px nav). If `brand.json` and the visual tree disagree, prefer the
+> visual-tree measurement for `--nav-height` / `--section-padding`.
+
 ### 2.5d: Update styles.css with @import
 
 Read `/shared/{repo-name}/styles/styles.css`. Add `@import url('brand.css');`
@@ -516,6 +531,7 @@ count and names of scoops you created.
   "blockName": "hero",
   "status": "success|partial|failed",
   "iterations": 2,
+  "hasHiddenPanes": false,
   "files": { "css": "...", "js": "...", "plainHtml": "..." },
   "issues": []
 }
@@ -525,8 +541,9 @@ count and names of scoops you created.
 
 1. Initialize a checklist of expected scoop names from the configs
 2. As each `send_message` arrives, parse the JSON and mark that scoop done
-3. Record `status`, `files`, and `issues` from each message — you will need
-   `files.plainHtml` in Phase 4 assembly
+3. Record `status`, `files`, `issues`, and `hasHiddenPanes` from each message
+   — you will need `files.plainHtml` in Phase 4 assembly, and `hasHiddenPanes`
+   at verification time
 4. Continue waiting until every scoop in the checklist has reported back
 
 **Stuck scoop fallback:** If a scoop has not reported back but the others
@@ -560,6 +577,14 @@ for assembly.
 
 List any blocks with `status: "failed"` or that required the stuck-scoop
 fallback — flag these in the final summary.
+
+**Carry `hasHiddenPanes` forward.** Any block that reported
+`hasHiddenPanes: true` (tabs/accordion/carousel) hides images in inactive
+panes. Before judging images on the assembled preview (or at deploy-time
+verification), **reveal every pane first** (click through tabs / expand
+accordion items) — a passive image check on an unrevealed block reads
+`naturalWidth: 0` for the hidden panes and looks like a false failure. Do not
+re-derive "has hidden panes" from block names; use the reported flag.
 
 ### Step 4.2: Verify Brand Setup
 
