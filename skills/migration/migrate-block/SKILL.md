@@ -616,7 +616,7 @@ For each iteration:
 **Stop conditions:**
 
 - After iteration 3: finalize regardless of remaining differences
-- If improvement < 3% from last iteration: accept and stop
+- If a further iteration would yield no meaningful visual improvement: accept and stop
 
 ---
 
@@ -681,11 +681,14 @@ Write to `{projectPath}/.migration/reports/{blockName}-report.json`:
 }
 ```
 
-**Status thresholds:**
+**Status thresholds** — the visual bands below are your **qualitative
+self-assessment by eye** against the source screenshot, NOT a measured pixel
+diff (none is computed anywhere). The EDS framework checks are objective; the
+percentages are rough labels only, so do not present them as metrics:
 
-- `"success"` — >85% visual match, EDS framework verified
-- `"partial"` — 50-85% visual match, or EDS framework issues
-- `"failed"` — <50% visual match, or framework didn't load
+- `"success"` — close visual match + EDS framework verified
+- `"partial"` — rough/partial visual match, or EDS framework issues
+- `"failed"` — poor visual match, or framework didn't load
 
 **ALL reports MUST use this exact schema.** Do not add extra top-level keys
 or rename fields.
@@ -722,7 +725,7 @@ Then `send_message` to the cone with a **JSON string** in this exact format:
 ```
 
 - `done` is always `true` — signals the scoop finished (even on failure)
-- `status`: success (>85% match), partial (50-85%), failed (<50% or framework broken)
+- `status`: success (close match), partial (rough match), failed (poor match or framework broken) — visual judgment is self-assessed by eye, not a measured diff
 - `hasHiddenPanes`: `true` for tabs/accordion/carousel blocks with inactive
   hidden panes (so the cone activates them before media warming); else `false`
 - `files`: actual paths written, relative to project root
@@ -739,6 +742,14 @@ If your block is the footer:
 - If the repo already has `blocks/footer/`, use existing code
 - Do NOT use a `footer` class in any inner `<div>` inside footer.plain.html
   (the EDS framework would try to recursively load the footer block)
+
+> **The footer case may spawn an auxiliary block.** A structured footer (e.g. a
+> 4-column grid) is commonly implemented as the `footer` fragment PLUS a new
+> content block such as `footer-columns` (its own `blocks/footer-columns/`).
+> This is expected and correct — it means the post-run block-directory count
+> can exceed the decomposition's block count. Anything counting migrated
+> artifacts should count actual fragments + block directories produced, not
+> decomposition entries.
 
 ### Footer Fragment DOM Structure
 
@@ -906,8 +917,8 @@ wrap CTA links: `<p><strong><a href="...">CTA text</a></strong></p>`
 | Criterion | Target |
 | ----------- | -------- |
 | EDS framework verified | hlx=true, bodyAppear=true, block loaded |
-| Visual similarity | >= 85% acceptable, >= 95% ideal |
-| Header similarity | >= 85% (interactive states differ) |
+| Visual similarity (by eye) | close match acceptable, near-exact ideal — self-assessed, not measured |
+| Header similarity (by eye) | close match; interactive states differ — self-assessed |
 | Max iterations | 3 (5 for header) |
 | CSS scoping | All rules under .blockname |
 | Header CSS | All rules under .header.block |

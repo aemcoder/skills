@@ -601,8 +601,9 @@ perfectly while reporting `naturalWidth: 0`.
 
 ## Step 7: Visual Verification (Max 5 Iterations)
 
-Header target: **90% visual similarity** (lower than blocks due to
-interactive states). Max **5 iterations**.
+Header target: a **close visual match by eye** (headers converge less tightly
+than blocks due to interactive states). This is a qualitative self-assessment,
+not a measured pixel diff. Max **5 iterations**.
 
 **Font rendering note:** Adobe Fonts (Typekit) validates the requesting
 domain. On `localhost`, Typekit returns empty CSS — fonts will show
@@ -663,7 +664,7 @@ For each iteration:
 **Stop conditions:**
 
 - After iteration 5: finalize
-- If improvement < 3%: accept and stop
+- If a further iteration would yield no meaningful visual improvement: accept and stop
 
 ---
 
@@ -724,7 +725,9 @@ Write to `{projectPath}/.migration/reports/header-report.json`:
 }
 ```
 
-**Status thresholds:** success (>85%), partial (50-85%), failed (<50%)
+**Status thresholds** (visual bands are self-assessed by eye, not a measured
+diff; the EDS framework check is the objective part): success (close match),
+partial (rough match), failed (poor match or framework broken)
 
 ## Step 9: Notify Cone
 
@@ -753,7 +756,7 @@ Then `send_message` to the cone with a **JSON string** in this exact format:
 ```
 
 - `done` is always `true` — signals the scoop finished (even on failure)
-- `status`: success (>85% match), partial (50-85%), failed (<50% or framework broken)
+- `status`: success (close match), partial (rough match), failed (poor match or framework broken) — visual judgment is self-assessed by eye, not a measured diff
 - `headerType`: the detected header layout type
 - `files`: actual paths written, relative to project root
 - `issues`: empty array if none; include actionable descriptions if any
