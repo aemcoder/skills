@@ -1,4 +1,4 @@
-(async function() {
+(async () => {
   var HEADING_SIZE_MAP = {
     H1: 'xxl', H2: 'xl', H3: 'l',
     H4: 'm', H5: 's', H6: 'xs'
@@ -234,10 +234,15 @@
   }
 
   function extractSectionPadding() {
-    var section = document.querySelector('section') ||
-                  document.querySelector('main');
-    if (!section) return '';
-    return window.getComputedStyle(section).paddingTop || '';
+    // The first section often has padding:0 (hero/full-bleed). Sample a
+    // representative content section: return the first non-zero paddingTop.
+    var candidates = document.querySelectorAll('main section, section, main > div');
+    for (var i = 0; i < candidates.length; i++) {
+      var p = window.getComputedStyle(candidates[i]).paddingTop || '';
+      if (p && parseFloat(p) > 0) return p;
+    }
+    var main = document.querySelector('main');
+    return main ? (window.getComputedStyle(main).paddingTop || '') : '';
   }
 
   function extractContentMaxWidth() {
@@ -262,10 +267,16 @@
   }
 
   function extractNavHeight() {
-    var el = document.querySelector('nav') ||
-             document.querySelector('header');
+    // Prefer the outermost <header> (the sticky bar) over an inner <nav>,
+    // which can report a smaller inner height. Use the rendered bounding-box
+    // height (reflects the real bar) and take the larger of it vs computed.
+    var el = document.querySelector('header') ||
+             document.querySelector('nav');
     if (!el) return '';
-    return window.getComputedStyle(el).height || '';
+    var rectH = Math.round(el.getBoundingClientRect().height) || 0;
+    var cssH = parseFloat(window.getComputedStyle(el).height) || 0;
+    var h = Math.max(rectH, cssH);
+    return h ? h + 'px' : (window.getComputedStyle(el).height || '');
   }
 
   function extractFavicons() {
@@ -314,11 +325,11 @@
   function probeGoogleFont(family) {
     var url = 'https://fonts.googleapis.com/css2?family=' + encodeURIComponent(family);
     var controller = new AbortController();
-    var timer = setTimeout(function () { controller.abort(); }, GOOGLE_FONTS_PROBE_TIMEOUT_MS);
+    var timer = setTimeout(() => { controller.abort(); }, GOOGLE_FONTS_PROBE_TIMEOUT_MS);
     return fetch(url, { method: 'GET', signal: controller.signal })
-      .then(function (resp) { return resp.ok ? url : null; })
-      .catch(function () { return null; })
-      .then(function (result) { clearTimeout(timer); return result; });
+      .then((resp) => resp.ok ? url : null)
+      .catch(() => null)
+      .then((result) => { clearTimeout(timer); return result; });
   }
 
   // Scrapes existing <link> tags for typekit/Google Fonts hints, then probes
@@ -340,9 +351,7 @@
       }
     }
 
-    var families = [bodyFamily, headingFamily].filter(function (f, idx, arr) {
-      return f && !isGenericFont(f) && arr.indexOf(f) === idx;
-    }).slice(0, 2);
+    var families = [bodyFamily, headingFamily].filter((f, idx, arr) => f && !isGenericFont(f) && arr.indexOf(f) === idx).slice(0, 2);
 
     var probeResults = await Promise.all(families.map(probeGoogleFont));
     for (var p = 0; p < probeResults.length; p++) {
