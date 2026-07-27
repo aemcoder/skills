@@ -57,9 +57,10 @@ echo "$out" | node -e '
   const configs = JSON.parse(require("fs").readFileSync(0, "utf8"));
   if (!Array.isArray(configs)) throw new Error("not an array");
   for (const c of configs) {
-    for (const k of ["name", "model", "prompt"]) {
+    for (const k of ["name", "prompt"]) {
       if (typeof c[k] !== "string" || !c[k]) throw new Error("missing " + k + " in " + JSON.stringify(c));
     }
+    if ("model" in c) throw new Error("model should be OMITTED by default (inherit), got: " + JSON.stringify(c));
   }
   const names = configs.map((c) => c.name);
   const nav = configs.find((c) => c.name === "nav-bar-block");
@@ -81,6 +82,13 @@ echo "$out" | node -e '
   const configs = JSON.parse(require("fs").readFileSync(0, "utf8"));
   if (!Array.isArray(configs) || !configs.find((c) => c.name === "nav-bar-block")) throw new Error("programmatic configs: " + JSON.stringify(configs));
 ' || fail "generate-scoop-prompts generateConfigsFromFile() programmatic output"
+
+# --- generate-scoop-prompts.js: explicit model override is honored ---
+out="$(node -e "console.log(JSON.stringify(require('$SCRIPTS_ABS/generate-scoop-prompts.js').generateConfigsFromFile('$TMP/project/.migration', 'test-model-x')))")"
+echo "$out" | node -e '
+  const configs = JSON.parse(require("fs").readFileSync(0, "utf8"));
+  if (!configs.every((c) => c.model === "test-model-x")) throw new Error("explicit model not honored: " + JSON.stringify(configs));
+' || fail "generate-scoop-prompts explicit-model override"
 
 # --- generate-scoop-prompts.js: error paths ---
 err="$(node "$SCRIPTS/generate-scoop-prompts.js" 2>&1 1>/dev/null)" && fail "generate-scoop-prompts.js with no args should exit non-zero"
