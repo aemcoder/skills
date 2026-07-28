@@ -36,9 +36,9 @@ playwright-cli tab-new https://example.com
 # Output: "Created tab <targetId> at https://example.com"
 # Capture <targetId> as {sourceTabId}
 
-# serve also returns a targetId
-serve --entry=drafts/hero-preview.html --project /shared/my-site
-# Output: "serving ... (targetId: <targetId>)"
+# open also returns a targetId (and does NOT broadcast/steal focus)
+open /shared/my-site/drafts/hero-preview.html
+# Output: "... (targetId: <targetId>)"
 # Capture <targetId> as {previewTabId}
 ```
 
@@ -54,41 +54,53 @@ playwright-cli tab-close --tab={sourceTabId}
 
 Commands without --tab: `tab-list` (lists all tabs), `tab-new` (creates a tab).
 
-### Serve-Once + Reload Pattern
+### Open + Reload Pattern (local EDS preview)
 
 For EDS block/page preview testing:
 
-1. Call `serve --project` **once** to open the preview tab
+1. Call `open` **once** to open the preview tab
 2. Capture both the `targetId` and the `previewUrl` from output
 3. After editing CSS/JS, reload with `goto --tab={previewTabId} {previewUrl}`
-4. Do NOT re-run `serve` for each iteration
+4. Do NOT re-run `open` for each iteration
 
 If the preview tab is closed or `--tab` fails with an invalid target,
-re-run `serve` to get a new tab and targetId.
+re-run `open` to get a new tab and targetId.
 
-### EDS Project Serve Mode
+`serve` is only for *sharing* a preview with followers — it broadcasts and
+force-opens a focused tab; use `open` for self-verification.
 
-`serve --project <dir>` enables root-relative path resolution in the
-preview service worker. Paths like `/styles/styles.css` resolve against
-the project directory in VFS, emulating a local dev server.
+### EDS Preview Path Resolution
 
-The `?projectRoot=` query parameter is appended automatically by `serve`.
-When reloading with `goto`, reuse the full preview URL (which includes
-the query parameter) so project mode stays active.
+Under unified preview, root-absolute paths (`/styles/styles.css`,
+`/scripts/...`, `/drafts/images/...`) resolve natively against the project in
+VFS — no flag required. The old `serve --project <dir>` flag is **obsolete
+and ignored** (kept as a no-op for backward compatibility), and the bare
+`open <preview-file>` command auto-detects the projectRoot the same way and
+appends the `?projectRoot=` query parameter itself. This parameter may still
+appear in the preview URL; when reloading with `goto`, reuse the full preview
+URL as returned by `open`.
 
 ### CLI gotchas
 
-- **`serve --project` is a boolean flag, not a value flag.** The
-  directory is a positional argument. `serve --entry=file.html --project /shared/dir`
-  works; `serve --project=/shared/dir` fails with "unknown option".
+- **`serve --project` is obsolete and ignored.** Root-absolute paths resolve
+  natively under unified preview; omit the flag. (Historically it was a
+  boolean flag with the directory as a positional argument.)
 - **`git clone --depth 1` breaks downstream git operations.** Shallow
   clones cause failures when creating branches or running git commands
   later in a migration. Always clone without `--depth`:
   `git clone https://github.com/owner/repo.git /path/to/target`.
-- **`node -e "<inline>"` has no VFS `fs` globals or `require()`.** The
-  Slicc `node -e` shim doesn't expose VFS globals. Use `node <file.js>`
-  instead — the file form gets VFS `fs` globals and top-level `await`.
-  Never use `node -e` for VFS file I/O.
+- **Slicc's `node` bridges standard Node FS APIs (since ~2026-07-20).**
+  `require('fs')`, `require('node:fs')`, and `require('fs/promises')`
+  return a unified bridge: async methods are RPC-backed to the VFS, sync
+  methods hit a coherent local cache flushed back after the script
+  exits. Skill scripts run with `node <file.js>` must use standard
+  `require('node:fs')`-style APIs — never the legacy VFS globals
+  (`fs.readDir`, bare `fs`), which don't exist under real node (PLG
+  labs) and are no longer needed under Slicc.
+  Prefer the **synchronous** methods for writes you depend on — only the sync
+  cache is guaranteed to flush on exit; async writes can race bridge teardown.
+  Also avoid `readdirSync(..., { withFileTypes: true })` (no `Dirent` objects
+  in the bridge) and `child_process`.
 
 ## Migration Skill Architecture
 
@@ -114,9 +126,10 @@ come from Slicc's execution model and explicit scope decisions:
 - Skills are SKILL.md files with YAML frontmatter (`name`, `description`, `allowed-tools`)
 - Slicc discovers skills at `/workspace/skills/{name}/SKILL.md` (one level deep)
 - Installation via `upskill aemcoder/skills --path skills/migration --all`
-- Skills reference Slicc shell commands (`playwright-cli`, `serve`, `bash`) not raw APIs
+- Skills reference Slicc shell commands (`playwright-cli`, `open`, `serve`, `bash`) not raw APIs
 - Wrap `eval` calls in IIFEs to avoid variable redeclaration across calls
-- Use `fs.fetchToFile(url, path)` for binary downloads, never `fs.writeFile()` with binary data
+- Use `fs.fetchToFile(url, path)` for binary downloads (JS tool context,
+  not node scripts), never `fs.writeFile()` with binary data
 
 ## Testing Skills from a Branch
 

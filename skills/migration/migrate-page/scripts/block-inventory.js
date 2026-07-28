@@ -1,72 +1,95 @@
 /**
  * Scan an EDS project's blocks/ directory for available blocks.
  *
- * Runs in Slicc's JavaScript tool context (fs globals available).
+ * PRIMARY (works under SLICC's node bridge and real node):
+ *   const { writeBlockInventory } = require('/workspace/skills/migrate-page/scripts/block-inventory.js');
+ *   writeBlockInventory('/shared/repo-name'); // writes .migration/block-inventory.json, prints + returns summary
  *
- * Usage:
- *   const blocks = await scanBlockInventory('/shared/repo-name');
- *   return JSON.stringify(blocks);
+ * CLI (real node only; may silently no-op under the SLICC bridge, where the
+ * direct-execution guard never fires — prefer the programmatic form):
+ *   node block-inventory.js <project-path>
+ *
+ * Synchronous on purpose: SLICC's fs bridge only guarantees flush-on-exit for
+ * the sync cache, so async writes can race the bridge teardown.
  */
-async function scanBlockInventory(projectPath) {
-  var blocksDir = projectPath + '/blocks';
-  var entries = [];
+const fs = require('node:fs');
+const path = require('node:path');
 
-  var dirEntries;
+function fileSize(p) {
+  let stat;
   try {
-    dirEntries = await fs.readDir(blocksDir);
-  } catch (e) {
-    return entries;
+    stat = fs.statSync(p);
+  } catch (err) {
+    if (err.code === 'ENOENT') return undefined;
+    throw err;
   }
+  return stat.isFile() ? stat.size : undefined;
+}
 
-  for (var i = 0; i < dirEntries.length; i++) {
-    var entry = dirEntries[i];
-    if (entry.type !== 'directory') continue;
-
-    var name = entry.name;
-    var blockDir = blocksDir + '/' + name;
-
-    var files;
-    try {
-      files = await fs.readDir(blockDir);
-    } catch (e) {
-      continue;
-    }
-
-    var hasJs = files.some(function(f) { return f.name === name + '.js'; });
-    var hasCss = files.some(function(f) { return f.name === name + '.css'; });
-
-    if (!hasJs && !hasCss) continue;
-
-    var jsSize;
-    var cssSize;
-
-    if (hasJs) {
-      var jsContent = await fs.readFile(blockDir + '/' + name + '.js', { encoding: 'utf-8' });
-      jsSize = jsContent.length;
-    }
-
-    if (hasCss) {
-      var cssContent = await fs.readFile(blockDir + '/' + name + '.css', { encoding: 'utf-8' });
-      cssSize = cssContent.length;
-    }
-
-    entries.push({ name: name, hasJs: hasJs, hasCss: hasCss, jsSize: jsSize, cssSize: cssSize });
+function isDirectory(p) {
+  try {
+    return fs.statSync(p).isDirectory();
+  } catch (err) {
+    if (err.code === 'ENOENT') return false;
+    throw err;
   }
+}
 
+function scanBlockInventory(projectPath) {
+  const entries = [];
+  const blocksDir = projectPath + '/blocks';
+  let names;
+  try {
+    names = fs.readdirSync(blocksDir);
+  } catch (err) {
+    if (err.code === 'ENOENT') return entries;
+    throw err;
+  }
+  for (const name of names) {
+    const blockDir = blocksDir + '/' + name;
+    if (!isDirectory(blockDir)) continue;
+    const jsSize = fileSize(blockDir + '/' + name + '.js');
+    const cssSize = fileSize(blockDir + '/' + name + '.css');
+    if (jsSize === undefined && cssSize === undefined) continue;
+    entries.push({
+      name,
+      hasJs: jsSize !== undefined,
+      hasCss: cssSize !== undefined,
+      jsSize,
+      cssSize,
+    });
+  }
   return entries;
 }
 
-if (typeof module !== 'undefined') module.exports = { scanBlockInventory };
-
-// CLI: node block-inventory.js <project-path>
-if (typeof process !== 'undefined' && process.argv && process.argv[2]) {
-  var blocks = await scanBlockInventory(process.argv[2]);
-  await fs.writeFile(
-    process.argv[2] + '/.migration/block-inventory.json',
+function writeBlockInventory(projectPath) {
+  const blocks = scanBlockInventory(projectPath);
+  fs.mkdirSync(projectPath + '/.migration', { recursive: true });
+  fs.writeFileSync(
+    projectPath + '/.migration/block-inventory.json',
     JSON.stringify(blocks, null, 2)
   );
-  console.log(JSON.stringify({
-    blockCount: blocks.length,
-    blocks: blocks.map(function(b) { return b.name; })
-  }));
+  const summary = { blockCount: blocks.length, blocks: blocks.map((b) => b.name) };
+  console.log(JSON.stringify(summary));
+  return summary;
+}
+
+module.exports = { scanBlockInventory, writeBlockInventory };
+
+if (process.argv[1] && path.resolve(process.argv[1]) === __filename) {
+  const projectPath = process.argv[2];
+  if (!projectPath) {
+    console.error('Usage: node block-inventory.js <project-path>');
+    process.exit(1);
+  }
+  if (!fs.existsSync(projectPath)) {
+    console.error('block-inventory: project path not found: ' + projectPath);
+    process.exit(1);
+  }
+  try {
+    writeBlockInventory(projectPath);
+  } catch (err) {
+    console.error('block-inventory failed: ' + err.message);
+    process.exit(1);
+  }
 }
