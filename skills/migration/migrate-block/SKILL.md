@@ -404,13 +404,32 @@ tags except CSP.
 
 ### 6b. Serve and Open the Preview
 
-Serve the project root (`{projectPath}`) as a static site and open
-`drafts/{blockName}-preview.html` in the browser. Root-relative paths
-(`/scripts/...`, `/styles/...`, `/drafts/images/...`) must resolve against
+Serve the project root (`{projectPath}`) as a static site. Root-relative
+paths (`/scripts/...`, `/styles/...`, `/drafts/images/...`) resolve against
 the project root.
 
-To pick up CSS/JS changes during iteration, reload the preview page — do
-not re-open or re-serve for every iteration.
+**Fire-and-forget browser sessions — MANDATORY.**
+The AEM CLI dev server injects a LiveReload WebSocket into every page it
+serves. If you keep a browser tab open while other block agents write
+files, the server broadcasts a reload signal to ALL connected tabs —
+including yours — causing mid-screenshot navigation and lost work.
+
+**Rule:** open the browser, take your screenshot, then **close the browser
+completely** before writing any files. Reopen it fresh for the next
+iteration. Never hold a tab open across a file-write.
+
+```text
+for each iteration:
+  1. write / edit files   ← browser CLOSED here
+  2. open browser → navigate to localhost:3000/drafts/{blockName}-preview
+  3. wait for blocks to load
+  4. screenshot
+  5. close browser        ← browser CLOSED again
+  6. compare screenshots, plan next edit
+```
+
+This round-trip adds ~1 s per iteration but eliminates all LiveReload
+collisions regardless of which browser tool is in use.
 
 ### 6c. Verify EDS Framework Loaded
 
@@ -511,22 +530,30 @@ a transient reference. Prefer `.{blockName}-wrapper` (the EDS-generated
 wrapper) or `.{blockName}.block` directly. Reuse the same selector for
 every iteration.
 
+**Follow the fire-and-forget protocol from Step 6b for every iteration.**
+The loop is: close browser → edit CSS → open browser → screenshot → close
+browser → compare. Never keep a tab open while writing files.
+
 For each iteration:
 
-1. **Screenshot the preview** by CSS selector `.{blockName}-wrapper`.
+1. **Edit CSS:** Batch ALL fixes for this iteration into a SINGLE file
+   edit. Edit `{projectPath}/blocks/{blockName}/{blockName}.css`. Do NOT
+   rewrite the entire file. **Browser is closed while you do this.**
+
+2. **Open browser** → navigate to
+   `localhost:3000/drafts/{blockName}-preview.html` → wait for
+   `data-block-status="loaded"` on your block.
+
+3. **Screenshot the preview** by CSS selector `.{blockName}-wrapper`.
    Save to `{projectPath}/.migration/preview-{blockName}-iter{N}.png`.
 
-2. **Compare:** Read both screenshots. Identify the top 2-3 CSS gaps:
+4. **Close the browser.**
+
+5. **Compare:** Read both screenshots. Identify the top 2-3 CSS gaps:
    - Padding/margin (highest priority)
    - Background color/gradient
    - Layout/flex direction
    - Font size/weight (but NOT font-family — see note above)
-
-3. **Fix:** Batch ALL CSS fixes for this iteration into a SINGLE file
-   edit. Edit `{projectPath}/blocks/{blockName}/{blockName}.css`. Do NOT
-   rewrite the entire file.
-
-4. **Reload** the preview page to pick up CSS/JS changes.
 
 **Stop conditions:**
 

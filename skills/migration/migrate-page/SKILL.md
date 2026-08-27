@@ -46,6 +46,22 @@ Two path variables are used throughout this skill:
 
 User provides a URL and a GitHub repo (owner/repo).
 
+### Step 1.0: Confirm Browser Capability
+
+Before touching any URLs, confirm you can do all three of these in this
+environment:
+
+1. Open a URL in a browser (headless or headed)
+2. Execute JavaScript in the page context
+3. Take a full-page screenshot
+
+The extraction scripts are plain in-page JavaScript — they work with any
+tool that provides those three capabilities. Use whatever is available;
+no specific tool is required.
+
+**HARD ERROR if any capability is missing.** Stop immediately, tell the
+user what is unavailable, and do NOT produce partial output silently.
+
 ### Step 1.1: Clone and Branch
 
 Clone the repo and create a migration branch:
