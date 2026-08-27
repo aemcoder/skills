@@ -16,11 +16,76 @@
  * @returns {Array<{name: string, prompt: string, model?: string}>} `model` is
  *   present only when an explicit id was passed.
  */
+/**
+ * Read an optional JSON file, returning null on missing/parse errors.
+ */
+function readOptionalJson(filePath) {
+	const fs = require("node:fs");
+	try {
+		return JSON.parse(fs.readFileSync(filePath, "utf8"));
+	} catch {
+		return null;
+	}
+}
+
+/**
+ * Build the enrichment context block that gets appended to every
+ * sub-agent prompt. Gives agents measured data so they don't have to
+ * re-derive colors, fonts, or asset URLs from the live page.
+ */
+function buildEnrichmentContext(migrationDir) {
+	const brand = readOptionalJson(migrationDir + "/brand.json");
+	const inventory = readOptionalJson(
+		migrationDir + "/block-inventory.json",
+	);
+
+	const sections = [];
+
+	if (brand) {
+		const colors = brand.colors || {};
+		const fonts = brand.fonts || {};
+		const spacing = brand.spacing || {};
+		sections.push(`## Brand Context (from extraction)
+- Background: ${colors.background || "unknown"}
+- Text: ${colors.text || "unknown"}
+- Link: ${colors.link || "unknown"}
+- Link hover: ${colors.linkHover || "unknown"}
+- Light section: ${colors.light || "unknown"}
+- Dark section: ${colors.dark || "unknown"}
+- Heading font: ${fonts.heading?.family || "unknown"}
+- Body font: ${fonts.body?.family || "unknown"}
+- Section padding: ${spacing.sectionPadding || "unknown"}
+- Content max-width: ${spacing.contentMaxWidth || "unknown"}
+- Nav height: ${spacing.navHeight || "unknown"}`);
+	}
+
+	if (inventory && inventory.length > 0) {
+		const names = inventory.map((b) => b.name).join(", ");
+		sections.push(
+			`## Existing Blocks in Project\n` +
+				`${names}\n` +
+				`If your block name matches an existing one, read its JS to ` +
+				`understand the contract before writing new code.`,
+		);
+	}
+
+	sections.push(
+		`## Layout Contract\n` +
+			`The orchestrator set section max-width, gutters, and spacing in ` +
+			`styles.css. Do NOT override \`.{blockName}-wrapper\` max-width ` +
+			`or padding. If your block needs full-bleed, report ` +
+			`\`"fullWidth": true\` in your completion payload.`,
+	);
+
+	return sections.length > 0 ? "\n\n" + sections.join("\n\n") : "";
+}
+
 function generateAgentConfigs(
 	decomposition,
 	sourceUrl,
 	projectPath,
 	model = "",
+	enrichment = "",
 ) {
 	const configs = [];
 
@@ -67,6 +132,11 @@ function generateAgentConfigs(
 						bounds,
 						sectionHasHeading,
 					);
+				}
+
+				// Append enrichment context to every prompt
+				if (enrichment) {
+					prompt += enrichment;
 				}
 
 				const config = { name: agentName, prompt };
@@ -157,11 +227,13 @@ function generateConfigsFromFile(migrationDir, model) {
 	const projectPath = migrationDir.replace(/\/\.migration\/?$/, "");
 	// No default model: omitting it lets the orchestrator's sub-agent inherit
 	// the default model rather than pinning one that may be retired.
+	const enrichment = buildEnrichmentContext(migrationDir);
 	return generateAgentConfigs(
 		decomposition,
 		decomposition.url,
 		projectPath,
 		model || "",
+		enrichment,
 	);
 }
 

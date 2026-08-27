@@ -1,44 +1,50 @@
-(function() {
-  "use strict";
-
+(() => {
   // ─── CSS.escape polyfill (for environments without it) ───
 
-  var cssEscape = (typeof CSS !== "undefined" && CSS.escape)
-    ? CSS.escape.bind(CSS)
-    : function(value) {
-        var str = String(value);
-        var length = str.length;
-        var result = "";
-        for (var i = 0; i < length; i++) {
-          var ch = str.charCodeAt(i);
-          if (ch === 0) { result += "\\ufffd"; continue; }
-          if (
-            (ch >= 0x0001 && ch <= 0x001F) || ch === 0x007F ||
-            (i === 0 && ch >= 0x0030 && ch <= 0x0039) ||
-            (i === 1 && ch >= 0x0030 && ch <= 0x0039 &&
-              str.charCodeAt(0) === 0x002D)
-          ) {
-            result += "\\\\" + ch.toString(16) + " ";
-            continue;
-          }
-          if (i === 0 && length === 1 && ch === 0x002D) {
+  var cssEscape =
+    typeof CSS !== "undefined" && CSS.escape
+      ? CSS.escape.bind(CSS)
+      : (value) => {
+          var str = String(value);
+          var length = str.length;
+          var result = "";
+          for (var i = 0; i < length; i++) {
+            var ch = str.charCodeAt(i);
+            if (ch === 0) {
+              result += "\\ufffd";
+              continue;
+            }
+            if (
+              (ch >= 0x0001 && ch <= 0x001f) ||
+              ch === 0x007f ||
+              (i === 0 && ch >= 0x0030 && ch <= 0x0039) ||
+              (i === 1 &&
+                ch >= 0x0030 &&
+                ch <= 0x0039 &&
+                str.charCodeAt(0) === 0x002d)
+            ) {
+              result += "\\\\" + ch.toString(16) + " ";
+              continue;
+            }
+            if (i === 0 && length === 1 && ch === 0x002d) {
+              result += "\\\\" + str.charAt(i);
+              continue;
+            }
+            if (
+              ch >= 0x0080 ||
+              ch === 0x002d ||
+              ch === 0x005f ||
+              (ch >= 0x0030 && ch <= 0x0039) ||
+              (ch >= 0x0041 && ch <= 0x005a) ||
+              (ch >= 0x0061 && ch <= 0x007a)
+            ) {
+              result += str.charAt(i);
+              continue;
+            }
             result += "\\\\" + str.charAt(i);
-            continue;
           }
-          if (
-            ch >= 0x0080 ||
-            ch === 0x002D || ch === 0x005F ||
-            (ch >= 0x0030 && ch <= 0x0039) ||
-            (ch >= 0x0041 && ch <= 0x005A) ||
-            (ch >= 0x0061 && ch <= 0x007A)
-          ) {
-            result += str.charAt(i);
-            continue;
-          }
-          result += "\\\\" + str.charAt(i);
-        }
-        return result;
-      };
+          return result;
+        };
 
   // ─── CSS Selector Generator (Chrome DevTools algorithm) ───
 
@@ -62,7 +68,10 @@
       return { value: idSelector(id), optimized: true };
     }
 
-    if (optimized && (nodeName === "body" || nodeName === "head" || nodeName === "html")) {
+    if (
+      optimized &&
+      (nodeName === "body" || nodeName === "head" || nodeName === "html")
+    ) {
       return { value: nodeName, optimized: true };
     }
 
@@ -83,7 +92,11 @@
     var elementIndex = -1;
     var siblings = parent.children;
 
-    for (var i = 0; i < siblings.length && (ownIndex === -1 || !needsNthChild); i++) {
+    for (
+      var i = 0;
+      i < siblings.length && (ownIndex === -1 || !needsNthChild);
+      i++
+    ) {
       var sibling = siblings[i];
       elementIndex++;
 
@@ -104,9 +117,9 @@
       }
 
       var siblingClassNames = new Set(getClassNames(sibling));
-      var uniqueClasses = ownClassNames.filter(function(c) {
-        return !siblingClassNames.has(c);
-      });
+      var uniqueClasses = ownClassNames.filter(
+        (c) => !siblingClassNames.has(c),
+      );
 
       if (uniqueClasses.length === 0) {
         needsNthChild = true;
@@ -146,7 +159,7 @@
       var step = getCssSelectorStep(
         currentElement,
         true,
-        currentElement === element
+        currentElement === element,
       );
       if (!step) break;
 
@@ -158,7 +171,7 @@
     }
 
     steps.reverse();
-    return steps.map(function(s) { return s.value; }).join(" > ");
+    return steps.map((s) => s.value).join(" > ");
   }
 
   // ─── Layout Detection ───
@@ -166,11 +179,11 @@
   function getOverlapArea(a, b) {
     var xOverlap = Math.max(
       0,
-      Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x)
+      Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x),
     );
     var yOverlap = Math.max(
       0,
-      Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y)
+      Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y),
     );
     return xOverlap * yOverlap;
   }
@@ -181,7 +194,7 @@
         var overlapArea = getOverlapArea(boxes[i], boxes[j]);
         var smallerArea = Math.min(
           boxes[i].width * boxes[i].height,
-          boxes[j].width * boxes[j].height
+          boxes[j].width * boxes[j].height,
         );
         if (smallerArea > 0 && overlapArea / smallerArea > 0.5) {
           return true;
@@ -196,7 +209,7 @@
 
     if (hasSignificantOverlap(boxes)) return undefined;
 
-    var sorted = boxes.slice().sort(function(a, b) { return a.y - b.y; });
+    var sorted = boxes.slice().sort((a, b) => a.y - b.y);
 
     var minHeight = Infinity;
     for (var mi = 0; mi < sorted.length; mi++) {
@@ -237,22 +250,22 @@
   function rgbToLab(rgb) {
     function toLinear(c) {
       var s = c / 255;
-      return s <= 0.04045 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+      return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
     }
     var rl = toLinear(rgb[0]);
     var gl = toLinear(rgb[1]);
     var bl = toLinear(rgb[2]);
 
     var x = 0.4124564 * rl + 0.3575761 * gl + 0.1804375 * bl;
-    var y = 0.2126729 * rl + 0.7151522 * gl + 0.0721750 * bl;
-    var z = 0.0193339 * rl + 0.1191920 * gl + 0.9503041 * bl;
+    var y = 0.2126729 * rl + 0.7151522 * gl + 0.072175 * bl;
+    var z = 0.0193339 * rl + 0.119192 * gl + 0.9503041 * bl;
 
     x /= 0.95047;
     y /= 1.0;
     z /= 1.08883;
 
     function f(t) {
-      return t > 0.008856 ? Math.pow(t, 1 / 3) : 7.787 * t + 16 / 116;
+      return t > 0.008856 ? t ** (1 / 3) : 7.787 * t + 16 / 116;
     }
 
     var L = 116 * f(y) - 16;
@@ -271,9 +284,9 @@
     var lab2 = rgbToLab(rgb2);
 
     return Math.sqrt(
-      Math.pow(lab1[0] - lab2[0], 2) +
-      Math.pow(lab1[1] - lab2[1], 2) +
-      Math.pow(lab1[2] - lab2[2], 2)
+      (lab1[0] - lab2[0]) ** 2 +
+        (lab1[1] - lab2[1]) ** 2 +
+        (lab1[2] - lab2[2]) ** 2,
     );
   }
 
@@ -284,8 +297,7 @@
     var nodes = element.childNodes;
     for (var i = 0; i < nodes.length; i++) {
       if (nodes[i].nodeType === Node.TEXT_NODE) {
-        text += (nodes[i].textContent || "")
-          .replace(/[\n\r\t]+/g, " ") + " ";
+        text += (nodes[i].textContent || "").replace(/[\n\r\t]+/g, " ") + " ";
       }
     }
     return text.replace(/\s{2,}/g, " ").trim();
@@ -297,7 +309,7 @@
         tag: element.tagName,
         selector: element.tagName.toLowerCase(),
         bounds: { x: 0, y: 0, width: 0, height: 0 },
-        children: []
+        children: [],
       };
     }
 
@@ -316,7 +328,7 @@
         tag: element.tagName,
         selector: element.tagName.toLowerCase(),
         bounds: { x: 0, y: 0, width: 0, height: 0 },
-        children: []
+        children: [],
       };
     }
 
@@ -329,9 +341,9 @@
         x: Math.round(rect.left + scrollX),
         y: Math.round(rect.top + scrollY),
         width: Math.round(rect.width),
-        height: Math.round(rect.height)
+        height: Math.round(rect.height),
       },
-      children: []
+      children: [],
     };
 
     if (element.id) {
@@ -362,7 +374,7 @@
           type: "gradient",
           value: bgImage,
           raw: bgRaw,
-          source: "css"
+          source: "css",
         };
       } else if (bgImage.indexOf("url(") !== -1) {
         var urlMatch = bgImage.match(/url\(["']?(.+?)["']?\)/);
@@ -371,7 +383,7 @@
           type: "image",
           value: url,
           raw: bgRaw,
-          source: "css"
+          source: "css",
         };
       }
     }
@@ -386,7 +398,7 @@
         type: "color",
         value: bgColor,
         raw: bgRaw,
-        source: "css"
+        source: "css",
       };
     }
 
@@ -407,7 +419,7 @@
               type: "image",
               value: src,
               raw: "",
-              source: "img"
+              source: "img",
             };
             break;
           }
@@ -426,19 +438,17 @@
                 type: "gradient",
                 value: childBgImage,
                 raw: childBgRaw,
-                source: "child-css"
+                source: "child-css",
               };
               break;
             } else if (childBgImage.indexOf("url(") !== -1) {
-              var urlMatch = childBgImage.match(
-                /url\(["']?(.+?)["']?\)/
-              );
+              var urlMatch = childBgImage.match(/url\(["']?(.+?)["']?\)/);
               var url = urlMatch ? urlMatch[1] : childBgImage;
               node.background = {
                 type: "image",
                 value: url,
                 raw: childBgRaw,
-                source: "child-css"
+                source: "child-css",
               };
               break;
             }
@@ -453,7 +463,7 @@
               type: "color",
               value: childBgColor,
               raw: childBgRaw,
-              source: "child-css"
+              source: "child-css",
             };
             break;
           }
@@ -489,7 +499,7 @@
           x: Math.round(acRect.left + scrollX),
           y: Math.round(acRect.top + scrollY),
           width: Math.round(acRect.width),
-          height: Math.round(acRect.height)
+          height: Math.round(acRect.height),
         });
       }
     }
@@ -516,7 +526,7 @@
         tag: element.tagName,
         selector: element.tagName.toLowerCase(),
         bounds: { x: 0, y: 0, width: 0, height: 0 },
-        children: []
+        children: [],
       };
     }
 
@@ -592,7 +602,7 @@
         node.children[i],
         depth + 1,
         childId,
-        rootBackground
+        rootBackground,
       );
     }
 
@@ -627,7 +637,7 @@
             type: "gradient",
             value: bgImage,
             raw: bgRaw,
-            source: "css"
+            source: "css",
           };
         }
         if (bgImage.indexOf("url(") !== -1) {
@@ -637,7 +647,7 @@
             type: "image",
             value: url,
             raw: bgRaw,
-            source: "css"
+            source: "css",
           };
         }
       }
@@ -652,7 +662,7 @@
           type: "color",
           value: bgColor,
           raw: bgRaw,
-          source: "css"
+          source: "css",
         };
       }
     }
@@ -678,7 +688,7 @@
 
   var bodyBg = window.getComputedStyle(document.body).backgroundColor;
   var htmlBg = window.getComputedStyle(
-    document.documentElement
+    document.documentElement,
   ).backgroundColor;
   var rootBackground =
     bodyBg && bodyBg !== "rgba(0, 0, 0, 0)" && bodyBg !== "transparent"
@@ -694,6 +704,6 @@
     text: text,
     nodeMap: nodeMap,
     viewport: { width: window.innerWidth, height: window.innerHeight },
-    nodeCount: Object.keys(nodeMap).length
+    nodeCount: Object.keys(nodeMap).length,
   };
 })();

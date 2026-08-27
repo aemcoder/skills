@@ -132,7 +132,26 @@ then re-run Steps 1.4–1.6.
 
 ### Step 1.7: Full-Page Screenshot
 
-Take a full-page screenshot of the page (max-width 1440px). Save to
+**Wait for all images to settle before capturing.** EDS and many sites
+use `loading="lazy"` — screenshots taken during the load race show
+blank placeholders and trigger false broken-image reports. Execute JS
+in the page to force-load and decode all images:
+
+```javascript
+(async () => {
+  document.querySelectorAll('img[loading="lazy"]').forEach(
+    img => img.loading = 'eager'
+  );
+  await Promise.all(
+    [...document.querySelectorAll('img')]
+      .filter(img => !img.complete)
+      .map(img => img.decode().catch(() => {}))
+  );
+  return 'images settled';
+})()
+```
+
+Then take a full-page screenshot of the page (max-width 1440px). Save to
 `{projectPath}/.migration/screenshot.png`.
 
 Verify the file exists and has a reasonable size (>10 KB).
@@ -257,17 +276,32 @@ Write `decomposition.json` to `{projectPath}/.migration/`:
 }
 ```
 
-### Close Source Tab
+### Close Source Tab — Optional
 
-The source tab is no longer needed. Close it to free resources and
-prevent sub-agents from confusing it with their own tabs.
+**Consider keeping the source tab open until Phase 4 completes.** During
+assembly you may need to re-check exact heading typography, mobile
+behaviour, or content details that the extraction artifacts don't fully
+capture. If you close it now, you'll have to reopen the source URL and
+redo viewport setup.
+
+If you do close it (e.g. to free resources in constrained environments),
+ensure Phase 1 captured everything comprehensively enough that the
+source is genuinely disposable.
 
 ---
 
-## Phase 2.5: Prepare Brand, Fonts, and Styles
+## Phase 2.5: Establish Layout Contract, Brand, Fonts, and Styles
 
-Set up brand, fonts, and styles BEFORE creating sub-agents in Phase 3.
-Sub-agents need these in place so their preview pages load correctly.
+Set up the **layout contract**, brand, fonts, and styles BEFORE creating
+sub-agents in Phase 3. Sub-agents need these in place so their preview
+pages load correctly.
+
+**Why this is a contract, not just tokens.** Tokens that nothing consumes
+do not constrain sub-agents. If you set `--content-max-width: 1360px` but
+leave the boilerplate's `max-width: 1200px` rule intact, sub-agents will
+build against 1200px and independently invent incompatible workarounds
+with `!important`. The rules that consume the tokens must be correct
+*before* fan-out.
 
 ### 2.5a: Resolve Fonts
 
@@ -322,12 +356,55 @@ html, body { overflow: auto !important; }
 > **Treat `brand.json` spacing as a hint, not ground truth.** Reconcile
 > against the visual tree, which carries the real rendered measurements.
 
-### 2.5d: Update styles.css with @import
+### 2.5d: Update styles.css — layout contract + brand import
 
 Read `{projectPath}/styles/styles.css`. Add
 `@import url('brand.css');` as the **VERY FIRST LINE** (CSS spec requires
 `@import` before all other rules). Also update `:root` variables to match
 brand values.
+
+**Establish the layout contract.** Measure the source's content width,
+gutters, and section spacing from the visual tree and screenshot, then
+set these values in `styles.css` so every sub-agent builds against the
+correct geometry:
+
+```css
+/* Layout contract — sub-agents MUST NOT override these */
+main > .section > div {
+  max-width: var(--content-max-width, 1200px);
+  padding: 0 var(--content-gutter, 24px);
+  margin: 0 auto;
+}
+
+.section {
+  padding: var(--section-padding, 64px) 0;
+}
+```
+
+**How to measure:**
+- **Content max-width:** from the visual tree, find the widest content
+  container inside `<main>` (not full-bleed heroes — those are edge
+  cases). Use `brand.json`'s `spacing.contentMaxWidth` as a starting
+  point, but verify against the visual tree's actual bounds.
+- **Gutters:** measure the gap between the content edge and the viewport
+  edge at 1440px. Typically 24–40px per side.
+- **Section padding:** vertical spacing between sections. Use
+  `brand.json`'s `spacing.sectionPadding` if non-zero, otherwise measure
+  from the visual tree's y-offsets between sibling nodes.
+
+**Full-bleed sections** (heroes, banners) that span the full viewport
+should be handled by the orchestrator adding a `.section-metadata` with
+`Style: full-width` during Phase 4 assembly, with a corresponding rule:
+
+```css
+main > .section.full-width > div {
+  max-width: 100%;
+  padding: 0;
+}
+```
+
+This way blocks never need to override the wrapper themselves — the
+layout contract covers both constrained and full-bleed sections.
 
 **Do NOT add a global button reset.** Each block is responsible for
 styling its own buttons with block-scoped specificity
@@ -346,8 +423,12 @@ that the orchestrator writes directly during Phase 4 assembly.
 
 ### Step 1 — Generate sub-agent configs via script
 
-Run the prompt generator. It reads `decomposition.json` and outputs
-sub-agent configs as JSON:
+Run the prompt generator. It reads `decomposition.json`, `brand.json`,
+and `block-inventory.json` from the migration directory and outputs
+enriched sub-agent configs as JSON. Each prompt includes measured brand
+tokens (colors, fonts, spacing), existing block inventory, and layout
+contract instructions so sub-agents don't re-derive data from the live
+page:
 
 ```bash
 node {skillDir}/scripts/generate-agent-prompts.js {projectPath}/.migration
@@ -403,6 +484,22 @@ on disk. If yes, treat as done with `status: "partial"`. If no, mark
 
 After ALL sub-agents complete, execute ALL of the following steps.
 
+### Step 4.0: Check for Collateral Edits
+
+Before assembly, check for unexpected changes sub-agents may have made
+outside their block directories:
+
+```bash
+git diff --stat HEAD
+```
+
+Inspect the output. Expected changes are in `blocks/`, `styles/`,
+`drafts/`, `head.html`, and `.migration/`. Any changes to `package.json`,
+`scripts/scripts.js`, `tools/`, or other project infrastructure are
+**collateral edits** — revert them before proceeding. Sub-agents
+sometimes install linters, add dependencies, or modify shared scripts.
+Attribution is obvious now but lost after assembly.
+
 ### Step 4.1: Collect Results
 
 Use the completion payloads collected during Phase 3. For each block,
@@ -414,16 +511,21 @@ List any blocks with `status: "failed"` — flag these in the final summary.
 `hasHiddenPanes: true` hides images in inactive panes. Before judging
 images on the assembled preview, **reveal every pane first**.
 
-### Step 4.2: Verify Brand Setup
+### Step 4.2: Verify Brand and Layout Contract
 
 `brand.css`, `styles.css`, and `head.html` were already updated in
 Phase 2.5. Verify they are correct:
 
 - `styles/brand.css` exists with `:root` variables
 - `styles/styles.css` has `@import url('brand.css');` as FIRST LINE
+- `styles/styles.css` has the layout contract (`max-width`, gutters,
+  section padding) matching source measurements
 - `head.html` has font `<link>` tags
+- No sub-agent has overridden `.{blockName}-wrapper` max-width or
+  padding — if any did, remove the override and apply a
+  `.section.full-width` style via section-metadata instead
 
-If anything is missing, do it now.
+If anything is missing or violated, fix it now.
 
 ### Step 4.3: Assemble Page Content — MANDATORY
 
@@ -494,6 +596,9 @@ JSON.stringify({
   appear: document.body.classList.contains('appear')
 })
 ```
+
+**Wait for images to settle** (same gate as Phase 1 — force
+`loading="eager"`, await all decodes) before capturing.
 
 Then take a full-page screenshot and save to
 `{projectPath}/.migration/preview-assembled.png`.

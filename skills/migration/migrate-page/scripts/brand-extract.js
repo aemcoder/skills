@@ -98,7 +98,11 @@
       // onto by an earlier, less-selective query) — leave it unset rather
       // than emit a wrong value.
       if (bestEl && bestSizePx > bodySizePx) {
-        sizes[tier].desktop = window.getComputedStyle(bestEl).fontSize;
+        var headingStyle = window.getComputedStyle(bestEl);
+        sizes[tier].desktop = headingStyle.fontSize;
+        sizes[tier].lineHeight = headingStyle.lineHeight;
+        sizes[tier].letterSpacing = headingStyle.letterSpacing;
+        sizes[tier].fontWeight = headingStyle.fontWeight;
       }
     }
     return sizes;
@@ -144,14 +148,35 @@
     return { background: bg, text: text };
   }
 
+  function isOnDarkBackground(el) {
+    var current = el;
+    while (current && current !== document.body) {
+      var bg = window.getComputedStyle(current).backgroundColor;
+      if (bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent') {
+        var rgb = parseRgb(bg);
+        if (rgb) return luminance(rgb) < 128;
+      }
+      current = current.parentElement;
+    }
+    return false;
+  }
+
   function extractLinkColor() {
-    // Sample multiple links and find the most common color (skip hero/header links)
+    // Sample links in body-context areas (skip header, hero, dark-bg sections)
     var links = document.querySelectorAll('main a');
     if (links.length === 0) links = document.querySelectorAll('a');
     var counts = {};
-    for (var i = 0; i < links.length && i < 30; i++) {
-      var color = window.getComputedStyle(links[i]).color || '';
-      if (!color || color === 'rgb(255, 255, 255)' || color === 'rgb(0, 0, 0)') continue;
+    for (var i = 0; i < links.length && i < 50; i++) {
+      var link = links[i];
+      var color = window.getComputedStyle(link).color || '';
+      // Skip white, black, and transparent — these are inherited or
+      // intentional contrast colors, not the site's "link color"
+      if (!color) continue;
+      if (color === 'rgb(255, 255, 255)') continue;
+      if (color === 'rgb(0, 0, 0)') continue;
+      // Skip links inside dark-background containers (heroes, promo
+      // bars) where the link color is a contrast override
+      if (isOnDarkBackground(link)) continue;
       counts[color] = (counts[color] || 0) + 1;
     }
     var best = '';
@@ -163,7 +188,9 @@
         best = keys[j];
       }
     }
-    return best || (links.length > 0 ? window.getComputedStyle(links[0]).color : '');
+    // If no candidate survived, return empty rather than a misleading
+    // color from a dark-background link
+    return best;
   }
 
   function extractLinkHoverColor() {
@@ -171,7 +198,7 @@
       var sheets = document.styleSheets;
       for (var i = 0; i < sheets.length; i++) {
         var rules;
-        try { rules = sheets[i].cssRules; } catch(e) { continue; }
+        try { rules = sheets[i].cssRules; } catch { continue; }
         for (var j = 0; j < rules.length; j++) {
           var rule = rules[j];
           if (rule.selectorText) {
@@ -185,7 +212,7 @@
           }
         }
       }
-    } catch(e) {}
+    } catch {}
     return null;
   }
 
@@ -243,6 +270,30 @@
     }
     var main = document.querySelector('main');
     return main ? (window.getComputedStyle(main).paddingTop || '') : '';
+  }
+
+  function extractSectionGaps() {
+    // Measure vertical gaps between adjacent sections in <main>.
+    // Returns the most common gap (modal) as the typical section spacing.
+    var sections = document.querySelectorAll('main > section, main > div');
+    if (sections.length < 2) return '';
+    var gaps = {};
+    for (var i = 1; i < sections.length; i++) {
+      var prevBottom = sections[i - 1].getBoundingClientRect().bottom;
+      var currTop = sections[i].getBoundingClientRect().top;
+      var gap = Math.round(currTop - prevBottom);
+      if (gap >= 0) gaps[gap] = (gaps[gap] || 0) + 1;
+    }
+    var bestGap = 0;
+    var bestCount = 0;
+    var keys = Object.keys(gaps);
+    for (var j = 0; j < keys.length; j++) {
+      if (gaps[keys[j]] > bestCount) {
+        bestCount = gaps[keys[j]];
+        bestGap = Number(keys[j]);
+      }
+    }
+    return bestGap ? bestGap + 'px' : '';
   }
 
   function extractContentMaxWidth() {
@@ -391,6 +442,7 @@
     },
     spacing: {
       sectionPadding: extractSectionPadding(),
+      sectionGap: extractSectionGaps(),
       contentMaxWidth: extractContentMaxWidth(),
       navHeight: extractNavHeight()
     },

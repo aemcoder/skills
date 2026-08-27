@@ -255,8 +255,8 @@ constraints and button overrides that will affect your block:
 
 Read `{projectPath}/styles/styles.css` and look for:
 
-- `max-width` on `.section > div` — if present, full-width blocks need a
-  wrapper override (see "Full-Width Blocks" in Known EDS Behaviors)
+- `max-width` on `.section > div` — the orchestrator sets this as part of
+  the layout contract. Do NOT override it in your block CSS
 - `a.button` rules — note if any exist; your block must style its own
   buttons with `main .{blockName} a.button:any-link` specificity
 
@@ -462,7 +462,27 @@ JSON.stringify({
 
 Do NOT work around framework failures by inlining CSS/JS.
 
-### 6d. Verify Images
+### 6d. Wait for Images to Settle
+
+**Before verifying or screenshotting**, force-load all images. EDS uses
+`loading="lazy"` by default — images in the viewport may still be
+pending when the framework reports `loaded`. Execute JS in the page:
+
+```javascript
+(async () => {
+  document.querySelectorAll('img[loading="lazy"]').forEach(
+    img => img.loading = 'eager'
+  );
+  await Promise.all(
+    [...document.querySelectorAll('img')]
+      .filter(img => !img.complete)
+      .map(img => img.decode().catch(() => {}))
+  );
+  return 'images settled';
+})()
+```
+
+### 6e. Verify Images
 
 Execute the `verify-images.js` script (shipped with the `migrate-block`
 skill) in the page context. It checks EVERY `<img>`, including hidden
@@ -477,7 +497,7 @@ for genuinely broken images but also for SVGs that render perfectly, for
 images in hidden panes (tabs/accordion) that never triggered a load, and
 for media still being ingested downstream.
 
-### 6e. Structure Sanity-Check (before pixel iteration)
+### 6f. Structure Sanity-Check (before pixel iteration)
 
 Visual iteration is excellent for CSS gaps but the WRONG loop for
 JS/structural bugs — a wrong child/row/cell count will never be fixed by
@@ -755,15 +775,15 @@ This avoids `!important` escalation from a global reset.
 
 ### Full-Width Blocks
 
-EDS wraps sections in `.section > div { max-width: 1200px }`. Override
-for full-bleed blocks:
+EDS wraps sections in `.section > div { max-width }`. The orchestrator
+sets this value as part of the layout contract in `styles.css` and
+handles full-bleed sections via a `.section.full-width` rule.
 
-```css
-.{blockName}-wrapper {
-  max-width: 100% !important;
-  padding: 0 !important;
-}
-```
+**Do NOT override `.{blockName}-wrapper` max-width or padding.** The
+layout contract owns section-level geometry. If your block needs
+full-bleed, tell the orchestrator in your completion message (add
+`"fullWidth": true` to the JSON payload) and it will apply the
+correct section style during assembly.
 
 ### Icon Rendering
 
