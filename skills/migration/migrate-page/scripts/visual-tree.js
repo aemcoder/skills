@@ -396,16 +396,64 @@
         var elChildren = element.children;
         for (var ci = 0; ci < elChildren.length; ci++) {
           var child = elChildren[ci];
-          if (child.tagName !== "IMG") continue;
-          var imgRect = child.getBoundingClientRect();
-          var imgArea = imgRect.width * imgRect.height;
-          if (imgArea / parentArea >= 0.75) {
+          var childRect = child.getBoundingClientRect();
+          var childArea = childRect.width * childRect.height;
+          if (childArea / parentArea < 0.75) continue;
+
+          // Check <img> covering most of the parent
+          if (child.tagName === "IMG") {
             var src = child.getAttribute("src") || "";
             node.background = {
               type: "image",
               value: src,
               raw: "",
               source: "img"
+            };
+            break;
+          }
+
+          // Check non-img children with CSS backgrounds that
+          // visually define the parent's appearance (gradients,
+          // background-images, solid colors on a dominant child)
+          var childStyle = window.getComputedStyle(child);
+          var childBgImage = childStyle.backgroundImage;
+          var childBgColor = childStyle.backgroundColor;
+          var childBgRaw = childStyle.background;
+
+          if (childBgImage && childBgImage !== "none") {
+            if (childBgImage.indexOf("gradient(") !== -1) {
+              node.background = {
+                type: "gradient",
+                value: childBgImage,
+                raw: childBgRaw,
+                source: "child-css"
+              };
+              break;
+            } else if (childBgImage.indexOf("url(") !== -1) {
+              var urlMatch = childBgImage.match(
+                /url\(["']?(.+?)["']?\)/
+              );
+              var url = urlMatch ? urlMatch[1] : childBgImage;
+              node.background = {
+                type: "image",
+                value: url,
+                raw: childBgRaw,
+                source: "child-css"
+              };
+              break;
+            }
+          }
+
+          if (
+            childBgColor &&
+            childBgColor !== "rgba(0, 0, 0, 0)" &&
+            childBgColor !== "transparent"
+          ) {
+            node.background = {
+              type: "color",
+              value: childBgColor,
+              raw: childBgRaw,
+              source: "child-css"
             };
             break;
           }

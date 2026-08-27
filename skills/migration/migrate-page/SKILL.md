@@ -329,16 +329,10 @@ Read `{projectPath}/styles/styles.css`. Add
 `@import` before all other rules). Also update `:root` variables to match
 brand values.
 
-Add a global EDS button reset after `:root`:
-
-```css
-main .button-container { display: inline; }
-main a.button:any-link {
-  background: none; border: none; border-radius: 0;
-  color: var(--link-color); font-size: inherit; font-weight: inherit;
-  padding: 0; margin: 0; text-decoration: underline; white-space: normal;
-}
-```
+**Do NOT add a global button reset.** Each block is responsible for
+styling its own buttons with block-scoped specificity
+(`main .{blockName} a.button:any-link`). A global reset forces every
+block to override with `!important`, degrading CSS quality.
 
 ---
 
@@ -427,7 +421,6 @@ Phase 2.5. Verify they are correct:
 
 - `styles/brand.css` exists with `:root` variables
 - `styles/styles.css` has `@import url('brand.css');` as FIRST LINE
-- `styles/styles.css` has the global button reset
 - `head.html` has font `<link>` tags
 
 If anything is missing, do it now.

@@ -257,8 +257,8 @@ Read `{projectPath}/styles/styles.css` and look for:
 
 - `max-width` on `.section > div` — if present, full-width blocks need a
   wrapper override (see "Full-Width Blocks" in Known EDS Behaviors)
-- `a.button` rules — note the specificity; your block button overrides must
-  match or exceed it (use `main .{blockName} a.button:any-link` as baseline)
+- `a.button` rules — note if any exist; your block must style its own
+  buttons with `main .{blockName} a.button:any-link` specificity
 
 Write to `{projectPath}/blocks/{blockName}/{blockName}.css`
 
@@ -726,7 +726,9 @@ links into button elements:
 <p class="button-container"><a href="/cta" class="button">Learn More</a></p>
 ```
 
-**Safe baseline override:**
+**Each block owns its own button styling.** There is no global button
+reset — you must style buttons per-block with sufficient specificity.
+Use `main .{blockName} a.button:any-link` as the baseline selector:
 
 ```css
 /* Reset button to inline link */
@@ -738,10 +740,18 @@ main .{blockName} a.button:any-link {
   padding: 0; margin: 0;
   text-align: left; text-decoration: underline;
 }
+
+/* Or style as bordered CTA */
+main .{blockName} a.button:any-link {
+  background: transparent;
+  border: 2px solid currentColor;
+  border-radius: 4px;
+  padding: 8px 24px;
+  text-align: center; text-decoration: none;
+}
 ```
 
-Always use `main .{blockName} a.button:any-link` to match specificity of
-project-level resets.
+This avoids `!important` escalation from a global reset.
 
 ### Full-Width Blocks
 
