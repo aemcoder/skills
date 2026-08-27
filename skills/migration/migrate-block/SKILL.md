@@ -1,7 +1,9 @@
 ---
 name: migrate-block
-description: Migrate a single visual component into an AEM Edge Delivery Services block. Used by scoops during page migration. Requires parameters from the cone via feed_scoop.
-allowed-tools: bash
+description: Migrate a single visual component into an AEM Edge Delivery Services block. Used by sub-agents during page migration. Requires parameters from the orchestrator.
+requires:
+  - browser
+  - node
 ---
 
 # Migrate Block to EDS
@@ -55,7 +57,7 @@ Delivery Services block with CSS, JS, content model, and visual verification.
 
 ---
 
-## Parameters (from cone's feed_scoop prompt)
+## Parameters (from orchestrator's prompt)
 
 Your prompt will include these parameters:
 
@@ -63,8 +65,8 @@ Your prompt will include these parameters:
 - `sourceUrl` — URL of the source page
 - `id` — visual tree positional ID
 - `bounds` — bounding box {x, y, width, height}
-- `projectPath` — EDS project path in VFS (e.g., "/shared/vibemigrated")
-- `notes` — optional decomposition notes from the cone
+- `projectPath` — EDS project path (e.g., "/path/to/mysite")
+- `notes` — optional decomposition notes from the orchestrator
 
 ---
 
@@ -86,71 +88,65 @@ Your prompt will include these parameters:
 ## Step 1: Extract Content from Source Page
 
 The visual tree is for decomposition only — it does NOT contain the actual
-content. Navigate to the source page and extract content directly:
+content. Navigate to the source page and extract content directly.
 
-> **Browser access:** driving playwright requires `write: /.playwright/**`.
-> The orchestrator should pre-authorize this before dispatching you; if you hit
-> a sudo prompt for `/.playwright` on the first `playwright-cli` call, that is
-> expected — it should be granted with an `always` rule so it does not recur.
+**Open** `{sourceUrl}` in the browser.
 
-```bash
-playwright-cli tab-new {sourceUrl}
+**MANDATORY — set the viewport to 1440×900 before ANY screenshot or
+extraction.** Browser tabs often default to ~780px (a mobile breakpoint).
+Capturing or measuring the component at that width yields a mobile-layout
+screenshot and can drive wrong fidelity decisions. Never skip this.
+
+Verify the viewport took effect by executing JS in the page:
+
+```javascript
+window.innerWidth >= 1024
 ```
 
-Capture the **targetId** from the output (e.g., `ABC123`). All subsequent
-`playwright-cli` commands for this tab MUST include `--tab={sourceTabId}`.
+If this returns `false`, STOP and re-set the viewport.
 
-**MANDATORY — resize to a desktop viewport before ANY screenshot or
-extraction:**
-
-```bash
-playwright-cli resize --tab={sourceTabId} 1440 900
-```
-
-New tabs open at a default viewport of ~780px (a mobile breakpoint). Capturing
-or measuring the component at that width yields a mobile-layout screenshot and
-can drive wrong fidelity decisions (e.g. baking a mobile breakpoint into the
-block CSS). Never skip this. Optionally hard-fail if the resize did not take:
-
-```bash
-playwright-cli eval --tab={sourceTabId} "window.innerWidth >= 1024"
-```
-
-If this returns `false`, STOP and re-resize — do not extract at mobile width.
-
-The cone dismissed overlays (cookie banners, consent dialogs) during
+The orchestrator dismissed overlays (cookie banners, consent dialogs) during
 Phase 1 and set consent cookies. Since all tabs share the same browser
 session, overlays should NOT appear when you navigate here. If you do
 see an overlay blocking content, click its accept/dismiss button via
-`eval` — do not just remove it from the DOM.
+JS execution — do not just remove it from the DOM.
 
-**Always wrap `eval` calls in IIFEs** to avoid variable redeclaration
+**Always wrap JS execution calls in IIFEs** to avoid variable redeclaration
 errors across multiple calls:
 
-```bash
-playwright-cli eval --tab={sourceTabId} "(() => { /* your code here */ })()"
+```javascript
+(() => { /* your code here */ })()
 ```
 
-Extract the component's content in as few `eval` calls as possible. Prefer
+Extract the component's content in as few JS executions as possible. Prefer
 one comprehensive extraction over many small probes:
 
-```bash
-playwright-cli eval --tab={sourceTabId} "(() => {
+```javascript
+(() => {
   const el = document.querySelector('{selector}');
   if (!el) return JSON.stringify({ error: 'not found' });
-  const imgs = [...el.querySelectorAll('img')].map(i => ({ src: i.src, alt: i.alt }));
-  const bgImgs = [...el.querySelectorAll('[style*=background-image]')].map(e => {
-    const m = getComputedStyle(e).backgroundImage.match(/url\([\"']?(.+?)[\"']?\)/);
-    return m ? m[1] : null;
-  }).filter(Boolean);
-  const links = [...el.querySelectorAll('a')].map(a => ({ href: a.href, text: a.textContent.trim() }));
+  const imgs = [...el.querySelectorAll('img')].map(i => ({
+    src: i.src, alt: i.alt
+  }));
+  const bgImgs = [...el.querySelectorAll('[style*=background-image]')]
+    .map(e => {
+      const m = getComputedStyle(e).backgroundImage
+        .match(/url\(["']?(.+?)["']?\)/);
+      return m ? m[1] : null;
+    }).filter(Boolean);
+  const links = [...el.querySelectorAll('a')].map(a => ({
+    href: a.href, text: a.textContent.trim()
+  }));
   const styles = getComputedStyle(el);
   return JSON.stringify({
     text: el.innerText.slice(0, 2000),
     imgs, bgImgs, links,
-    tokens: { bg: styles.backgroundColor, color: styles.color, padding: styles.padding, fontSize: styles.fontSize }
+    tokens: {
+      bg: styles.backgroundColor, color: styles.color,
+      padding: styles.padding, fontSize: styles.fontSize
+    }
   });
-})()"
+})()
 ```
 
 Note: AEM sites commonly use `background-image` CSS instead of `<img>` tags.
@@ -160,30 +156,14 @@ Check both `<img>` elements and inline `style` attributes for images.
 for all visual iterations in Step 7. Do NOT navigate back to the source
 page later.
 
-Use snapshot + ref-based screenshot for a tight element crop:
+Get the accessibility snapshot of the page to identify the right element,
+then screenshot that specific element by its CSS selector. Save to
+`{projectPath}/.migration/source-{blockName}.png`.
 
-```bash
-# 1. Take a snapshot to get element refs
-playwright-cli snapshot --tab={sourceTabId}
+If you can't identify the right element, scroll the component into view
+and take a viewport screenshot instead.
 
-# 2. Find the ref for your component in the snapshot output (e.g., e15)
-# 3. Screenshot that specific element by ref
-playwright-cli screenshot --tab={sourceTabId} e15 --max-width=1440 --filename={projectPath}/.migration/source-{blockName}.png
-```
-
-If you can't identify the right ref, fall back to a viewport screenshot
-after scrolling the component into view:
-
-```bash
-playwright-cli eval --tab={sourceTabId} "document.querySelector('{selector}').scrollIntoView({ block: 'start' })"
-playwright-cli screenshot --tab={sourceTabId} --max-width=1440 --filename={projectPath}/.migration/source-{blockName}.png
-```
-
-**Close the source tab** after extraction to reduce tab clutter:
-
-```bash
-playwright-cli tab-close --tab={sourceTabId}
-```
+**Close the source tab** after extraction to reduce tab clutter.
 
 Steps 2–5 do not use the browser. You will open a new tab in Step 6b.
 
@@ -191,35 +171,24 @@ Steps 2–5 do not use the browser. You will open a new tab in Step 6b.
 
 ## Step 2: Download Images
 
-Download all images from the source component to `{projectPath}/drafts/images/`.
+Download all images from the source component to
+`{projectPath}/drafts/images/`.
 
-Download images in parallel using the JavaScript tool:
+Download images using binary-safe file download (not text-mode write —
+text-mode corrupts bytes > 127 in binary files like images). Use whatever
+download method the harness provides (curl, fetch-to-file, etc.).
 
-```javascript
-const urls = ['https://source-site.com/img1.jpg', 'https://source-site.com/img2.jpg'];
-await Promise.all(urls.map(async (url) => {
-  const filename = url.split('/').pop();
-  await fs.fetchToFile(url, '{projectPath}/drafts/images/' + filename);
-}));
-return 'Downloaded ' + urls.length + ' images';
-```
+Image paths in `.plain.html` files use root-relative paths:
+`/drafts/images/image.jpg`
 
-**WARNING:** Do NOT use `fs.writeFile()` for binary data (images, fonts, etc.).
-The VFS bridge treats `writeFile` content as UTF-8 text — any `Uint8Array` gets
-coerced to a string, silently corrupting bytes > 127. Use `fs.fetchToFile(url, path)`
-to download binary files directly.
-
-Image paths in `.plain.html` files use root-relative paths: `/drafts/images/image.jpg`
-
-These root-relative paths work in preview because the EDS project mode in
-the service worker resolves them against the project root.
-Do NOT use `/preview/shared/...` or `/shared/...` absolute paths.
+These root-relative paths work in preview because the project is served
+from its root directory.
 
 > **Preview-only paths.** These `/drafts/images/...` srcs resolve in the
-> project-mode preview but are `about:error` on the live DA page — the rewrite
-> to absolute/DA-hosted URLs is owned by the DA-upload flow (see the
-> `eds-da-content` skill, `references/media.md`). A `.plain.html` shipped as-is
-> WILL have broken images; that’s expected, not a block defect.
+> project-mode preview but are `about:error` on the live DA page — the
+> rewrite to absolute/DA-hosted URLs is owned by the DA-upload flow (see
+> the `eds-da-content` skill, `references/media.md`). A `.plain.html`
+> shipped as-is WILL have broken images; that's expected, not a block defect.
 
 ---
 
@@ -259,10 +228,11 @@ The `.plain.html` file contains ONLY content structure:
 inline styles, or any wrapper outside the content divs.
 
 **Section lead-in headings:** If your prompt's `## Parameters` include
-`Section heading: OWNED BY CONE`, the section's lead-in heading (the `<h2>`/`<h3>`
-that introduces this block's section) is written separately by the cone as
-default-content. Do NOT include that heading in your `.plain.html` — start your
-block at its own content, or it will render twice.
+`Section heading: OWNED BY ORCHESTRATOR`, the section's lead-in heading (the
+`<h2>`/`<h3>` that introduces this block's section) is written separately
+by the orchestrator as default-content. Do NOT include that heading in
+your `.plain.html` — start your block at its own content, or it will
+render twice.
 
 ### Symbol characters — use HTML entities
 
@@ -276,22 +246,14 @@ never the literal character:
 | `™` (trademark) | `&#8482;` |
 | `®` (registered) | `&#174;` |
 
-Example: write `<p>&#169; 2026 Company</p>`, NOT `<p>© 2026 Company</p>`. A
-faithful copy of the source's literal `©` will render broken after DA upload,
-so convert it here at authoring time.
-
 ---
 
 ## Step 4: Write Block CSS
 
-**BEFORE writing CSS**, check the project's global styles for layout
+**BEFORE writing CSS**, read the project's global styles for layout
 constraints and button overrides that will affect your block:
 
-```
-read_file({ "path": "{projectPath}/styles/styles.css" })
-```
-
-Look for:
+Read `{projectPath}/styles/styles.css` and look for:
 
 - `max-width` on `.section > div` — if present, full-width blocks need a
   wrapper override (see "Full-Width Blocks" in Known EDS Behaviors)
@@ -354,7 +316,7 @@ Do NOT fetch external resources or add `<script>` tags.
 When EDS decorates your block, the DOM changes. Your CSS selectors must
 target the **decorated** structure, not the authored structure.
 
-```
+```text
 Authored (.plain.html):            After EDS decoration:
 
 <div>                              <div class="section">
@@ -429,64 +391,47 @@ Write to `{projectPath}/drafts/{blockName}-preview.html`:
 </html>
 ```
 
-**Read head.html from the project:**
-
-```
-read_file({ "path": "{projectPath}/head.html" })
-```
-
-Copy the `<script>` and `<link>` tags from head.html EXACTLY — including
-`nonce` attributes, `type="module"`, and all `<meta>` tags except CSP (the
-service worker doesn't enforce CSP, so the CSP meta can be omitted).
+Read `{projectPath}/head.html` and copy the `<script>` and `<link>` tags
+EXACTLY — including `nonce` attributes, `type="module"`, and all `<meta>`
+tags except CSP.
 
 **Key points:**
 
 - `<header>` and `<footer>` are empty — EDS fills them from nav/footer fragments
-- Block previews may show empty headers/footers if those scoops haven't
+- Block previews may show empty headers/footers if those agents haven't
   completed yet — this is expected, focus on the block itself
-- The `overflow: auto !important` fixes SLICC's scrolling limitation
+- The `overflow: auto !important` fixes scrolling limitations
 
-### 6b. Open the Preview (project-mode, non-intrusive)
+### 6b. Serve and Open the Preview
 
-```bash
-open {projectPath}/drafts/{blockName}-preview.html
-```
+Serve the project root (`{projectPath}`) as a static site and open
+`drafts/{blockName}-preview.html` in the browser. Root-relative paths
+(`/scripts/...`, `/styles/...`, `/drafts/images/...`) must resolve against
+the project root.
 
-The `open` command auto-detects the project root and routes the file through the
-EDS **project-mode preview service worker** — root-absolute paths
-(`/scripts/...`, `/styles/...`, `/drafts/images/...`) resolve natively, and the
-result is a **leader-side, playwright-controllable** tab (you can screenshot and
-drive it). Unlike `serve`, `open` does NOT broadcast the preview to followers or
-force-focus a tab in the human's browser, so it does not steal focus.
-
-Capture the **targetId** and the **preview URL** from the output. All subsequent
-`playwright-cli` commands for this preview tab MUST include `--tab={previewTabId}`.
-To pick up CSS/JS changes, reload the existing tab with `goto` — do not re-run
-`open` for every iteration.
-
-If the preview tab is closed or a `--tab` command fails with an invalid target,
-re-run `open` to get a new tab and targetId.
-
-> **Use `open`, not `serve`, for local verification.** `serve` broadcasts the
-> preview URL to followers and force-opens it in the leader's browser (focus
-> theft); it is only needed when you actually want to *share* a preview with the
-> human. A block scoop only needs to render + screenshot + self-verify, so `open`
-> is the correct, non-intrusive primitive. Do NOT use
-> `playwright-cli open <file>` — a raw VFS-path open lacks the projectRoot param
-> and loads `about:blank`.
+To pick up CSS/JS changes during iteration, reload the preview page — do
+not re-open or re-serve for every iteration.
 
 ### 6c. Verify EDS Framework Loaded
 
-Run this verification BEFORE any visual comparison:
+Run this verification BEFORE any visual comparison. Execute JS in the page:
 
-```bash
-playwright-cli eval --tab={previewTabId} "JSON.stringify({ hlx: !!window.hlx, codeBasePath: window.hlx?.codeBasePath, bodyAppear: document.body.classList.contains('appear'), sections: document.querySelectorAll('.section').length, blocks: Array.from(document.querySelectorAll('[data-block-name]')).map(b => ({ name: b.dataset.blockName, status: b.dataset.blockStatus })) })"
+```javascript
+JSON.stringify({
+  hlx: !!window.hlx,
+  codeBasePath: window.hlx?.codeBasePath,
+  bodyAppear: document.body.classList.contains('appear'),
+  sections: document.querySelectorAll('.section').length,
+  blocks: Array.from(document.querySelectorAll('[data-block-name]')).map(
+    b => ({ name: b.dataset.blockName, status: b.dataset.blockStatus })
+  )
+})
 ```
 
 **Required results:**
 
 - `hlx` must be `true`
-- `codeBasePath` must be a string (controls where blocks/styles load from)
+- `codeBasePath` must be a string
 - `bodyAppear` must be `true`
 - Your block must appear in the blocks array with `status: "loaded"`
 
@@ -500,57 +445,51 @@ Do NOT work around framework failures by inlining CSS/JS.
 
 ### 6d. Verify Images
 
-Run the shared image verifier (checks EVERY `<img>`, including hidden
-ones, and resolves ambiguous cases with an in-page HTTP fetch):
-
-```bash
-playwright-cli eval-file --tab={previewTabId} /workspace/skills/migrate-block/scripts/verify-images.js
-```
+Execute the `verify-images.js` script (shipped with the `migrate-block`
+skill) in the page context. It checks EVERY `<img>`, including hidden
+ones, and resolves ambiguous cases with an in-page HTTP fetch.
 
 **Required:** `pass: true`. If false, inspect `failures` (each entry has
 `src`, `status`, `httpStatus`) and fix the content or asset paths before
 visual iteration.
 
-**`naturalWidth` alone is never a validity signal.** It reads `0` not only for
-genuinely broken images but also for SVGs that render perfectly, for images in
-hidden panes (tabs/accordion) that never triggered a load, and for media still
-being ingested downstream. Judge validity by the combined `complete` +
-HTTP-status check the verifier runs, or by a screenshot — never by
-`naturalWidth` by itself.
+**`naturalWidth` alone is never a validity signal.** It reads `0` not only
+for genuinely broken images but also for SVGs that render perfectly, for
+images in hidden panes (tabs/accordion) that never triggered a load, and
+for media still being ingested downstream.
 
 ### 6e. Structure Sanity-Check (before pixel iteration)
 
-Visual iteration is excellent for CSS gaps but the WRONG loop for JS/structural
-bugs — a wrong child/row/cell count will never be fixed by a CSS tweak, so
-catch it here before spending screenshot iterations. Assert the decorated
-block's structure against what the source implies:
+Visual iteration is excellent for CSS gaps but the WRONG loop for
+JS/structural bugs — a wrong child/row/cell count will never be fixed by
+a CSS tweak, so catch it here before spending screenshot iterations.
+Execute JS in the page:
 
-```bash
-playwright-cli eval --tab={previewTabId} "(() => {
+```javascript
+(() => {
   const block = document.querySelector('.{blockName}.block');
   if (!block) return JSON.stringify({ error: 'block not found' });
   const rows = block.querySelectorAll(':scope > div');
   return JSON.stringify({
     rows: rows.length,
-    cellsPerRow: [...rows].map(r => r.querySelectorAll(':scope > div').length),
+    cellsPerRow: [...rows].map(
+      r => r.querySelectorAll(':scope > div').length
+    ),
     imgs: block.querySelectorAll('img').length,
-    // add block-specific expected counts, e.g. for tabs: number of tab panels/buttons
-    tabButtons: block.querySelectorAll('[role=tab], .tab-button, button').length,
+    tabButtons: block.querySelectorAll(
+      '[role=tab], .tab-button, button'
+    ).length,
   });
-})()"
+})()
 ```
 
-Compare against the source component's structure (from your Step 1 source
-screenshot and extracted content):
-row count, cells per row, image count, and any block-specific repetition (tabs,
-cards, accordion items). **If a count is wrong, fix the `.plain.html` content
-model or the block JS FIRST — do not proceed to pixel iteration.** A block that
-looks close but has the wrong number of cards/tabs/rows is not done.
+Compare against the source component's structure. **If a count is wrong,
+fix the `.plain.html` content model or the block JS FIRST — do not proceed
+to pixel iteration.**
 
-While inspecting the structure, note whether the block hides content in
-inactive containers (tab panels, accordion bodies, carousel slides not all
-visible at once). Record this as `hasHiddenPanes` in your report and completion
-message (Steps 8-9).
+Note whether the block hides content in inactive containers (tab panels,
+accordion bodies, carousel slides). Record this as `hasHiddenPanes` in
+your report and completion message.
 
 ---
 
@@ -560,80 +499,55 @@ Only proceed here after Step 6c passes.
 
 **Font rendering note:** Adobe Fonts (Typekit) validates the requesting
 domain. On `localhost`, Typekit returns empty CSS — fonts will show
-fallbacks (Georgia, Times New Roman). This is expected and NOT a bug
-to fix. Do NOT waste iterations trying to match font rendering. Focus
-on layout, spacing, colors, and structure. Fonts will render correctly
-when deployed to a whitelisted production domain.
+fallbacks. This is expected and NOT a bug to fix. Focus on layout, spacing,
+colors, and structure.
 
 **Source screenshot:** You already captured this in Step 1. Read it from:
 `{projectPath}/.migration/source-{blockName}.png`
-Do NOT navigate back to the source page. Reuse this screenshot for every
-iteration.
+Do NOT navigate back to the source page.
 
-**Capture target:** anchor the screenshot to a STABLE SELECTOR, not a
-hand-picked ref from `snapshot` — refs can be ambiguous or drift between
-iterations, especially for short/interactive blocks (e.g. a collapsed
-accordion). `playwright-cli screenshot` accepts a unique CSS selector
-directly as its target, so pass the selector itself:
-
-- Prefer `.{blockName}-wrapper` (the EDS-generated wrapper around the
-  block) — it gives a consistent frame even when the block itself is
-  short or collapsed.
-- If no wrapper exists, use `.{blockName}.block` directly.
-- Do NOT fall back to full-page or re-guessing a ref hoping for a better
-  crop — the selector is deterministic across reloads, so one capture
-  target is correct for every iteration.
+**Capture target:** Anchor the screenshot to a STABLE CSS SELECTOR, not
+a transient reference. Prefer `.{blockName}-wrapper` (the EDS-generated
+wrapper) or `.{blockName}.block` directly. Reuse the same selector for
+every iteration.
 
 For each iteration:
 
-1. **Screenshot the preview** by selector (reuse the same selector across
-   iterations):
+1. **Screenshot the preview** by CSS selector `.{blockName}-wrapper`.
+   Save to `{projectPath}/.migration/preview-{blockName}-iter{N}.png`.
 
-   ```bash
-   playwright-cli screenshot --tab={previewTabId} ".{blockName}-wrapper" --max-width=1440 --filename={projectPath}/.migration/preview-{blockName}-iter{N}.png
-   ```
-
-2. **Compare:** Read both screenshots (source from Step 1, preview from
-   above). Identify the top 2-3 CSS gaps:
+2. **Compare:** Read both screenshots. Identify the top 2-3 CSS gaps:
    - Padding/margin (highest priority)
    - Background color/gradient
    - Layout/flex direction
    - Font size/weight (but NOT font-family — see note above)
 
-3. **Fix:** Batch ALL CSS fixes for this iteration into a SINGLE `edit_file`
-   call. Identify all gaps from the comparison, then apply them together —
-   do not make separate edits for each property. Edit
-   `{projectPath}/blocks/{blockName}/{blockName}.css`. Do NOT rewrite the
-   entire file.
+3. **Fix:** Batch ALL CSS fixes for this iteration into a SINGLE file
+   edit. Edit `{projectPath}/blocks/{blockName}/{blockName}.css`. Do NOT
+   rewrite the entire file.
 
-4. **Reload:** Refresh the preview tab to pick up CSS/JS changes (reuse
-   the preview URL from Step 6b — do NOT re-run `open`):
-
-   ```bash
-   playwright-cli goto --tab={previewTabId} {previewUrl}
-   ```
+4. **Reload** the preview page to pick up CSS/JS changes.
 
 **Stop conditions:**
 
 - After iteration 3: finalize regardless of remaining differences
-- If a further iteration would yield no meaningful visual improvement: accept and stop
+- If a further iteration would yield no meaningful visual improvement
 
 ---
 
 ## Step 8: Write Report — OPT-IN
 
-**Skip this step unless the user explicitly requested reports** (e.g.,
-"generate reports", "include reports", "write migration reports").
+**Skip this step unless the user explicitly requested reports.**
 
-If requested, write the report in **two passes** to ensure a report exists
-even if visual iterations don't complete (timeout, error, etc.):
+If requested, write the report in **two passes**:
 
-**Pass 1 — Write immediately after Step 6c passes** (before visual iterations):
-Write with `"status": "partial"` and the `edsVerification` data. This
-guarantees the cone gets a report even if Step 7 never finishes.
+**Pass 1 — Write immediately after Step 6c passes** (before visual
+iterations): Write with `"status": "partial"` and the `edsVerification`
+data. This guarantees the orchestrator gets a report even if Step 7
+never finishes.
 
-**Pass 2 — Update after Step 7 completes** (after visual iterations):
-Update with final `status`, `visualVerification`, and `designTokens`.
+**Pass 2 — Update after Step 7 completes**: Update with final `status`,
+`visualVerification`, and `designTokens`.
 
 Write to `{projectPath}/.migration/reports/{blockName}-report.json`:
 
@@ -654,7 +568,7 @@ Write to `{projectPath}/.migration/reports/{blockName}-report.json`:
   ],
   "edsVerification": {
     "hlx": true,
-    "codeBasePath": "/preview/shared/vibemigrated",
+    "codeBasePath": "...",
     "bodyAppear": true,
     "blockLoaded": true,
     "blockStatus": "loaded"
@@ -681,32 +595,20 @@ Write to `{projectPath}/.migration/reports/{blockName}-report.json`:
 }
 ```
 
-**Status thresholds** — the visual bands below are your **qualitative
-self-assessment by eye** against the source screenshot, NOT a measured pixel
-diff (none is computed anywhere). The EDS framework checks are objective; the
-percentages are rough labels only, so do not present them as metrics:
+**Status thresholds** — the visual bands are your **qualitative
+self-assessment by eye**, NOT a measured pixel diff:
 
 - `"success"` — close visual match + EDS framework verified
 - `"partial"` — rough/partial visual match, or EDS framework issues
 - `"failed"` — poor visual match, or framework didn't load
 
-**ALL reports MUST use this exact schema.** Do not add extra top-level keys
-or rename fields.
+**ALL reports MUST use this exact schema.** Do not add extra top-level keys.
 
-- `hasHiddenPanes`: `true` if the block hides content in inactive containers
-  (tabs, accordion panels, carousel slides) that are not all visible at once;
-  otherwise `false`. Downstream media warming needs this to know it must
-  activate each pane to load its images.
+## Step 9: Notify Orchestrator
 
-## Step 9: Notify Cone
+**Close the preview tab** before notifying.
 
-**Close the preview tab** before notifying the cone:
-
-```bash
-playwright-cli tab-close --tab={previewTabId}
-```
-
-Then `send_message` to the cone with a **JSON string** in this exact format:
+Report completion to the orchestrator with this JSON payload:
 
 ```json
 {
@@ -724,12 +626,11 @@ Then `send_message` to the cone with a **JSON string** in this exact format:
 }
 ```
 
-- `done` is always `true` — signals the scoop finished (even on failure)
-- `status`: success (close match), partial (rough match), failed (poor match or framework broken) — visual judgment is self-assessed by eye, not a measured diff
-- `hasHiddenPanes`: `true` for tabs/accordion/carousel blocks with inactive
-  hidden panes (so the cone activates them before media warming); else `false`
+- `done` is always `true` — signals the agent finished (even on failure)
+- `status`: success / partial / failed — self-assessed by eye
+- `hasHiddenPanes`: `true` for tabs/accordion/carousel blocks
 - `files`: actual paths written, relative to project root
-- `issues`: empty array if none; include actionable descriptions if any
+- `issues`: empty array if none
 
 ---
 
@@ -743,13 +644,9 @@ If your block is the footer:
 - Do NOT use a `footer` class in any inner `<div>` inside footer.plain.html
   (the EDS framework would try to recursively load the footer block)
 
-> **The footer case may spawn an auxiliary block.** A structured footer (e.g. a
-> 4-column grid) is commonly implemented as the `footer` fragment PLUS a new
-> content block such as `footer-columns` (its own `blocks/footer-columns/`).
-> This is expected and correct — it means the post-run block-directory count
-> can exceed the decomposition's block count. Anything counting migrated
-> artifacts should count actual fragments + block directories produced, not
-> decomposition entries.
+> **The footer case may spawn an auxiliary block.** A structured footer
+> (e.g. a 4-column grid) is commonly implemented as the `footer` fragment
+> PLUS a new content block such as `footer-columns`. This is expected.
 
 ### Footer Fragment DOM Structure
 
@@ -757,35 +654,16 @@ The footer loads through a **fragment pipeline** — not as a normal block.
 The chain is: `footer.js` → `fragment.js` → `decorateMain()` →
 `decorateSections()` → `decorateBlocks()` → your block's `decorate()`.
 
-This means the DOM has extra wrapper layers compared to a normal block:
-
-```
-<footer>
-  <div>                          ← fragment container (created by footer.js)
-    <div class="section">        ← added by decorateSections()
-      <div>                      ← section content wrapper
-        <div class="your-block-wrapper">
-          <div class="your-block block" data-block-name="your-block">
-            <div>row 1</div>     ← your authored content
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-</footer>
-```
-
+This means the DOM has extra wrapper layers compared to a normal block.
 **CSS selectors must account for this nesting.** Use `.your-block > div`
-to target rows — do NOT assume the block is a direct child of `<footer>`.
+to target rows.
 
 ### Footer Preview — CRITICAL
 
 The footer loads via `loadFooter()` which runs inside `loadLazy()`.
 `loadLazy()` only runs after `loadEager()` succeeds. **`loadEager()` will
-CRASH if `<main>` is empty** — it calls `loadSection(main.querySelector('.section'))`
-which throws on null.
-
-The footer preview HTML MUST include a non-empty `<main>`:
+CRASH if `<main>` is empty.** The footer preview HTML MUST include a
+non-empty `<main>`:
 
 ```html
 <html>
@@ -804,22 +682,14 @@ The footer preview HTML MUST include a non-empty `<main>`:
 </html>
 ```
 
-Do NOT use `<main></main>` — the EDS framework needs at least one `<div>`
-child to create a `.section`, or `loadEager()` crashes and `loadFooter()`
-never runs.
-
 ---
 
 ## Known EDS Behaviors
 
-> **Note:** helper scripts run via `node` must follow the SLICC node-bridge
-> constraints documented in `migrate-page` (no `withFileTypes`, no `spawn*`, no
-> stdin streaming, no `require.main`, sync fs only).
-
 ### Button Auto-Decoration
 
-EDS's `decorateButtons()` (called during `decorateMain()`) automatically
-transforms standalone paragraph links into button elements:
+EDS's `decorateButtons()` automatically transforms standalone paragraph
+links into button elements:
 
 ```html
 <!-- Your .plain.html content -->
@@ -829,14 +699,7 @@ transforms standalone paragraph links into button elements:
 <p class="button-container"><a href="/cta" class="button">Learn More</a></p>
 ```
 
-This turns text links into styled buttons. EDS also applies `text-align: center`
-to `.button` elements.
-
-**IMPORTANT:** Check `{projectPath}/styles/styles.css` for project-level
-button resets before writing your overrides. The project may have rules like
-`main a.button:any-link { ... }` that require matching specificity.
-
-**Safe baseline override** (works against both EDS defaults and project resets):
+**Safe baseline override:**
 
 ```css
 /* Reset button to inline link */
@@ -848,26 +711,15 @@ main .{blockName} a.button:any-link {
   padding: 0; margin: 0;
   text-align: left; text-decoration: underline;
 }
-
-/* Or style as bordered CTA */
-main .{blockName} a.button:any-link {
-  background: transparent;
-  border: 2px solid currentColor;
-  border-radius: 4px;
-  padding: 8px 24px;
-  text-align: center; text-decoration: none;
-}
 ```
 
-Note: always use `main .{blockName} a.button:any-link` — NOT just
-`.{blockName} a.button` — to match the specificity of project-level resets.
+Always use `main .{blockName} a.button:any-link` to match specificity of
+project-level resets.
 
 ### Full-Width Blocks
 
-EDS wraps sections in `.section > div { max-width: 1200px }`. Heroes,
-banners, and full-bleed blocks get constrained to the center column.
-
-**Fix:** Override the wrapper's max-width in your block CSS:
+EDS wraps sections in `.section > div { max-width: 1200px }`. Override
+for full-bleed blocks:
 
 ```css
 .{blockName}-wrapper {
@@ -876,31 +728,17 @@ banners, and full-bleed blocks get constrained to the center column.
 }
 ```
 
-This is needed for any block that should span the full viewport width.
-
 ### Icon Rendering
 
 EDS renders `<span class="icon icon-{name}">` as `<img>` tags pointing
 to `/icons/{name}.svg`. Because they're `<img>` elements (not inline SVG),
-**`fill="currentColor"` does NOT work.**
-
-When creating SVG icons for EDS:
-
-- Use explicit fill colors: `fill="#ffffff"` or `fill="#000000"`
-- Do NOT use `fill="currentColor"` — it renders as invisible/black
+**`fill="currentColor"` does NOT work.** Use explicit fill colors.
 
 ### decorateButtons() Variant Risk
 
 Some projects override `decorateButtons()` in `scripts.js` to require
-`<strong>` or `<em>` wrapper around links for button decoration. Check
-when reading `styles.css` in Step 4:
-
-```
-read_file({ "path": "{projectPath}/scripts/scripts.js" })
-```
-
-Search for `strong` or `em` in the `decorateButtons` function. If found,
-wrap CTA links: `<p><strong><a href="...">CTA text</a></strong></p>`
+`<strong>` or `<em>` wrapper. Check `{projectPath}/scripts/scripts.js`
+for `strong` or `em` in the `decorateButtons` function.
 
 ---
 
@@ -917,11 +755,9 @@ wrap CTA links: `<p><strong><a href="...">CTA text</a></strong></p>`
 | Criterion | Target |
 | ----------- | -------- |
 | EDS framework verified | hlx=true, bodyAppear=true, block loaded |
-| Visual similarity (by eye) | close match acceptable, near-exact ideal — self-assessed, not measured |
-| Header similarity (by eye) | close match; interactive states differ — self-assessed |
+| Visual similarity (by eye) | close match acceptable, near-exact ideal |
 | Max iterations | 3 (5 for header) |
 | CSS scoping | All rules under .blockname |
-| Header CSS | All rules under .header.block |
 | .plain.html | NO html/head/body/script/style tags |
 | Images | `<picture><img>` with alt text, /drafts/images/ paths |
 | Report schema | Exact schema above, no extra keys |

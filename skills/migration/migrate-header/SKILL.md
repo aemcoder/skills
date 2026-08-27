@@ -1,7 +1,9 @@
 ---
 name: migrate-header
 description: Migrate a website header/navigation into an AEM Edge Delivery Services header block with nav.plain.html. Handles single-row and multi-section headers, dropdowns, mega menus, and mobile patterns.
-allowed-tools: bash
+requires:
+  - browser
+  - node
 ---
 
 # Migrate Header to EDS
@@ -23,10 +25,10 @@ typically pre-built in the EDS repo — you customize CSS only.
 
 ---
 
-## Parameters (from cone's feed_scoop prompt)
+## Parameters (from orchestrator's prompt)
 
 - `sourceUrl` — URL of the source page
-- `projectPath` — EDS project path (e.g., `/shared/vibemigrated`)
+- `projectPath` — EDS project path (e.g., `/path/to/mysite`)
 - `bounds` — bounding box of the header region
 - `notes` — decomposition notes (e.g., "two-tier purple header")
 
@@ -34,112 +36,88 @@ typically pre-built in the EDS repo — you customize CSS only.
 
 ## Step 1: Capture Source Header
 
-Navigate to the source page and extract the header's content:
+**Open** `{sourceUrl}` in the browser.
 
-> **Browser access:** driving playwright requires `write: /.playwright/**`.
-> The orchestrator should pre-authorize this before dispatching you; if you hit
-> a sudo prompt for `/.playwright` on the first `playwright-cli` call, that is
-> expected — it should be granted with an `always` rule so it does not recur.
+**MANDATORY — set the viewport to 1440×900 before ANY screenshot or
+extraction.** Browser tabs often default to ~780px (a mobile breakpoint).
+Capturing at that width yields a mobile-layout screenshot and wrong
+fidelity decisions. Never skip this.
 
-```bash
-playwright-cli tab-new {sourceUrl}
+Verify the viewport by executing JS in the page:
+
+```javascript
+window.innerWidth >= 1024
 ```
 
-Capture the **targetId** from the output (e.g., `ABC123`). All subsequent
-`playwright-cli` commands for this tab MUST include `--tab={sourceTabId}`.
+If this returns `false`, STOP and re-set the viewport.
 
-**MANDATORY — resize to a desktop viewport before ANY screenshot or
-extraction:**
+The orchestrator dismissed overlays during Phase 1 and set consent cookies.
+If you still see an overlay, click its accept/dismiss button via JS
+execution.
 
-```bash
-playwright-cli resize --tab={sourceTabId} 1440 900
-```
+**Always wrap JS execution calls in IIFEs.**
 
-New tabs open at a default viewport of ~780px (a mobile breakpoint). Capturing
-or measuring the component at that width yields a mobile-layout screenshot and
-can drive wrong fidelity decisions (e.g. baking a mobile breakpoint into the
-block CSS). Never skip this. Optionally hard-fail if the resize did not take:
+Check whether the site uses `<header>` or `<nav>` for navigation:
 
-```bash
-playwright-cli eval --tab={sourceTabId} "window.innerWidth >= 1024"
-```
-
-If this returns `false`, STOP and re-resize — do not extract at mobile width.
-
-The cone dismissed overlays (cookie banners, consent dialogs) during
-Phase 1 and set consent cookies. Since all tabs share the same browser
-session, overlays should NOT appear when you navigate here. If you do
-see an overlay, click its accept/dismiss button via `eval`.
-
-**Always wrap `eval` calls in IIFEs** to avoid variable redeclaration
-errors across multiple calls.
-
-Use `eval` to extract the header HTML. Note: some sites use `<nav>` instead
-of `<header>` for navigation. Check with `eval` first to confirm the right
-element:
-
-```bash
-playwright-cli eval --tab={sourceTabId} "(() => {
+```javascript
+(() => {
   const h = document.querySelector('header');
   const n = document.querySelector('nav');
-  return JSON.stringify({ header: !!h, nav: !!n, headerTag: h?.tagName, navId: n?.id });
-})()"
+  return JSON.stringify({
+    header: !!h, nav: !!n,
+    headerTag: h?.tagName, navId: n?.id
+  });
+})()
 ```
 
 Extract all header content in one comprehensive call:
 
-```bash
-playwright-cli eval --tab={sourceTabId} "(() => {
-  const nav = document.querySelector('header') || document.querySelector('nav');
+```javascript
+(() => {
+  const nav = document.querySelector('header')
+    || document.querySelector('nav');
   if (!nav) return JSON.stringify({ error: 'no header/nav found' });
   const logoImg = nav.querySelector('img');
   const logoSvg = !logoImg ? nav.querySelector('svg') : null;
-  const links = [...nav.querySelectorAll('a')].map(a => ({ href: a.href, text: a.textContent.trim() }));
+  const links = [...nav.querySelectorAll('a')].map(a => ({
+    href: a.href, text: a.textContent.trim()
+  }));
   const styles = getComputedStyle(nav);
   return JSON.stringify({
     html: nav.outerHTML.slice(0, 5000),
     logo: logoImg
       ? { kind: 'img', src: logoImg.src, alt: logoImg.alt }
       : logoSvg
-        ? { kind: 'inline-svg', hasText: !!logoSvg.querySelector('text') }
+        ? { kind: 'inline-svg',
+            hasText: !!logoSvg.querySelector('text') }
         : null,
     links: links.slice(0, 50),
-    tokens: { bg: styles.backgroundColor, color: styles.color, height: styles.height, fontSize: styles.fontSize }
+    tokens: {
+      bg: styles.backgroundColor, color: styles.color,
+      height: styles.height, fontSize: styles.fontSize
+    }
   });
-})()"
+})()
 ```
 
 **Record the logo type** — it decides the Step 4 brand pattern:
 
-- `logo` is `null` (no `<img>` or `<svg>` found): no logo detected — flag
-  this for manual reconciliation before Step 4. Do NOT default to raster.
-- `logo.kind === 'inline-svg'`: read `logo.hasText` directly from the
-  extraction result (no fetch needed — the markup is already in hand).
-  Record `svg-with-text` or `svg-shape-only`.
-- `logo.kind === 'img'` and `logo.src` ends in `.svg` or is a
-  `data:image/svg` URI: fetch it (`curl -fsSL -- "{logo.src}"`) and check
-  for `<text>` elements. Record `svg-with-text` or `svg-shape-only`.
-- `logo.kind === 'img'` and `logo.src` has a non-SVG extension (`.png`,
-  `.jpg`, etc.): record `raster`.
-- `logo.kind === 'img'` and `logo.src` has NO recognizable image extension
-  (e.g. an extensionless CDN endpoint): check the response `Content-Type`
-  (`curl -fsSLI -- "{logo.src}"`) — treat `image/svg+xml` as SVG (apply the
-  fetch-and-check-text branch above), anything else as `raster`.
+- `logo` is `null`: no logo detected — flag for manual reconciliation.
+- `logo.kind === 'inline-svg'`: read `logo.hasText`. Record
+  `svg-with-text` or `svg-shape-only`.
+- `logo.kind === 'img'` and src ends in `.svg` or is `data:image/svg`:
+  fetch it and check for `<text>` elements. Record `svg-with-text` or
+  `svg-shape-only`.
+- `logo.kind === 'img'` with a non-SVG extension: record `raster`.
+- `logo.kind === 'img'` with no recognizable extension: check the
+  response `Content-Type`. Treat `image/svg+xml` as SVG, else `raster`.
 
 **Screenshot the source header NOW** — reuse for all visual iterations.
-Use snapshot + ref-based screenshot for a tight crop:
+Get the accessibility snapshot, identify the header element, and
+screenshot it by CSS selector. Save to
+`{projectPath}/.migration/source-header.png`.
 
-```bash
-playwright-cli snapshot --tab={sourceTabId}
-# Find the ref for the header/nav element (e.g., e3)
-playwright-cli screenshot --tab={sourceTabId} e3 --max-width=1440 --filename={projectPath}/.migration/source-header.png
-```
-
-**Close the source tab** after extraction:
-
-```bash
-playwright-cli tab-close --tab={sourceTabId}
-```
+**Close the source tab** after extraction.
 
 Steps 2–5 do not use the browser. You will open a new tab in Step 6b.
 
@@ -150,10 +128,9 @@ Steps 2–5 do not use the browser. You will open a new tab in Step 6b.
 **Write nav.plain.html within 7 minutes of starting.** Do NOT spend more
 than 7 minutes on header analysis before writing the initial files.
 
-- Use placeholder items for complex mega menu content. Note gaps in report.
+- Use placeholder items for complex mega menu content.
 - Do NOT recreate icon fonts or SVG icons from scratch. Use text/emoji.
-- Extract the 5 most impactful header tokens (background color, nav font
-  size, logo height, nav gap, section padding) before writing the first CSS.
+- Extract the 5 most impactful header tokens before writing the first CSS.
   Iterate toward exact values during visual verification.
 
 ---
@@ -183,32 +160,27 @@ Examine the extracted HTML and screenshot to determine the header type:
 Also detect dropdown types for each nav item:
 
 - **Simple dropdown:** nested `<ul>` contains only `<li>` with `<a>` links
-- **Mega dropdown:** nested content includes headings (`<h1>`-`<h6>`),
-  paragraphs (`<p>`), images, or rich content blocks
+- **Mega dropdown:** nested content includes headings, paragraphs, images,
+  or rich content blocks
 
 ---
 
 ## Step 3: Install Header Block
 
-Check if the repo already has a header block:
+Check if the repo already has a header block by reading
+`{projectPath}/blocks/header/header.js` and `header.css`.
 
-```
-read_file({ "path": "{projectPath}/blocks/header/header.js" })
-read_file({ "path": "{projectPath}/blocks/header/header.css" })
-```
-
-**CRITICAL: Read header.js to understand the JS contract.** The nav.plain.html
-structure MUST match what the JS expects:
+**CRITICAL: Read header.js to understand the JS contract.** The
+nav.plain.html structure MUST match what the JS expects:
 
 - If the JS uses **index-based section assignment** (e.g.,
-  `const classes = ['brand', 'sections', 'tools']` and assigns by
-  `children[0]`, `children[1]`, `children[2]`), do NOT add `section-metadata`
-  divs — they would count as extra children and throw off the indexing.
-- If the JS uses **section-metadata Style values**, use the multi-section
-  format with metadata divs.
+  `children[0]`, `children[1]`, `children[2]`), do NOT add
+  `section-metadata` divs — they would count as extra children.
+- If the JS uses **section-metadata Style values**, use the
+  multi-section format with metadata divs.
 - Count how many child `<div>`s the JS expects and match exactly.
 
-If `blocks/header/` exists, **keep the existing JS**. You only customize CSS.
+If `blocks/header/` exists, **keep the existing JS**. Customize CSS only.
 
 If `blocks/header/` does NOT exist, create both files. The JS should:
 
@@ -225,24 +197,20 @@ If `blocks/header/` does NOT exist, create both files. The JS should:
 Write to `{projectPath}/drafts/nav.plain.html`.
 
 > **Brand logos: never ship an SVG as a bare `<img>`.** Downstream DA
-> media optimization rasterizes SVGs (`media_*.svg?...&format=webply`);
-> any SVG relying on `<text>` + web fonts loses its text and can render
-> blank. If the source logo is an SVG (either type recorded in Step 1),
-> decompose it: a **shape-only icon** (no `<text>` elements) committed
-> to `{projectPath}/icons/{icon-name}.svg`, referenced through the EDS
-> icon system (`<span class="icon icon-{icon-name}"></span>` —
-> `decorateIcons` in aem.js serves the raw SVG from the code bus,
-> bypassing DA media optimization), plus the wordmark as **real HTML
-> text**. Verify the icon has no text: `grep -c '<text' icons/{icon-name}.svg`
-> must output 0. Raster logos (PNG/JPG) may remain `<img>` elements.
+> media optimization rasterizes SVGs; any SVG relying on `<text>` + web
+> fonts loses its text. If the source logo is an SVG, decompose it:
+> a **shape-only icon** committed to `{projectPath}/icons/{icon-name}.svg`,
+> referenced through the EDS icon system
+> (`<span class="icon icon-{icon-name}"></span>`), plus the wordmark as
+> **real HTML text**. Raster logos (PNG/JPG) may remain `<img>` elements.
 
 ### Single-Row Format
 
 ```html
 <div>
-  <!-- SVG source logo: icon + HTML wordmark (REQUIRED for SVG) -->
+  <!-- SVG source logo: icon + HTML wordmark -->
   <p><a href="/"><span class="icon icon-brand"></span> <strong>Company</strong></a></p>
-  <!-- Raster source logo: plain img is acceptable -->
+  <!-- Raster source logo: plain img -->
   <!-- <p><a href="/"><img src="/drafts/images/logo.png" alt="Company"></a></p> -->
   <ul>
     <li><a href="/products">Products</a>
@@ -261,13 +229,6 @@ Write to `{projectPath}/drafts/nav.plain.html`.
   </div>
 </div>
 ```
-
-**Structure:**
-
-- Logo (first element): SVG source → `<p><a><span class="icon icon-{name}"></span> <strong>Wordmark</strong></a></p>`; raster source → `<p><a><img></a></p>`
-- Navigation: `<ul>` with nested `<li>` for dropdowns
-- Utility: `<p>` with pipe-separated links (last element before metadata)
-- Single section-metadata with Style + Mobile Style
 
 ### Multi-Section Format
 
@@ -309,12 +270,6 @@ Write to `{projectPath}/drafts/nav.plain.html`.
 </div>
 ```
 
-**Structure:**
-
-- Each section is a separate `<div>` with its own section-metadata
-- Section Style values: `brand`, `top-bar`, `main-nav`, `utility`
-- Mobile Style only on `main-nav` section
-
 ### Section Styles Reference
 
 | Style | Purpose | Typical Content |
@@ -338,16 +293,11 @@ When converting source HTML to nav.plain.html:
 
 - **Remove** all classes, inline styles, data attributes
 - **Keep** only HTML structure, text content, and href attributes
-- **Logo (SVG source):** shape-only icon at `{projectPath}/icons/{icon-name}.svg`
-  (no `<text>` elements) + `<span class="icon icon-{icon-name}"></span>` +
-  wordmark as HTML text. Never a bare SVG `<img>` — DA rasterization drops
-  font-dependent `<text>` (see the Step 4 callout).
-- **Logo (raster source):** wrap in `<p><a><img></a></p>`, download image to
-  `/drafts/images/` using `fs.fetchToFile(url, path)`. Do NOT use
-  `fs.writeFile()` for images — it corrupts binary data by coercing bytes to
-  UTF-8. Note: `/drafts/...` root-relative paths resolve in local preview
-  only; DA upload flows must rewrite them per the `eds-da-content` skill
-  (`references/media.md`).
+- **Logo (SVG source):** shape-only icon at
+  `{projectPath}/icons/{icon-name}.svg` (no `<text>` elements) +
+  `<span class="icon icon-{icon-name}"></span>` + wordmark as HTML text
+- **Logo (raster source):** wrap in `<p><a><img></a></p>`, download
+  image to `/drafts/images/` using binary-safe download
 - **Nav links:** clean `<ul><li><a>` hierarchy, preserve dropdown nesting
 - **Mega menus:** convert columns to `<li>` items, normalize headings to `<h3>`
 - **Utility:** convert to `<ul>` list or pipe-separated `<p>` links
@@ -356,11 +306,8 @@ When converting source HTML to nav.plain.html:
 ### Mega Menu Transformation
 
 > **Known limitation — mega-menu richness is flattened.** Rich mega-menu
-> content (per-link descriptions, promo imagery, multi-column feature blocks)
-> is reduced to flat nested link lists. All link destinations are preserved,
-> but the descriptive text and imagery are dropped by design. This is an
-> expected fidelity tradeoff, not a bug — note it in your report rather than
-> iterating to reproduce the source's mega-menu visuals.
+> content is reduced to flat nested link lists. All link destinations are
+> preserved, but descriptive text and imagery are dropped by design.
 
 Source:
 
@@ -394,18 +341,16 @@ Edit `{projectPath}/blocks/header/header.css`.
 
 ### Seed known tokens from brand.json first
 
-Before iterating on CSS, read `{projectPath}/.migration/brand.json` and seed the
-values it already measured — this typically saves 1-2 visual iterations:
+Before iterating on CSS, read `{projectPath}/.migration/brand.json` and
+seed the values it already measured:
 
-- `spacing.navHeight` → your `--nav-height` (the source header height; do not
-  start from a guessed 64px).
-- `fonts.heading.family` → the nav/brand/heading font (e.g. Syncopate).
-- `fonts.body.family` → nav link / utility text font.
-- `colors.background` / `colors.text` → header background and text.
+- `spacing.navHeight` → your `--nav-height`
+- `fonts.heading.family` → the nav/brand/heading font
+- `fonts.body.family` → nav link / utility text font
+- `colors.background` / `colors.text` → header background and text
 
-Apply these as your STARTING custom-property values, then iterate only on what
-the screenshot comparison still shows off. Do not re-derive tokens the extractor
-already measured.
+Apply these as your STARTING custom-property values, then iterate only on
+what the screenshot comparison still shows off.
 
 **ALL rules MUST use `.header.block` specificity:**
 
@@ -421,45 +366,22 @@ already measured.
 
 ```css
 .header.block {
-  /* Layout */
-  --header-background: #1a0a3e;       /* match source bg */
+  --header-background: #1a0a3e;
   --header-section-padding: 0.5rem 1rem;
   --header-max-width: 1400px;
-
-  /* Navigation */
   --header-nav-gap: 2rem;
   --header-nav-font-size: 1rem;
   --header-nav-font-weight: 500;
-
-  /* Dropdowns */
   --header-dropdown-background: #fff;
   --header-dropdown-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   --header-dropdown-padding: 1.5rem;
-
-  /* Mobile */
   --header-mobile-menu-background: #fff;
-}
-
-/* Section-specific overrides */
-.header.block .header-top-bar {
-  background: #f5f5f5;
-  font-size: 0.875rem;
-}
-
-.header.block .header-brand img {
-  max-height: 40px;
 }
 ```
 
-Extract actual values from the source page's computed styles.
-
 **`aria-expanded` desktop behavior:** Standard header.js sets
 `aria-expanded="true"` on the nav element when on desktop. Your desktop
-CSS MUST handle both states. If you only style `[aria-expanded="true"]` for
-mobile menu expansion, that style will also apply on desktop — causing the
-mobile layout to appear on desktop.
-
-**Required scoping pattern:**
+CSS MUST handle both states:
 
 ```css
 /* Mobile: expanded menu takes full width */
@@ -483,13 +405,9 @@ mobile layout to appear on desktop.
 }
 ```
 
-The key: the desktop `@media (width >= 900px)` block MUST explicitly include
-`nav[aria-expanded='true']` to override the mobile expanded layout.
-
 ### Brand icon + wordmark sizing
 
-When the brand uses the icon + HTML-text pattern, size both explicitly —
-defaults render the icon at 16px and the wordmark at body size:
+When the brand uses the icon + HTML-text pattern, size both explicitly:
 
 ```css
 .header.block .icon-brand svg,
@@ -504,27 +422,13 @@ defaults render the icon at 16px and the wordmark at body size:
 }
 ```
 
-Substitute `icon-brand` with the actual `icon-{icon-name}` class. Match
-`--brand-icon-height` and the wordmark size to the source header
-measurements from Step 1.
-
-**Multi-tier headers:** If the source has two rows (e.g., logo+utility on
-top, nav on bottom), the existing CSS may be flex-based for single-row.
-You may need to replace it entirely with the Grid template above. This is
-a larger change than "tweaking tokens" — acknowledge that multi-tier headers
-may require a near-complete CSS rewrite.
-
 ---
 
 ## Step 6: Preview and Verify
 
 ### 6a. Create Preview Page
 
-Read head.html from the project:
-
-```
-read_file({ "path": "{projectPath}/head.html" })
-```
+Read `{projectPath}/head.html`.
 
 Write `{projectPath}/drafts/header-preview.html`:
 
@@ -548,140 +452,110 @@ Write `{projectPath}/drafts/header-preview.html`:
 </html>
 ```
 
-The EDS header block will automatically load `nav.plain.html` via the
-`<meta name="nav">` tag and render the full header.
+### 6b. Serve and Open the Preview
 
-### 6b. Open the Preview (project-mode, non-intrusive)
+Serve the project root (`{projectPath}`) as a static site and open
+`drafts/header-preview.html` in the browser. Root-relative paths must
+resolve against the project root.
 
-```bash
-open {projectPath}/drafts/header-preview.html
-```
-
-The `open` command routes the file through the EDS project-mode preview service
-worker (root-absolute paths resolve natively) and returns a leader-side,
-playwright-controllable tab — with no follower broadcast and no focus grab. See
-the "Use `open`, not `serve`" note in `migrate-block` Step 6b; the same applies
-here (and the header may re-open across up to 5 iterations, so
-reload with `goto` rather than re-running `open`).
-
-Capture the **targetId** and the **preview URL** from the output. All
-subsequent `playwright-cli` commands for this preview tab MUST include
-`--tab={previewTabId}`. To pick up CSS/JS changes, just reload the
-existing tab with `goto` — do not re-run `open` for every iteration.
-
-If the preview tab is closed or a `--tab` command fails with an invalid
-target, re-run `open` to get a new tab and targetId.
+To pick up CSS/JS changes during iteration, reload the preview page — do
+not re-open or re-serve for every iteration.
 
 ### 6c. Verify EDS Framework
 
-```bash
-playwright-cli eval --tab={previewTabId} "JSON.stringify({ hlx: !!window.hlx, codeBasePath: window.hlx?.codeBasePath, bodyAppear: document.body.classList.contains('appear'), headerBlock: !!document.querySelector('.header.block'), navSections: document.querySelectorAll('.header-section').length })"
+Execute JS in the page:
+
+```javascript
+JSON.stringify({
+  hlx: !!window.hlx,
+  codeBasePath: window.hlx?.codeBasePath,
+  bodyAppear: document.body.classList.contains('appear'),
+  headerBlock: !!document.querySelector('.header.block'),
+  navSections: document.querySelectorAll('.header-section').length
+})
 ```
 
 **Required:** `hlx: true`, `bodyAppear: true`, `headerBlock: true`.
-If `headerBlock` is false, the header fragment didn't load — check that
-`nav.plain.html` exists at `{projectPath}/drafts/nav.plain.html` and
+If `headerBlock` is false, check that `nav.plain.html` exists and
 the `<meta name="nav">` points to `/drafts/nav`.
 
 ### 6d. Verify Images
 
-Run the shared image verifier from the migrate-block skill (installed
-alongside this one):
-
-```bash
-playwright-cli eval-file --tab={previewTabId} /workspace/skills/migrate-block/scripts/verify-images.js
-```
+Execute the `verify-images.js` script (shipped with the `migrate-block`
+skill) in the page context.
 
 **Required:** `pass: true`. The brand icon is the most common
 `svg-indeterminate` hit — it is healthy when its `httpStatus` is 200.
-**Never trust `naturalWidth` alone for SVG images** — SVGs can render
-perfectly while reporting `naturalWidth: 0`.
 
 ---
 
 ## Step 7: Visual Verification (Max 5 Iterations)
 
-Header target: a **close visual match by eye** (headers converge less tightly
-than blocks due to interactive states). This is a qualitative self-assessment,
-not a measured pixel diff. Max **5 iterations**.
+Header target: a **close visual match by eye**. Max **5 iterations**.
 
-**Font rendering note:** Adobe Fonts (Typekit) validates the requesting
-domain. On `localhost`, Typekit returns empty CSS — fonts will show
-fallbacks (Georgia, Times New Roman). This is expected and NOT a bug
-to fix. Do NOT waste iterations trying to match font rendering. Focus
-on layout, spacing, colors, and structure. Fonts will render correctly
-when deployed to a whitelisted production domain.
+**Font rendering note:** Adobe Fonts (Typekit) on `localhost` returns
+empty CSS — fonts will show fallbacks. This is expected. Focus on
+layout, spacing, colors, and structure.
 
-**Source screenshot:** You already captured this in Step 1. Read it from:
-`{projectPath}/.migration/source-header.png`
-Do NOT navigate back to the source page. Reuse for every iteration.
+**Source screenshot:** Read from
+`{projectPath}/.migration/source-header.png`. Do NOT navigate back.
 
-For thin headers (<150px tall), also use `eval`-based measurements for
-precision — screenshots may be too small for reliable pixel comparison:
+For thin headers (<150px tall), also use JS-based measurements:
 
-```bash
-playwright-cli eval --tab={previewTabId} "(() => {
+```javascript
+(() => {
   const h = document.querySelector('header');
   const r = h.getBoundingClientRect();
-  const logo = h.querySelector('img') || h.querySelector('.icon svg') || h.querySelector('.icon');
+  const logo = h.querySelector('img')
+    || h.querySelector('.icon svg')
+    || h.querySelector('.icon');
   const lr = logo ? logo.getBoundingClientRect() : null;
-  return JSON.stringify({ totalHeight: r.height, logoHeight: lr?.height, logoWidth: lr?.width });
-})()"
+  return JSON.stringify({
+    totalHeight: r.height,
+    logoHeight: lr?.height,
+    logoWidth: lr?.width
+  });
+})()
 ```
 
-**Capture target:** anchor the screenshot to a STABLE SELECTOR, not a
-hand-picked ref from `snapshot` — refs can be ambiguous or drift between
-iterations. `playwright-cli screenshot` accepts a unique CSS selector
-directly as its target, so pass the selector itself: prefer `.header.block`
-(or its `.header-wrapper`, if present) over the bare `header` element, and
-reuse that same selector for every iteration — do NOT fall back to
-full-page or re-guessing a ref hoping for a better crop.
+**Capture target:** Use a stable CSS selector like `.header.block` or
+`.header-wrapper`. Reuse across iterations.
 
 For each iteration:
 
-1. **Screenshot the preview header** by selector (reuse across iterations):
+1. **Screenshot** the preview header by CSS selector. Save to
+   `{projectPath}/.migration/preview-header-iter{N}.png`.
 
-   ```bash
-   playwright-cli screenshot --tab={previewTabId} ".header.block" --max-width=1440 --filename={projectPath}/.migration/preview-header-iter{N}.png
-   ```
+2. **Compare** source and preview: focus on background color, logo size,
+   nav spacing, layout.
 
-2. **Compare** source (from Step 1) and preview: focus on background color, logo size, nav spacing, layout
-3. **Fix:** Batch ALL CSS fixes for this iteration into a SINGLE `edit_file`
-   call. Do not make separate edits for each property. Edit `header.css`
-   custom properties only.
-4. **Reload:** Refresh to pick up CSS changes (reuse URL from Step 6b — do NOT re-run `open`):
-   `playwright-cli goto --tab={previewTabId} {previewUrl}`
+3. **Fix:** Batch ALL CSS fixes into a SINGLE file edit. Edit
+   `header.css` custom properties only.
+
+4. **Reload** the preview page.
 
 **Common header-specific fixes:**
 
-- Background color mismatch → `--header-background`
-- Logo too large/small → raster logo: `.header.block .header-brand img { max-height }`; icon+wordmark logo: `--brand-icon-height` / `--brand-wordmark-size` on `.icon-{icon-name} svg/img` and `.header-brand strong`
+- Background color → `--header-background`
+- Logo size → `.header.block .header-brand img { max-height }`; or
+  `--brand-icon-height` / `--brand-wordmark-size`
 - Nav link spacing → `--header-nav-gap`
 - Font size/weight → `--header-nav-font-size`, `--header-nav-font-weight`
-- Dropdown position → `--header-dropdown-padding`, box-shadow
+- Dropdown position → `--header-dropdown-padding`
 - Section padding → `--header-section-padding`
 
 **Stop conditions:**
 
 - After iteration 5: finalize
-- If a further iteration would yield no meaningful visual improvement: accept and stop
+- If a further iteration would yield no meaningful improvement
 
 ---
 
 ## Step 8: Write Report — OPT-IN
 
-**Skip this step unless the user explicitly requested reports** (e.g.,
-"generate reports", "include reports", "write migration reports").
+**Skip this step unless the user explicitly requested reports.**
 
-If requested, write the report in **two passes** to ensure a report exists
-even if visual iterations don't complete (timeout, error, etc.):
-
-**Pass 1 — Write immediately after Step 6c passes** (before visual iterations):
-Write with `"status": "partial"` and the `edsVerification` data. This
-guarantees the cone gets a report even if Step 7 never finishes.
-
-**Pass 2 — Update after Step 7 completes** (after visual iterations):
-Update with final `status`, `visualVerification`, and `designTokens`.
+Write in **two passes** (same as migrate-block).
 
 Write to `{projectPath}/.migration/reports/header-report.json`:
 
@@ -725,19 +599,11 @@ Write to `{projectPath}/.migration/reports/header-report.json`:
 }
 ```
 
-**Status thresholds** (visual bands are self-assessed by eye, not a measured
-diff; the EDS framework check is the objective part): success (close match),
-partial (rough match), failed (poor match or framework broken)
+## Step 9: Notify Orchestrator
 
-## Step 9: Notify Cone
+**Close the preview tab** before notifying.
 
-**Close the preview tab** before notifying the cone:
-
-```bash
-playwright-cli tab-close --tab={previewTabId}
-```
-
-Then `send_message` to the cone with a **JSON string** in this exact format:
+Report completion to the orchestrator with this JSON payload:
 
 ```json
 {
@@ -755,8 +621,8 @@ Then `send_message` to the cone with a **JSON string** in this exact format:
 }
 ```
 
-- `done` is always `true` — signals the scoop finished (even on failure)
-- `status`: success (close match), partial (rough match), failed (poor match or framework broken) — visual judgment is self-assessed by eye, not a measured diff
-- `headerType`: the detected header layout type
-- `files`: actual paths written, relative to project root
-- `issues`: empty array if none; include actionable descriptions if any
+- `done` is always `true` — signals the agent finished
+- `status`: success / partial / failed — self-assessed by eye
+- `headerType`: detected layout type
+- `files`: actual paths, relative to project root
+- `issues`: empty array if none

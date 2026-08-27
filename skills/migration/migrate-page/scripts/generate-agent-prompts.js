@@ -1,27 +1,27 @@
 /**
- * Generate scoop creation configs for page migration.
+ * Generate sub-agent configs for page migration.
  *
- * PRIMARY (works under SLICC's node bridge and real node):
- *   const { generateConfigsFromFile } = require('/workspace/skills/migrate-page/scripts/generate-scoop-prompts.js');
- *   const configs = generateConfigsFromFile('/shared/repo/.migration'); // returns Array<{name,prompt,model?}>
+ * Usage:
+ *   node generate-agent-prompts.js <migration-dir> [model]
  *
- * CLI (real node only; may silently no-op under the SLICC bridge, where the
- * direct-execution guard never fires — prefer the programmatic form):
- *   node generate-scoop-prompts.js <migration-dir> [model]
- *
- * Synchronous file read on purpose (SLICC flush semantics — see block-inventory.js).
+ * Programmatic:
+ *   const { generateConfigsFromFile } = require('./generate-agent-prompts.js');
+ *   const configs = generateConfigsFromFile('/path/to/repo/.migration');
  *
  * @param {object} decomposition - The decomposition.json content (parsed)
  * @param {string} sourceUrl - The source page URL
- * @param {string} projectPath - The EDS project path (e.g., "/shared/vibemigrated")
- * @param {string} [model] - Optional model ID for scoops. OMIT to let the
- *   cone's `scoop_scoop` inherit its own model (recommended — avoids pinning a
- *   version like `claude-opus-4-6` that will eventually be retired). Pass an
- *   explicit id only to override.
+ * @param {string} projectPath - The EDS project path
+ * @param {string} [model] - Optional model ID for sub-agents. OMIT to let the
+ *   orchestrator's sub-agent inherit the default model (recommended).
  * @returns {Array<{name: string, prompt: string, model?: string}>} `model` is
  *   present only when an explicit id was passed.
  */
-function generateScoopConfigs(decomposition, sourceUrl, projectPath, model = "") {
+function generateAgentConfigs(
+	decomposition,
+	sourceUrl,
+	projectPath,
+	model = "",
+) {
 	const configs = [];
 
 	for (const fragment of decomposition.fragments) {
@@ -48,7 +48,7 @@ function generateScoopConfigs(decomposition, sourceUrl, projectPath, model = "")
 					block.name === "footer-content" ||
 					fragment.path === "/footer";
 
-				const scoopName = block.name + "-block";
+				const agentName = block.name + "-block";
 				const bounds = block.bounds
 					? `x=${block.bounds.x}, y=${block.bounds.y}, width=${block.bounds.width}, height=${block.bounds.height}`
 					: "unknown";
@@ -69,7 +69,7 @@ function generateScoopConfigs(decomposition, sourceUrl, projectPath, model = "")
 					);
 				}
 
-				const config = { name: scoopName, prompt };
+				const config = { name: agentName, prompt };
 				if (model) config.model = model;
 				configs.push(config);
 			}
@@ -84,10 +84,10 @@ function buildBlockPrompt(
 	sourceUrl,
 	projectPath,
 	bounds,
-	headingOwnedByCone,
+	headingOwnedByOrchestrator,
 ) {
-	const headingNote = headingOwnedByCone
-		? "\n- Section heading: OWNED BY CONE — do NOT include the section's lead-in heading in your block output"
+	const headingNote = headingOwnedByOrchestrator
+		? "\n- Section heading: OWNED BY ORCHESTRATOR — do NOT include the section's lead-in heading in your block output"
 		: "";
 	return `You are migrating a single block to EDS.
 
@@ -100,7 +100,7 @@ function buildBlockPrompt(
 - Notes: ${block.notes || block.style || ""}${headingNote}
 
 ## Instructions
-Read /workspace/skills/migrate-block/SKILL.md and follow every step.
+Read the \`migrate-block\` skill and follow every step.
 The skill tells you how to read head.html from the project.
 Do NOT inline CSS or JS as a substitute for the EDS framework.`;
 }
@@ -115,7 +115,7 @@ function buildHeaderPrompt(block, sourceUrl, projectPath, bounds) {
 - Notes: ${block.notes || block.style || ""}
 
 ## Instructions
-Read /workspace/skills/migrate-header/SKILL.md and follow it exactly.
+Read the \`migrate-header\` skill and follow it exactly.
 This is a HEADER migration, not a regular block. Follow the header skill
 exactly — it handles nav.plain.html generation, section-metadata styles,
 dropdown detection, and header-specific CSS patterns.
@@ -137,7 +137,7 @@ function buildFooterPrompt(block, sourceUrl, projectPath, bounds) {
 - Notes: ${block.notes || block.style || ""}
 
 ## Instructions
-Read /workspace/skills/migrate-block/SKILL.md and follow every step.
+Read the \`migrate-block\` skill and follow every step.
 The skill tells you how to read head.html from the project.
 Do NOT inline CSS or JS as a substitute for the EDS framework.`;
 }
@@ -155,9 +155,9 @@ function generateConfigsFromFile(migrationDir, model) {
 		throw new Error(decompositionPath + ' has no "url" field');
 	}
 	const projectPath = migrationDir.replace(/\/\.migration\/?$/, "");
-	// No default model: omitting it lets scoop_scoop inherit the cone's model
-	// rather than pinning a version that may be retired. Pass one to override.
-	return generateScoopConfigs(
+	// No default model: omitting it lets the orchestrator's sub-agent inherit
+	// the default model rather than pinning one that may be retired.
+	return generateAgentConfigs(
 		decomposition,
 		decomposition.url,
 		projectPath,
@@ -165,7 +165,12 @@ function generateConfigsFromFile(migrationDir, model) {
 	);
 }
 
-module.exports = { generateScoopConfigs, generateConfigsFromFile };
+// Keep legacy export name for backward compatibility
+module.exports = {
+	generateAgentConfigs,
+	generateScoopConfigs: generateAgentConfigs,
+	generateConfigsFromFile,
+};
 
 if (
 	process.argv[1] &&
@@ -174,7 +179,7 @@ if (
 	const migrationDir = process.argv[2];
 	if (!migrationDir) {
 		console.error(
-			"Usage: node generate-scoop-prompts.js <migration-dir> [model]",
+			"Usage: node generate-agent-prompts.js <migration-dir> [model]",
 		);
 		process.exit(1);
 	}
@@ -183,7 +188,7 @@ if (
 			JSON.stringify(generateConfigsFromFile(migrationDir, process.argv[3])),
 		);
 	} catch (err) {
-		console.error("generate-scoop-prompts: " + err.message);
+		console.error("generate-agent-prompts: " + err.message);
 		process.exit(1);
 	}
 }
