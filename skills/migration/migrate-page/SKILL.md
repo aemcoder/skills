@@ -382,6 +382,7 @@ main > .section > div {
 ```
 
 **How to measure:**
+
 - **Content max-width:** from the visual tree, find the widest content
   container inside `<main>` (not full-bleed heroes — those are edge
   cases). Use `brand.json`'s `spacing.contentMaxWidth` as a starting

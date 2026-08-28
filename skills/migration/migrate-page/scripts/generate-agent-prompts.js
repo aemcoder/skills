@@ -35,9 +35,7 @@ function readOptionalJson(filePath) {
  */
 function buildEnrichmentContext(migrationDir) {
 	const brand = readOptionalJson(migrationDir + "/brand.json");
-	const inventory = readOptionalJson(
-		migrationDir + "/block-inventory.json",
-	);
+	const inventory = readOptionalJson(migrationDir + "/block-inventory.json");
 
 	const sections = [];
 
