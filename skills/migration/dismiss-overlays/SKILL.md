@@ -1,7 +1,8 @@
 ---
 name: dismiss-overlays
 description: Use when a page may have cookie banners, GDPR consent, chat widgets, or other overlays blocking content. Run before extracting DOM or taking full-page screenshots.
-allowed-tools: bash
+requires:
+  - browser
 ---
 
 # Dismiss Page Overlays
@@ -28,48 +29,35 @@ Any element sitting ON TOP of the main page content:
 
 ## Steps
 
-You receive a `{tabId}` for the target page.
+The caller has already opened the target page in the browser.
 
 ### Step 1: Screenshot and Analyze
 
-```bash
-playwright-cli screenshot --tab={tabId} --fullPage=true --max-width=1440 --filename=/tmp/_overlay-check.png
-```
+Take a full-page screenshot of the page (max-width 1440px). Save it to
+a temporary location.
 
-Read the screenshot. If no overlays are visible, skip to Step 4.
+Inspect the screenshot. If no overlays are visible, skip to Step 4.
 
 ### Step 2: Heuristic Dismissal
 
-Run the `overlay-dismiss.js` script (shipped alongside this skill):
-
-```bash
-playwright-cli eval-file --tab={tabId} overlay-dismiss.js
-```
-
-The script handles known vendors (see table below) plus generic patterns.
-It prefers clicking dismiss/accept buttons over DOM removal — clicking
-sets consent cookies that persist across tabs.
+Execute the `overlay-dismiss.js` script (shipped alongside this skill)
+in the page context. It handles known vendors (see table below) plus
+generic patterns. It prefers clicking dismiss/accept buttons over DOM
+removal — clicking sets consent cookies that persist across tabs.
 
 ### Step 3: Verify (max 2 retries)
 
-Screenshot to check if overlays are gone:
+Take another screenshot to check if overlays are gone.
 
-```bash
-playwright-cli screenshot --tab={tabId} --fullPage=true --max-width=1440 --filename=/tmp/_overlay-verify.png
-```
+If clean, go to Step 4.
 
-Read the screenshot. If clean, go to Step 4.
+If overlays survive, get the accessibility snapshot of the page to
+identify the remaining overlay elements.
 
-If overlays survive, use the accessibility snapshot to identify them:
+Find the dismiss/accept button and click it by executing JS in the page:
 
-```bash
-playwright-cli snapshot --tab={tabId}
-```
-
-Find the dismiss/accept button and click it:
-
-```bash
-playwright-cli eval --tab={tabId} "document.querySelector('SELECTOR').click()"
+```javascript
+document.querySelector('SELECTOR').click()
 ```
 
 **Always prefer click over DOM removal.** Clicking sets the consent cookie,
@@ -78,21 +66,16 @@ the element in this tab.
 
 If no clickable button exists, remove the overlay as last resort:
 
-```bash
-playwright-cli eval --tab={tabId} "document.querySelectorAll('SELECTOR').forEach(e => e.remove())"
+```javascript
+document.querySelectorAll('SELECTOR').forEach(e => e.remove())
 ```
 
 Re-screenshot and verify. Max 2 manual retries after the heuristic script.
 
 ### Step 4: Cleanup
 
-Delete all temporary screenshots created by this skill:
-
-```bash
-rm -f /tmp/_overlay-check.png /tmp/_overlay-verify.png
-```
-
-No artifacts from this skill should persist downstream.
+Delete all temporary screenshots created by this skill. No artifacts
+from this skill should persist downstream.
 
 ## Important Notes
 
@@ -107,7 +90,7 @@ No artifacts from this skill should persist downstream.
 ## Supported Vendors (Heuristic Script)
 
 | Vendor | Banner Selector | Dismiss Action |
-|--------|----------------|----------------|
+| -------- | ---------------- | ---------------- |
 | OneTrust | `#onetrust-consent-sdk` | Click `#onetrust-accept-btn-handler` |
 | Cookiebot | `#CybotCookiebotDialog` | Click `#CybotCookiebotDialogBodyLevelButtonLevelOptinAllowAll` |
 | CookieConsent | `.cc-window` | Click `.cc-btn.cc-dismiss` |

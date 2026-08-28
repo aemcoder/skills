@@ -1,7 +1,11 @@
 ---
 name: migrate-page
 description: Migrate a web page to AEM Edge Delivery Services. Extracts page structure, decomposes into blocks, generates EDS-compatible code, and verifies with visual comparison.
-allowed-tools: bash
+requires:
+  - browser
+  - node
+  - git
+  - parallel-agents
 ---
 
 # EDS Page Migration
@@ -10,80 +14,31 @@ Migrate a web page into AEM Edge Delivery Services: extract structure,
 decompose into blocks, generate EDS-compatible code per block, and verify
 each with visual comparison.
 
-## IMPORTANT: Cone-Only Skill
+## Orchestrator-Level Skill
 
-**This skill MUST be executed by the cone directly. Do NOT delegate the
-migration to a scoop.** The cone runs Phases 1–2.5 and 4 itself. Only
-Phase 3 (block generation) creates scoops — one per block. Scoops cannot
-create other scoops, so the cone must be the orchestrator.
+**This skill must be run by the top-level orchestrating agent.** Phase 3
+(block generation) spawns parallel sub-agents — one per block. Sub-agents
+cannot spawn further sub-agents, so the orchestrator must drive the
+overall flow.
 
 ## Triggers
 
 "migrate this page", "convert to EDS", "create EDS blocks from URL".
 User provides a URL and a GitHub repo (owner/repo).
 
-## Sprinkle Trigger
+## Variables
 
-When this skill is triggered via a **sprinkle lick event** (type
-`sprinkle`, skill `migrate-page`), the cone handles the lick directly
-and runs `sprinkle send` commands. This overrides Rules 2 and 5 in
-`/shared/CLAUDE.md` — the cone MUST handle this lick itself because it
-creates scoops in Phase 3 (scoops cannot create scoops), making the
-cone the only viable orchestrator.
+Two path variables are used throughout this skill:
 
-### Lick Handling
-
-1. Run `playwright-cli tab-list` and find the entry with `active: true`.
-   Extract its URL.
-2. If no active HTTP(S) tab exists, send an error and stop:
-
-   ```bash
-   sprinkle send migrate-page '{"phase":"error","message":"No page to migrate — navigate to a webpage first"}'
-   ```
-
-3. Read workspace config: `read_file /workspace/skills/migrate-page/migrate-config.json`
-   and parse the `repo` field.
-4. If the file is missing or `repo` is empty, ask the user in chat for
-   the repo, then write the config:
-
-   ```bash
-   write_file /workspace/skills/migrate-page/migrate-config.json
-   {"repo":"owner/repo-name","currentMigration":null}
-   ```
-
-5. Start Phase 1 with the extracted URL and repo.
-
-### Progress Reporting
-
-At each phase transition, run BOTH:
-
-- `sprinkle send migrate-page '<json>'` — updates the live sprinkle UI
-- `write_file /workspace/skills/migrate-page/migrate-config.json` with
-  updated `currentMigration` — persists state for recovery
-
-Phase transition points:
-
-| When | phase | status | detail |
-| ------ | ------- | -------- | -------- |
-| Phase 1 starts | `extraction` | `running` | — |
-| Phase 1 complete | `extraction` | `done` | — |
-| Phase 2 starts | `decomposition` | `running` | — |
-| Phase 2 complete | `decomposition` | `done` | {N} blocks identified |
-| Phase 3 starts | `blocks` | `running` | block names |
-| Phase 3 scoop completes | `blocks` | `running` | name1, name2 ({done}/{total}) |
-| Phase 3 complete | `blocks` | `done` | — |
-| Phase 4 starts | `assembly` | `running` | — |
-| Phase 4 complete (success) | `done` | — | set `url` and `previewUrl` |
-| Any phase fails | `error` | — | set `message` |
-
-On completion, clear `currentMigration` (set to `null` in config).
+- `{projectPath}` — root of the cloned EDS repo on disk
+- `{skillDir}` — root directory of this skill (where this SKILL.md lives)
 
 ## Four Phases
 
-1. **Extraction** — cone clones repo, navigates to URL, runs extraction scripts
-2. **Decomposition** — cone classifies visual tree into fragments/sections/blocks
-3. **Block Generation** — cone creates one scoop per block, monitors until all complete
-4. **Assembly** — cone collects results, builds page, commits
+1. **Extraction** — clone repo, navigate to URL, run extraction scripts
+2. **Decomposition** — classify visual tree into fragments/sections/blocks
+3. **Block Generation** — spawn one sub-agent per block, monitor until done
+4. **Assembly** — collect results, build page, commit
 
 ---
 
@@ -91,79 +46,73 @@ On completion, clear `currentMigration` (set to `null` in config).
 
 User provides a URL and a GitHub repo (owner/repo).
 
+### Step 1.0: Confirm Browser Capability
+
+Before touching any URLs, confirm you can do all three of these in this
+environment:
+
+1. Open a URL in a browser (headless or headed)
+2. Execute JavaScript in the page context
+3. Take a full-page screenshot
+
+The extraction scripts are plain in-page JavaScript — they work with any
+tool that provides those three capabilities. Use whatever is available;
+no specific tool is required.
+
+**HARD ERROR if any capability is missing.** Stop immediately, tell the
+user what is unavailable, and do NOT produce partial output silently.
+
 ### Step 1.1: Clone and Branch
 
 Clone the repo and create a migration branch:
 
-```
-bash: git clone https://github.com/{owner}/{repo}.git /shared/{repo-name}
-bash: cd /shared/{repo-name} && git checkout -b migrate/{page-slug}-{timestamp}
-bash: mkdir -p /shared/{repo-name}/.migration
+```bash
+git clone https://github.com/{owner}/{repo}.git {projectPath}
+cd {projectPath} && git checkout -b migrate/{page-slug}-{timestamp}
+mkdir -p {projectPath}/.migration
 ```
 
-Where `{repo-name}` is the repo portion of owner/repo, `{page-slug}` is derived
-from the URL path (e.g., `/products/widget` → `products-widget`), and
-`{timestamp}` is a short identifier (e.g., `Date.now().toString(36)`).
+Where `{page-slug}` is derived from the URL path (e.g.,
+`/products/widget` → `products-widget`), and `{timestamp}` is a short
+identifier (e.g., `Date.now().toString(36)`).
 
 ### Step 1.2: Navigate to Source Page and Set Desktop Viewport
 
-Open the source URL in a new browser tab:
+**Open** `{sourceUrl}` in the browser.
 
-```bash
-playwright-cli tab-new {sourceUrl}
-```
-
-Capture the **targetId** from the output (e.g., `SRC123`). All subsequent
-`playwright-cli` commands for this source tab MUST include `--tab={sourceTabId}`.
-
-**MANDATORY — resize to a desktop viewport before ANY extraction step:**
-
-```bash
-playwright-cli resize --tab={sourceTabId} 1440 900
-```
-
-New tabs open at a default viewport of ~780px. The visual-tree extractor
-ignores elements narrower than 900px, so extraction at the default width
-produces an unusable 1-node tree and a mobile-width screenshot — every
-Phase 1 artifact would be wrong. Never skip this step.
+**MANDATORY — set the viewport to 1440×900 before ANY extraction step.**
+Browser tabs often default to ~780px. The visual-tree extractor ignores
+elements narrower than 900px, so extraction at the default width produces
+an unusable 1-node tree and a mobile-width screenshot — every Phase 1
+artifact would be wrong. Never skip this step.
 
 ### Step 1.3: Dismiss Overlays (opt-in, skipped by default)
 
 **Skip this step unless the user explicitly requested overlay dismissal**
-(e.g., "dismiss overlays", "handle cookie banners", "remove consent dialogs").
+(e.g., "dismiss overlays", "handle cookie banners").
 
-If requested: delegate to the **dismiss-overlays** skill to handle cookie
-banners, consent dialogs, and other overlays on the source page. Pass
-`{sourceTabId}` as the target tab. The skill handles its own visual
-verification and cleanup — no overlay artifacts persist.
+If requested: delegate to the `dismiss-overlays` skill to handle cookie
+banners, consent dialogs, and other overlays on the source page.
 
 ### Step 1.4: Lazy-Load Scroll
 
-Scroll the page top-to-bottom to trigger lazy-loaded images and sections:
-
-```bash
-playwright-cli eval-file --tab={sourceTabId} /workspace/skills/migrate-page/scripts/lazy-load-scroll.js
-```
+Execute the `lazy-load-scroll.js` script (at `{skillDir}/scripts/`) in the
+page context to scroll the page top-to-bottom and trigger lazy-loaded
+images and sections.
 
 ### Step 1.5: De-Sticky
 
-Convert `position: fixed` elements to `position: relative` so they don't
-overlap content in the visual tree or full-page screenshot:
-
-```bash
-playwright-cli eval-file --tab={sourceTabId} /workspace/skills/migrate-page/scripts/de-sticky.js
-```
+Execute the `de-sticky.js` script (at `{skillDir}/scripts/`) in the page
+context. It converts `position: fixed` elements to `position: relative`
+so they don't overlap content in the visual tree or full-page screenshot.
 
 ### Step 1.6: Extract Visual Tree
 
-Run the visual tree extraction and save directly to file:
+Execute the `visual-tree.js` script (at `{skillDir}/scripts/`) in the
+page context and save the result to
+`{projectPath}/.migration/visual-tree.json`.
 
-```bash
-playwright-cli eval-file --tab={sourceTabId} /workspace/skills/migrate-page/scripts/visual-tree.js --output=/shared/{repo-name}/.migration/visual-tree.json
-```
-
-**Guard — verify the tree is usable before continuing (this command exits
-non-zero and prints a diagnostic when the tree is degenerate):**
+**Guard — verify the tree is usable:**
 
 ```bash
 node -e '
@@ -171,106 +120,93 @@ node -e '
   const d = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
   const width = d.viewport ? d.viewport.width : 0;
   if (d.nodeCount < 5 || width < 1024) {
-    console.error("Unusable visual tree: nodeCount=" + d.nodeCount + ", viewport.width=" + width);
+    console.error("Unusable visual tree: nodeCount="
+      + d.nodeCount + ", viewport.width=" + width);
     process.exit(1);
   }
-' /shared/{repo-name}/.migration/visual-tree.json
+' {projectPath}/.migration/visual-tree.json
 ```
 
-**If this command fails: HARD ERROR — do not proceed.** The extraction ran
-at a too-narrow viewport (or the page did not render). Re-run the resize
-from Step 1.2, then re-run Steps 1.4–1.6. Never continue to Phase 2 with a
-degenerate tree — decomposition is impossible from a 1-node tree.
+**If this fails: HARD ERROR — do not proceed.** Re-set the viewport,
+then re-run Steps 1.4–1.6.
 
 ### Step 1.7: Full-Page Screenshot
 
-Capture the page after all preparation. This is the only screenshot used
-by downstream phases (decomposition, visual comparison):
+**Wait for all images to settle before capturing.** EDS and many sites
+use `loading="lazy"` — screenshots taken during the load race show
+blank placeholders and trigger false broken-image reports. Execute JS
+in the page to force-load and decode all images:
 
-```bash
-playwright-cli screenshot --tab={sourceTabId} --fullPage=true --max-width=1440 --filename=/shared/{repo-name}/.migration/screenshot.png
-bash: ls -la /shared/{repo-name}/.migration/screenshot.png
+```javascript
+(async () => {
+  document.querySelectorAll('img[loading="lazy"]').forEach(
+    img => img.loading = 'eager'
+  );
+  await Promise.all(
+    [...document.querySelectorAll('img')]
+      .filter(img => !img.complete)
+      .map(img => img.decode().catch(() => {}))
+  );
+  return 'images settled';
+})()
 ```
+
+Then take a full-page screenshot of the page (max-width 1440px). Save to
+`{projectPath}/.migration/screenshot.png`.
 
 Verify the file exists and has a reasonable size (>10 KB).
 
 ### Step 1.8: Extract Brand Data
 
-```bash
-playwright-cli eval-file --tab={sourceTabId} /workspace/skills/migrate-page/scripts/brand-extract.js --output=/shared/{repo-name}/.migration/brand.json
-```
+Execute the `brand-extract.js` script (at `{skillDir}/scripts/`) in the
+page context and save the result to
+`{projectPath}/.migration/brand.json`.
 
 ### Step 1.9: Extract Metadata
 
-```bash
-playwright-cli eval-file --tab={sourceTabId} /workspace/skills/migrate-page/scripts/metadata-extract.js --output=/shared/{repo-name}/.migration/metadata.json
-```
+Execute the `metadata-extract.js` script (at `{skillDir}/scripts/`) in
+the page context and save the result to
+`{projectPath}/.migration/metadata.json`.
 
 ### Step 1.10: Scan Block Inventory
 
-Scan the project's blocks directory and save the inventory. Call the exported
-function directly — this is the reliable invocation under the SLICC node
-bridge (a bare `node script.js` CLI call may silently no-op there because
-`require.main === module` is never true):
+Run the block-inventory scanner:
 
 ```bash
-node -e "require('/workspace/skills/migrate-page/scripts/block-inventory.js').writeBlockInventory('/shared/{repo-name}')"
+node {skillDir}/scripts/block-inventory.js {projectPath}
 ```
 
-This writes `block-inventory.json` to `.migration/` and prints the summary
-(block count and names) to stdout. `writeBlockInventory` is synchronous, so
-the file is flushed before the process exits.
+This writes `{projectPath}/.migration/block-inventory.json` and prints
+the summary (block count and names) to stdout.
 
 ### Extraction Artifacts
 
-After Phase 1, these files exist in `/shared/{repo-name}/.migration/`:
+After Phase 1, these files exist in `{projectPath}/.migration/`:
 
 | Artifact | Purpose |
 | ---------- | --------- |
-| `screenshot.png` | Full-page screenshot after prep (for decomposition) |
+| `screenshot.png` | Full-page screenshot after prep |
 | `visual-tree.json` | Spatial hierarchy (bounds, backgrounds, selectors) |
 | `brand.json` | Fonts, colors, spacing |
 | `metadata.json` | Title, description, OG tags |
 | `block-inventory.json` | Existing blocks in the EDS project |
-
-> **SLICC node-bridge constraints (for the helper scripts run via `node`).**
-> The `node` runtime inside SLICC is a bridge, not full Node. Scripts invoked
-> with `node`/`node -e` (block-inventory.js, generate-scoop-prompts.js) MUST
-> avoid, because these pass under real node but break in the bridge:
->
-> - `fs.readdirSync(dir, { withFileTypes: true })` — no real `Dirent` objects;
->   list names then test with `fs.statSync(p).isDirectory()`.
-> - `child_process` `spawn*`/`exec*` — not available in the bridge realm.
-> - `process.stdin` streaming / `/dev/stdin` — not available.
-> - `require.main === module` CLI guards — never true; use a
->   `path.resolve(process.argv[1]) === __filename` guard and expose a
->   programmatic entry as the primary invocation.
-> - Async `fs`/`fs/promises` for writes you depend on — the bridge only
->   guarantees flush-on-exit for the SYNCHRONOUS fs cache; use `*Sync`.
->
-> The smoke test (`tests/migrate-page-scripts/smoke.sh`) statically guards the
-> two CLI scripts against these idioms, since it runs under real node and can't
-> exercise the bridge at runtime.
 
 ---
 
 ## Phase 2: Decomposition
 
 Read `visual-tree.json`, and **view** `screenshot.png`. The visual tree is
-used ONLY for decomposition (identifying what regions exist and classifying
-them). It is NOT used for content extraction — scoops extract content from
-the live page in Phase 3.
+used ONLY for decomposition (identifying regions and classifying them). It
+is NOT used for content extraction — sub-agents extract content from the
+live page in Phase 3.
 
-> **NEVER `read_file` a screenshot or any binary.** A full-page PNG here is
-> commonly 1–3 MB; `read_file` returns it as ~1–3M characters, overflows the
-> context window, and can cascade into a context-recovery race. To inspect a
-> screenshot visually, use `open --view --size high {path}` (it downsamples to
-> a vision-friendly render). This applies anywhere a `.png` is "read" in these
-> skills.
+> **NEVER read a screenshot as text.** A full-page PNG is commonly 1–3 MB;
+> reading it as text overflows the context window. To inspect a screenshot,
+> view it as an image.
 
 ### Visual Tree Format
 
-```
+```text
 {id} [{role/tag}] [{CxR}] [{bg:type}] @{x},{y} {w}x{h} "{text}"
 ```
 
@@ -292,13 +228,10 @@ background signal.
 **Reserved names:** NEVER use "header" or "footer" as block names.
 
 **Section heading ownership:** When a `section` contains a lead-in heading
-(a `default-content` sibling, e.g. an `<h2>` introducing an interactive block)
-alongside a `block`, the heading is **cone-owned**: the cone writes it as
-default-content during Phase 4 assembly, and the block scoop MUST NOT include
-the section heading in its block output. This prevents the heading from
-rendering twice (once by the cone, once inside the block). The prompt generator
-flags these blocks automatically (`generate-scoop-prompts.js` adds a
-`Section heading: OWNED BY CONE` note to the block's prompt).
+(a `default-content` sibling) alongside a `block`, the heading is
+**orchestrator-owned**: the orchestrator writes it as default-content during
+Phase 4 assembly, and the block sub-agent MUST NOT include it in its block
+output. The prompt generator flags these blocks automatically.
 
 ### Three Fragments
 
@@ -310,7 +243,7 @@ Every page decomposes into exactly 3 fragments:
 
 ### Output
 
-Write `decomposition.json` to `/shared/{repo-name}/.migration/`:
+Write `decomposition.json` to `{projectPath}/.migration/`:
 
 ```json
 {
@@ -343,23 +276,32 @@ Write `decomposition.json` to `/shared/{repo-name}/.migration/`:
 }
 ```
 
-### Close Source Tab
+### Close Source Tab — Optional
 
-The source tab is no longer needed — all subsequent phases work from
-extracted artifacts, not the live page. Close it to free resources and
-prevent scoops from confusing it with their own tabs:
+**Consider keeping the source tab open until Phase 4 completes.** During
+assembly you may need to re-check exact heading typography, mobile
+behaviour, or content details that the extraction artifacts don't fully
+capture. If you close it now, you'll have to reopen the source URL and
+redo viewport setup.
 
-```bash
-playwright-cli tab-close --tab={sourceTabId}
-```
+If you do close it (e.g. to free resources in constrained environments),
+ensure Phase 1 captured everything comprehensively enough that the
+source is genuinely disposable.
 
 ---
 
-## Phase 2.5: Prepare Brand, Fonts, and Styles
+## Phase 2.5: Establish Layout Contract, Brand, Fonts, and Styles
 
-The cone sets up brand, fonts, and styles BEFORE creating scoops in Phase 3.
-Scoops need these in place so their preview pages load with correct fonts,
-colors, and spacing.
+Set up the **layout contract**, brand, fonts, and styles BEFORE creating
+sub-agents in Phase 3. Sub-agents need these in place so their preview
+pages load correctly.
+
+**Why this is a contract, not just tokens.** Tokens that nothing consumes
+do not constrain sub-agents. If you set `--content-max-width: 1360px` but
+leave the boilerplate's `max-width: 1200px` rule intact, sub-agents will
+build against 1200px and independently invent incompatible workarounds
+with `!important`. The rules that consume the tokens must be correct
+*before* fan-out.
 
 ### 2.5a: Resolve Fonts
 
@@ -369,7 +311,6 @@ colors, and spacing.
 
    **a. Source has Adobe Fonts (Typekit)?**
    If `fonts.sources.typekit` is not null → use the source's kit directly.
-   The source's kit has the exact fonts the page uses and works in preview.
    Link: `https://use.typekit.net/{fonts.sources.typekit}.css`
 
    **b. Source has Google Fonts?**
@@ -377,8 +318,7 @@ colors, and spacing.
 
    **c. Font in our fallback Typekit kit `cwm0xxe`?**
    Check: `https://typekit.com/api/v1/json/kits/cwm0xxe/published`
-   (public API, no auth). If the font family appears → use kit `cwm0xxe`.
-   Link: `https://use.typekit.net/cwm0xxe.css`
+   If the font family appears → use kit `cwm0xxe`.
 
    **d. Font available on Google Fonts?**
    Check: `https://fonts.googleapis.com/css2?family={FontName}:wght@400;700&display=swap`
@@ -389,17 +329,13 @@ colors, and spacing.
 
 ### 2.5b: Update head.html
 
-Read `/shared/{repo-name}/head.html`. Add font `<link>` tags BEFORE the
-existing `<script>` tags based on the cascade result:
-
-- Adobe Fonts: `<link rel="stylesheet" href="https://use.typekit.net/{projectId}.css">`
-- Google Fonts: preconnects + `<link href="{url}" rel="stylesheet">`
-
-Write the updated `head.html` back.
+Read `{projectPath}/head.html`. Add font `<link>` tags BEFORE the
+existing `<script>` tags based on the cascade result. Write the updated
+file back.
 
 ### 2.5c: Generate brand.css
 
-Write `/shared/{repo-name}/styles/brand.css` with brand values from
+Write `{projectPath}/styles/brand.css` with brand values from
 `brand.json`:
 
 ```css
@@ -417,113 +353,105 @@ Write `/shared/{repo-name}/styles/brand.css` with brand values from
 html, body { overflow: auto !important; }
 ```
 
-> **Treat `brand.json` spacing as a hint, not ground truth.** `brand-extract.js`
-> samples `navHeight`/`sectionPadding` heuristically and can under-report (e.g.
-> a sticky bar's inner element yields a too-small `navHeight`, or a
-> `padding:0` element yields `sectionPadding: 0px`). Reconcile against the
-> visual tree, which carries the real rendered header box (e.g. `rc1 ... 1425x75`
-> → a 75px nav). If `brand.json` and the visual tree disagree, prefer the
-> visual-tree measurement for `--nav-height` / `--section-padding`.
+> **Treat `brand.json` spacing as a hint, not ground truth.** Reconcile
+> against the visual tree, which carries the real rendered measurements.
 
-### 2.5d: Update styles.css with @import
+### 2.5d: Update styles.css — layout contract + brand import
 
-Read `/shared/{repo-name}/styles/styles.css`. Add `@import url('brand.css');`
-as the **VERY FIRST LINE** (CSS spec requires `@import` before all other
-rules). Also update `:root` variables to match brand values.
+Read `{projectPath}/styles/styles.css`. Add
+`@import url('brand.css');` as the **VERY FIRST LINE** (CSS spec requires
+`@import` before all other rules). Also update `:root` variables to match
+brand values.
 
-Add a global EDS button reset after `:root`:
+**Establish the layout contract.** Measure the source's content width,
+gutters, and section spacing from the visual tree and screenshot, then
+set these values in `styles.css` so every sub-agent builds against the
+correct geometry:
 
 ```css
-main .button-container { display: inline; }
-main a.button:any-link {
-  background: none; border: none; border-radius: 0;
-  color: var(--link-color); font-size: inherit; font-weight: inherit;
-  padding: 0; margin: 0; text-decoration: underline; white-space: normal;
+/* Layout contract — sub-agents MUST NOT override these */
+main > .section > div {
+  max-width: var(--content-max-width, 1200px);
+  padding: 0 var(--content-gutter, 24px);
+  margin: 0 auto;
+}
+
+.section {
+  padding: var(--section-padding, 64px) 0;
 }
 ```
 
-Write the updated `styles.css` back.
+**How to measure:**
 
-Now scoops will preview with correct fonts, colors, spacing, and button
-behavior from the start.
+- **Content max-width:** from the visual tree, find the widest content
+  container inside `<main>` (not full-bleed heroes — those are edge
+  cases). Use `brand.json`'s `spacing.contentMaxWidth` as a starting
+  point, but verify against the visual tree's actual bounds.
+- **Gutters:** measure the gap between the content edge and the viewport
+  edge at 1440px. Typically 24–40px per side.
+- **Section padding:** vertical spacing between sections. Use
+  `brand.json`'s `spacing.sectionPadding` if non-zero, otherwise measure
+  from the visual tree's y-offsets between sibling nodes.
+
+**Full-bleed sections** (heroes, banners) that span the full viewport
+should be handled by the orchestrator adding a `.section-metadata` with
+`Style: full-width` during Phase 4 assembly, with a corresponding rule:
+
+```css
+main > .section.full-width > div {
+  max-width: 100%;
+  padding: 0;
+}
+```
+
+This way blocks never need to override the wrapper themselves — the
+layout contract covers both constrained and full-bleed sections.
+
+**Do NOT add a global button reset.** Each block is responsible for
+styling its own buttons with block-scoped specificity
+(`main .{blockName} a.button:any-link`). A global reset forces every
+block to override with `!important`, degrading CSS quality.
 
 ---
 
-## Phase 3: Block Generation (Parallel Scoops)
+## Phase 3: Block Generation (Parallel Sub-Agents)
 
-The cone creates one scoop per **block** and monitors them until all complete.
-Only then does the cone proceed to Phase 4. **Do NOT drop scoops** — keep
-them alive for user review and debugging. Never call `drop_scoop` during
-migration.
+Spawn one sub-agent per **block** and monitor them until all complete.
+Only then proceed to Phase 4.
 
-**`default-content` items do NOT get scoops.** They are simple prose
-(headings, paragraphs, lists, images) that the cone writes directly
-during Phase 4 assembly. The cone extracts default-content text from
-the source page and writes it inline in the assembled .plain.html.
+**`default-content` items do NOT get sub-agents.** They are simple prose
+that the orchestrator writes directly during Phase 4 assembly.
 
-### PERFORMANCE: Batch All Scoop Operations
+### Step 1 — Generate sub-agent configs via script
 
-Scoop creation and feeding are the biggest time sinks because each tool
-call requires an LLM turn. **Minimize the number of LLM turns** by
-batching operations:
-
-**Step 1 — Generate scoop configs via script** (1 tool call, NO LLM generation):
-
-Run the prompt generator directly. It reads `decomposition.json`, derives
-the source URL and project path, and outputs scoop configs as JSON.
-This avoids the cone spending tokens generating repetitive prompt text.
+Run the prompt generator. It reads `decomposition.json`, `brand.json`,
+and `block-inventory.json` from the migration directory and outputs
+enriched sub-agent configs as JSON. Each prompt includes measured brand
+tokens (colors, fonts, spacing), existing block inventory, and layout
+contract instructions so sub-agents don't re-derive data from the live
+page:
 
 ```bash
-node -e "console.log(JSON.stringify(require('/workspace/skills/migrate-page/scripts/generate-scoop-prompts.js').generateConfigsFromFile('/shared/{repo-name}/.migration')))"
+node {skillDir}/scripts/generate-agent-prompts.js {projectPath}/.migration
 ```
 
-Call the exported `generateConfigsFromFile` directly — this is the reliable
-invocation under the SLICC node bridge (a bare `node script.js` CLI call may
-silently no-op there because `require.main === module` is never true). To
-override the default model (`claude-opus-4-6`), pass it as a second argument:
-`generateConfigsFromFile('.../.migration', 'model-id')`.
+Parse the JSON output — an array of `{ name, prompt }` objects, one per
+block.
 
-Parse the JSON output — an array of `{ name, model, prompt }` objects, one per block.
+### Step 2 — Spawn all sub-agents
 
-> **Pre-authorize playwright before the fan-out.** Every block scoop drives
-> playwright and will request `write: /.playwright/**` the moment it starts —
-> six near-simultaneous sudo requests that stall the batch until approved.
-> Approve this proactively with an `always`/NOPASSWD rule for `/.playwright/**`
-> in the scoop sandbox before (or immediately as) you create the scoops, so
-> the fan-out doesn't block.
-
-**Step 2 — Create AND feed ALL scoops in a SINGLE response** (N tool calls, 1 LLM turn):
-
-Take the configs from Step 1 and call `scoop_scoop` for each one.
+Take the configs from Step 1 and create one parallel sub-agent for each.
 DO NOT modify or regenerate the prompts — use them exactly as returned.
 
-```
-scoop_scoop({ "name": configs[0].name, "model": configs[0].model, "prompt": configs[0].prompt })
-scoop_scoop({ "name": configs[1].name, "model": configs[1].model, "prompt": configs[1].prompt })
-... one per config, all in ONE response
-```
+Each sub-agent receives its prompt and runs the appropriate skill
+(`migrate-header` for header blocks, `migrate-block` for everything else).
+The generated prompts already include all parameters and skill references.
 
-This reduces scoop setup to ~2 LLM turns (generate configs + create all).
-The cone does NOT generate prompt text — the script does it mechanically.
+### Step 3 — Monitor sub-agents until all complete
 
-### How the Script Works
+Track completion using the sub-agent configs from Step 1.
 
-The `generate-scoop-prompts.js` script handles all three block types:
-
-- **Header blocks** (nav-bar, header, navigation, or /nav fragment) → uses `migrate-header` skill
-- **Footer blocks** (footer, footer-links, footer-content, or /footer fragment) → uses `migrate-block` skill with footer special case
-- **All other blocks** → uses `migrate-block` skill
-
-Each generated prompt includes the block parameters, head.html content,
-and instructions to read the appropriate skill. The cone does NOT need
-to generate or modify any prompt text.
-
-### Step 3 — Monitor scoops until all complete
-
-Track completion using the scoop configs from Step 1. You know the exact
-count and names of scoops you created.
-
-**Expected message format from each scoop** (JSON string via `send_message`):
+**Expected completion payload from each sub-agent** (JSON):
 
 ```json
 {
@@ -539,86 +467,84 @@ count and names of scoops you created.
 
 **Waiting protocol:**
 
-1. Initialize a checklist of expected scoop names from the configs
-2. As each `send_message` arrives, parse the JSON and mark that scoop done
-3. Record `status`, `files`, `issues`, and `hasHiddenPanes` from each message
-   — you will need `files.plainHtml` in Phase 4 assembly, and `hasHiddenPanes`
-   at verification time
-4. Continue waiting until every scoop in the checklist has reported back
+1. Initialize a checklist of expected sub-agent names from the configs
+2. As each sub-agent reports back, parse the JSON and mark it done
+3. Record `status`, `files`, `issues`, and `hasHiddenPanes`
+4. Continue waiting until every sub-agent has reported back
 
-**Stuck scoop fallback:** If a scoop has not reported back but the others
-have all completed, check whether its `.plain.html` file exists on disk
-(e.g., `ls {projectPath}/drafts/{blockName}.plain.html`). If the file
-exists, treat the scoop as done with `status: "partial"` and note the
-missing message. If the file does not exist, mark it `status: "failed"`.
+**Stuck sub-agent fallback:** If a sub-agent has not reported but the
+others have all completed, check whether its `.plain.html` file exists
+on disk. If yes, treat as done with `status: "partial"`. If no, mark
+`status: "failed"`.
 
-**Do NOT proceed to Phase 4 until all scoops are accounted for** (either
-via message or fallback check).
+**Do NOT proceed to Phase 4 until all sub-agents are accounted for.**
 
 ---
 
 ## Phase 4: Assembly — MANDATORY STEPS
 
-After ALL scoops complete, the cone MUST execute ALL of the following steps.
-Do not skip any. Phase 4 is not optional — it produces the final deliverables.
+After ALL sub-agents complete, execute ALL of the following steps.
 
-**Do NOT drop scoops.** Keep them alive for user review.
+### Step 4.0: Check for Collateral Edits
 
-### Step 4.1: Collect Scoop Results
+Before assembly, check for unexpected changes sub-agents may have made
+outside their block directories:
 
-Use the completion messages collected during Phase 3 monitoring. For each
-block, you already have `status`, `files`, and `issues` from the scoop's
-`send_message` JSON.
+```bash
+git diff --stat HEAD
+```
 
-If reports were requested and exist in `/shared/{repo-name}/.migration/reports/`,
-read them for additional detail (EDS verification, visual verification,
-design tokens). Otherwise, the completion messages have everything needed
-for assembly.
+Inspect the output. Expected changes are in `blocks/`, `styles/`,
+`drafts/`, `head.html`, and `.migration/`. Any changes to `package.json`,
+`scripts/scripts.js`, `tools/`, or other project infrastructure are
+**collateral edits** — revert them before proceeding. Sub-agents
+sometimes install linters, add dependencies, or modify shared scripts.
+Attribution is obvious now but lost after assembly.
 
-List any blocks with `status: "failed"` or that required the stuck-scoop
-fallback — flag these in the final summary.
+### Step 4.1: Collect Results
+
+Use the completion payloads collected during Phase 3. For each block,
+you already have `status`, `files`, and `issues`.
+
+List any blocks with `status: "failed"` — flag these in the final summary.
 
 **Carry `hasHiddenPanes` forward.** Any block that reported
-`hasHiddenPanes: true` (tabs/accordion/carousel) hides images in inactive
-panes. Before judging images on the assembled preview (or at deploy-time
-verification), **reveal every pane first** (click through tabs / expand
-accordion items) — a passive image check on an unrevealed block reads
-`naturalWidth: 0` for the hidden panes and looks like a false failure. Do not
-re-derive "has hidden panes" from block names; use the reported flag.
+`hasHiddenPanes: true` hides images in inactive panes. Before judging
+images on the assembled preview, **reveal every pane first**.
 
-### Step 4.2: Verify Brand Setup
+### Step 4.2: Verify Brand and Layout Contract
 
 `brand.css`, `styles.css`, and `head.html` were already updated in
 Phase 2.5. Verify they are correct:
 
 - `styles/brand.css` exists with `:root` variables
 - `styles/styles.css` has `@import url('brand.css');` as FIRST LINE
-- `styles/styles.css` has the global button reset
-- `head.html` has Typekit/Google Fonts `<link>` tags
+- `styles/styles.css` has the layout contract (`max-width`, gutters,
+  section padding) matching source measurements
+- `head.html` has font `<link>` tags
+- No sub-agent has overridden `.{blockName}-wrapper` max-width or
+  padding — if any did, remove the override and apply a
+  `.section.full-width` style via section-metadata instead
 
-If anything is missing (Phase 2.5 was skipped or failed), do it now:
+If anything is missing or violated, fix it now.
 
 ### Step 4.3: Assemble Page Content — MANDATORY
 
-Write the main page to `/shared/{repo-name}/drafts/{page-path}.plain.html`.
+Write the main page to
+`{projectPath}/drafts/{page-path}.plain.html`.
 
-> **Note:** `{page-path}` here is a local assembly convenience (it mirrors the
-> source page slug). The path the content is actually DEPLOYED to may differ —
-> e.g. a site-root experiment deploys as `index` regardless of the source
-> filename. That reconciliation is owned by the deploy flow, not this skill.
-
-Read each block scoop's `.plain.html` file and combine them into sections
-following the decomposition order:
+Read each block sub-agent's `.plain.html` file and combine them into
+sections following the decomposition order:
 
 ```html
 <div>
   <div class="hero">
-    <!-- paste hero scoop's .plain.html block content -->
+    <!-- paste hero sub-agent's .plain.html block content -->
   </div>
 </div>
 <div>
   <div class="cards">
-    <!-- paste cards scoop's .plain.html block content -->
+    <!-- paste cards sub-agent's .plain.html block content -->
   </div>
 </div>
 ```
@@ -626,26 +552,16 @@ following the decomposition order:
 **Rules:**
 
 - Each section is a top-level `<div>`
-- Blocks inside sections: `<div class="blockname">` with the content
-  from the scoop's `.plain.html` (copy the block div, not the section wrapper)
+- Blocks inside sections: `<div class="blockname">` with content from
+  the sub-agent's `.plain.html`
 - Section styles from decomposition → add `<div class="section-metadata">`
-- Images use `/drafts/images/` root-relative paths — **local preview
-  only**. DA ingestion does not resolve arbitrary code-bus paths; they
-  become `<img src="about:error">` on the live page. Rewriting srcs for
-  DA (absolute URLs or DA-hosted media) is owned by the DA upload flow —
-  see the `eds-da-content` skill (`references/media.md`). This skill's
-  deliverable intentionally stops at local preview.
-- Default-content items (from decomposition): extract from source page
-  and write as plain HTML (headings, paragraphs, lists) in their section
-- Do NOT include a `<div class="metadata">` block with nav/footer paths.
-  That block is only needed for the DA upload pipeline (EDS HTML → meta tags
-  conversion) and will be added at DA upload time. For local preview, the
-  `<meta name="nav">` and `<meta name="footer">` tags in the preview HTML
-  handle fragment loading.
+- Images use `/drafts/images/` root-relative paths — **local preview only**
+- Default-content items: extract from source page and write as plain HTML
+- Do NOT include a `<div class="metadata">` block with nav/footer paths
 
 ### Step 4.4: Create Full Preview Page — MANDATORY
 
-Write `/shared/{repo-name}/drafts/{page-path}-preview.html`:
+Write `{projectPath}/drafts/{page-path}-preview.html`:
 
 ```html
 <html>
@@ -667,39 +583,30 @@ Write `/shared/{repo-name}/drafts/{page-path}-preview.html`:
 </html>
 ```
 
-Open the assembled preview and verify (the `open` command routes through the
-EDS project-mode preview service worker and returns a leader-side,
-playwright-controllable tab — no follower broadcast, no focus grab; unlike
-`serve`, which is only for sharing a preview with the human):
+Serve the project root (`{projectPath}`) as a static site and open
+`drafts/{page-path}-preview.html` in the browser.
 
-```bash
-open /shared/{repo-name}/drafts/{page-path}-preview.html
+Wait for all blocks to load before screenshotting. Verify by executing
+JS in the page:
+
+```javascript
+JSON.stringify({
+  blocks: document.querySelectorAll(
+    '[data-block-status="loaded"]'
+  ).length,
+  appear: document.body.classList.contains('appear')
+})
 ```
 
-Capture the **targetId** from the output. All subsequent commands for this
-preview tab MUST include `--tab={previewTabId}`.
+**Wait for images to settle** (same gate as Phase 1 — force
+`loading="eager"`, await all decodes) before capturing.
 
-Wait for all blocks to load before screenshotting. The page has header
-(fragment load) + multiple content blocks + footer (fragment load) — these
-load asynchronously. Verify with:
-
-```bash
-playwright-cli eval --tab={previewTabId} "JSON.stringify({ blocks: document.querySelectorAll('[data-block-status=\"loaded\"]').length, appear: document.body.classList.contains('appear') })"
-```
-
-Wait until all expected blocks show `status: "loaded"`. Then take the screenshot:
-
-```bash
-playwright-cli screenshot --tab={previewTabId} --fullPage=true --max-width=1440 --filename=/shared/{repo-name}/.migration/preview-assembled.png
-bash: ls -la /shared/{repo-name}/.migration/preview-assembled.png
-```
+Then take a full-page screenshot and save to
+`{projectPath}/.migration/preview-assembled.png`.
 
 ### Step 4.5: Git Commit — OPT-IN
 
-**Skip this step unless the user explicitly requested a commit** (e.g.,
-"commit the result", "commit when done", "auto-commit"). If skipped,
-mention in the final summary that changes are uncommitted and ready for
-review.
+**Skip unless the user explicitly requested a commit.**
 
 ```bash
 git add blocks/ styles/ drafts/
@@ -711,7 +618,7 @@ git commit -m "feat: migrate {page-path} from {source-domain}"
 Report to the user:
 
 - Number of blocks migrated and their statuses
-- Visual verification results per block (from reports)
+- Visual verification results per block
 - Brand.css and styles.css: what was updated
 - Assembled page preview URL
 - Any issues, gaps, or incomplete items

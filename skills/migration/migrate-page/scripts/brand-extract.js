@@ -1,33 +1,47 @@
 (async () => {
   var HEADING_SIZE_MAP = {
-    H1: 'xxl', H2: 'xl', H3: 'l',
-    H4: 'm', H5: 's', H6: 'xs'
+    H1: "xxl",
+    H2: "xl",
+    H3: "l",
+    H4: "m",
+    H5: "s",
+    H6: "xs",
   };
 
   var DEFAULT_MOBILE_SIZES = {
-    xxl: '36px', xl: '28px', l: '24px',
-    m: '20px', s: '18px', xs: '16px'
+    xxl: "36px",
+    xl: "28px",
+    l: "24px",
+    m: "20px",
+    s: "18px",
+    xs: "16px",
   };
 
   var GENERIC_FONT_FAMILIES = [
-    '-apple-system', 'system-ui', 'sans-serif', 'serif',
-    'arial', 'helvetica', 'georgia', 'times new roman'
+    "-apple-system",
+    "system-ui",
+    "sans-serif",
+    "serif",
+    "arial",
+    "helvetica",
+    "georgia",
+    "times new roman",
   ];
 
   var GOOGLE_FONTS_PROBE_TIMEOUT_MS = 5000;
   var MIN_BODY_TEXT_LENGTH = 40;
 
   function parsePrimaryFont(familySet) {
-    var first = (familySet.split(',')[0] || '').trim();
-    return first.replace(/^["']|["']$/g, '');
+    var first = (familySet.split(",")[0] || "").trim();
+    return first.replace(/^["']|["']$/g, "");
   }
 
   function extractFontInfo(el) {
     var style = window.getComputedStyle(el);
-    var familySet = style.fontFamily || '';
+    var familySet = style.fontFamily || "";
     return {
       family: parsePrimaryFont(familySet),
-      familySet: familySet
+      familySet: familySet,
     };
   }
 
@@ -40,13 +54,15 @@
   // display-styled first <p> (e.g. a hero lede) doesn't get mistaken for
   // body copy. Falls back to the first <p>, then document.body.
   function findLargestTextElement() {
-    var candidates = document.querySelectorAll('main p, article p, section p, p, li');
+    var candidates = document.querySelectorAll(
+      "main p, article p, section p, p, li",
+    );
     var best = null;
     var bestArea = 0;
     for (var i = 0; i < candidates.length; i++) {
       var el = candidates[i];
       if (el.getClientRects().length === 0) continue;
-      var text = (el.innerText || '').trim();
+      var text = (el.innerText || "").trim();
       if (text.length < MIN_BODY_TEXT_LENGTH) continue;
       var rect = el.getBoundingClientRect();
       var area = rect.width * rect.height;
@@ -62,16 +78,18 @@
   // block, or the first <p>, or document.body. Shared by extractBodyFont()
   // and the heading-size sanity check so both agree on what "body" means.
   function resolveBodyElement() {
-    return findLargestTextElement() || document.querySelector('p') || document.body;
+    return (
+      findLargestTextElement() || document.querySelector("p") || document.body
+    );
   }
 
   function extractHeadingSizes(bodyElement) {
     var sizes = {};
-    var tiers = ['xxl', 'xl', 'l', 'm', 's', 'xs'];
+    var tiers = ["xxl", "xl", "l", "m", "s", "xs"];
     for (var i = 0; i < tiers.length; i++) {
       sizes[tiers[i]] = {
         mobile: DEFAULT_MOBILE_SIZES[tiers[i]],
-        desktop: ''
+        desktop: "",
       };
     }
 
@@ -98,7 +116,11 @@
       // onto by an earlier, less-selective query) — leave it unset rather
       // than emit a wrong value.
       if (bestEl && bestSizePx > bodySizePx) {
-        sizes[tier].desktop = window.getComputedStyle(bestEl).fontSize;
+        var headingStyle = window.getComputedStyle(bestEl);
+        sizes[tier].desktop = headingStyle.fontSize;
+        sizes[tier].lineHeight = headingStyle.lineHeight;
+        sizes[tier].letterSpacing = headingStyle.letterSpacing;
+        sizes[tier].fontWeight = headingStyle.fontWeight;
       }
     }
     return sizes;
@@ -109,52 +131,73 @@
   }
 
   function extractHeadingFont() {
-    var heading = document.querySelector('h1, h2, h3');
+    var heading = document.querySelector("h1, h2, h3");
     if (heading) return extractFontInfo(heading);
-    return { family: '', familySet: '' };
+    return { family: "", familySet: "" };
   }
 
   function extractBaseColors() {
-    var bg = '';
-    var text = '';
+    var bg = "";
+    var text = "";
     var bodyStyle = window.getComputedStyle(document.body);
-    bg = bodyStyle.backgroundColor || '';
-    text = bodyStyle.color || '';
+    bg = bodyStyle.backgroundColor || "";
+    text = bodyStyle.color || "";
 
     // If body bg is transparent, try html, then main, then first section
-    if (!bg || bg === 'rgba(0, 0, 0, 0)' || bg === 'transparent') {
+    if (!bg || bg === "rgba(0, 0, 0, 0)" || bg === "transparent") {
       var html = document.documentElement;
-      bg = window.getComputedStyle(html).backgroundColor || '';
+      bg = window.getComputedStyle(html).backgroundColor || "";
     }
-    if (!bg || bg === 'rgba(0, 0, 0, 0)' || bg === 'transparent') {
-      var main = document.querySelector('main');
-      if (main) bg = window.getComputedStyle(main).backgroundColor || '';
+    if (!bg || bg === "rgba(0, 0, 0, 0)" || bg === "transparent") {
+      var main = document.querySelector("main");
+      if (main) bg = window.getComputedStyle(main).backgroundColor || "";
     }
-    if (!bg || bg === 'rgba(0, 0, 0, 0)' || bg === 'transparent') {
-      bg = '#ffffff';
+    if (!bg || bg === "rgba(0, 0, 0, 0)" || bg === "transparent") {
+      bg = "#ffffff";
     }
 
     // If text is default black, try main content area for more specific value
-    var mainEl = document.querySelector('main');
+    var mainEl = document.querySelector("main");
     if (mainEl) {
       var mainText = window.getComputedStyle(mainEl).color;
-      if (mainText && mainText !== 'rgb(0, 0, 0)') text = mainText;
+      if (mainText && mainText !== "rgb(0, 0, 0)") text = mainText;
     }
 
     return { background: bg, text: text };
   }
 
+  function isOnDarkBackground(el) {
+    var current = el;
+    while (current && current !== document.body) {
+      var bg = window.getComputedStyle(current).backgroundColor;
+      if (bg && bg !== "rgba(0, 0, 0, 0)" && bg !== "transparent") {
+        var rgb = parseRgb(bg);
+        if (rgb) return luminance(rgb) < 128;
+      }
+      current = current.parentElement;
+    }
+    return false;
+  }
+
   function extractLinkColor() {
-    // Sample multiple links and find the most common color (skip hero/header links)
-    var links = document.querySelectorAll('main a');
-    if (links.length === 0) links = document.querySelectorAll('a');
+    // Sample links in body-context areas (skip header, hero, dark-bg sections)
+    var links = document.querySelectorAll("main a");
+    if (links.length === 0) links = document.querySelectorAll("a");
     var counts = {};
-    for (var i = 0; i < links.length && i < 30; i++) {
-      var color = window.getComputedStyle(links[i]).color || '';
-      if (!color || color === 'rgb(255, 255, 255)' || color === 'rgb(0, 0, 0)') continue;
+    for (var i = 0; i < links.length && i < 50; i++) {
+      var link = links[i];
+      var color = window.getComputedStyle(link).color || "";
+      // Skip white, black, and transparent — these are inherited or
+      // intentional contrast colors, not the site's "link color"
+      if (!color) continue;
+      if (color === "rgb(255, 255, 255)") continue;
+      if (color === "rgb(0, 0, 0)") continue;
+      // Skip links inside dark-background containers (heroes, promo
+      // bars) where the link color is a contrast override
+      if (isOnDarkBackground(link)) continue;
       counts[color] = (counts[color] || 0) + 1;
     }
-    var best = '';
+    var best = "";
     var bestCount = 0;
     var keys = Object.keys(counts);
     for (var j = 0; j < keys.length; j++) {
@@ -163,7 +206,9 @@
         best = keys[j];
       }
     }
-    return best || (links.length > 0 ? window.getComputedStyle(links[0]).color : '');
+    // If no candidate survived, return empty rather than a misleading
+    // color from a dark-background link
+    return best;
   }
 
   function extractLinkHoverColor() {
@@ -171,11 +216,15 @@
       var sheets = document.styleSheets;
       for (var i = 0; i < sheets.length; i++) {
         var rules;
-        try { rules = sheets[i].cssRules; } catch(e) { continue; }
+        try {
+          rules = sheets[i].cssRules;
+        } catch {
+          continue;
+        }
         for (var j = 0; j < rules.length; j++) {
           var rule = rules[j];
           if (rule.selectorText) {
-            var selectors = rule.selectorText.split(',');
+            var selectors = rule.selectorText.split(",");
             for (var k = 0; k < selectors.length; k++) {
               if (/^a:hover$/i.test(selectors[k].trim())) {
                 var color = rule.style.color;
@@ -185,7 +234,7 @@
           }
         }
       }
-    } catch(e) {}
+    } catch {}
     return null;
   }
 
@@ -195,7 +244,7 @@
     return {
       r: parseInt(match[1], 10),
       g: parseInt(match[2], 10),
-      b: parseInt(match[3], 10)
+      b: parseInt(match[3], 10),
     };
   }
 
@@ -204,27 +253,27 @@
   }
 
   function extractLightDarkColors() {
-    var sections = document.querySelectorAll('section');
-    var lightestColor = '';
+    var sections = document.querySelectorAll("section");
+    var lightestColor = "";
     var lightestLum = 255;
-    var darkestColor = '';
+    var darkestColor = "";
     var darkestLum = Infinity;
 
     for (var i = 0; i < sections.length; i++) {
       var bg = window.getComputedStyle(sections[i]).backgroundColor;
-      if (!bg || bg === 'transparent' || bg === 'rgba(0, 0, 0, 0)') continue;
+      if (!bg || bg === "transparent" || bg === "rgba(0, 0, 0, 0)") continue;
 
       var rgb = parseRgb(bg);
       if (!rgb) continue;
 
       var lum = luminance(rgb);
 
-      if (lum < 254 && (lightestColor === '' || lum > lightestLum)) {
+      if (lum < 254 && (lightestColor === "" || lum > lightestLum)) {
         lightestLum = lum;
         lightestColor = bg;
       }
 
-      if (darkestColor === '' || lum < darkestLum) {
+      if (darkestColor === "" || lum < darkestLum) {
         darkestLum = lum;
         darkestColor = bg;
       }
@@ -236,47 +285,72 @@
   function extractSectionPadding() {
     // The first section often has padding:0 (hero/full-bleed). Sample a
     // representative content section: return the first non-zero paddingTop.
-    var candidates = document.querySelectorAll('main section, section, main > div');
+    var candidates = document.querySelectorAll(
+      "main section, section, main > div",
+    );
     for (var i = 0; i < candidates.length; i++) {
-      var p = window.getComputedStyle(candidates[i]).paddingTop || '';
+      var p = window.getComputedStyle(candidates[i]).paddingTop || "";
       if (p && parseFloat(p) > 0) return p;
     }
-    var main = document.querySelector('main');
-    return main ? (window.getComputedStyle(main).paddingTop || '') : '';
+    var main = document.querySelector("main");
+    return main ? window.getComputedStyle(main).paddingTop || "" : "";
+  }
+
+  function extractSectionGaps() {
+    // Measure vertical gaps between adjacent sections in <main>.
+    // Returns the most common gap (modal) as the typical section spacing.
+    var sections = document.querySelectorAll("main > section, main > div");
+    if (sections.length < 2) return "";
+    var gaps = {};
+    for (var i = 1; i < sections.length; i++) {
+      var prevBottom = sections[i - 1].getBoundingClientRect().bottom;
+      var currTop = sections[i].getBoundingClientRect().top;
+      var gap = Math.round(currTop - prevBottom);
+      if (gap >= 0) gaps[gap] = (gaps[gap] || 0) + 1;
+    }
+    var bestGap = 0;
+    var bestCount = 0;
+    var keys = Object.keys(gaps);
+    for (var j = 0; j < keys.length; j++) {
+      if (gaps[keys[j]] > bestCount) {
+        bestCount = gaps[keys[j]];
+        bestGap = Number(keys[j]);
+      }
+    }
+    return bestGap ? bestGap + "px" : "";
   }
 
   function extractContentMaxWidth() {
     var selectors = [
-      'main > .container',
-      'main > .wrapper',
+      "main > .container",
+      "main > .wrapper",
       'main > [class*="container"]',
       'main > [class*="wrapper"]',
-      'main > div',
-      '.container',
-      '.wrapper',
+      "main > div",
+      ".container",
+      ".wrapper",
       '[class*="container"]',
-      '[class*="wrapper"]'
+      '[class*="wrapper"]',
     ];
     for (var i = 0; i < selectors.length; i++) {
       var el = document.querySelector(selectors[i]);
       if (!el) continue;
       var mw = window.getComputedStyle(el).maxWidth;
-      if (mw && mw !== 'none' && mw !== '0px') return mw;
+      if (mw && mw !== "none" && mw !== "0px") return mw;
     }
-    return '';
+    return "";
   }
 
   function extractNavHeight() {
     // Prefer the outermost <header> (the sticky bar) over an inner <nav>,
     // which can report a smaller inner height. Use the rendered bounding-box
     // height (reflects the real bar) and take the larger of it vs computed.
-    var el = document.querySelector('header') ||
-             document.querySelector('nav');
-    if (!el) return '';
+    var el = document.querySelector("header") || document.querySelector("nav");
+    if (!el) return "";
     var rectH = Math.round(el.getBoundingClientRect().height) || 0;
     var cssH = parseFloat(window.getComputedStyle(el).height) || 0;
     var h = Math.max(rectH, cssH);
-    return h ? h + 'px' : (window.getComputedStyle(el).height || '');
+    return h ? h + "px" : window.getComputedStyle(el).height || "";
   }
 
   function extractFavicons() {
@@ -286,7 +360,7 @@
 
     for (var i = 0; i < links.length; i++) {
       var link = links[i];
-      var href = link.getAttribute('href');
+      var href = link.getAttribute("href");
       if (!href) continue;
 
       var url = new URL(href, window.location.href).href;
@@ -295,13 +369,13 @@
 
       var entry = {
         url: url,
-        rel: link.getAttribute('rel') || 'icon'
+        rel: link.getAttribute("rel") || "icon",
       };
 
-      var sizes = link.getAttribute('sizes');
+      var sizes = link.getAttribute("sizes");
       if (sizes) entry.sizes = sizes;
 
-      var type = link.getAttribute('type');
+      var type = link.getAttribute("type");
       if (type) entry.type = type;
 
       favicons.push(entry);
@@ -309,8 +383,8 @@
 
     if (favicons.length === 0) {
       favicons.push({
-        url: new URL('/favicon.ico', window.location.href).href,
-        rel: 'icon'
+        url: new URL("/favicon.ico", window.location.href).href,
+        rel: "icon",
       });
     }
 
@@ -323,13 +397,19 @@
   }
 
   function probeGoogleFont(family) {
-    var url = 'https://fonts.googleapis.com/css2?family=' + encodeURIComponent(family);
+    var url =
+      "https://fonts.googleapis.com/css2?family=" + encodeURIComponent(family);
     var controller = new AbortController();
-    var timer = setTimeout(() => { controller.abort(); }, GOOGLE_FONTS_PROBE_TIMEOUT_MS);
-    return fetch(url, { method: 'GET', signal: controller.signal })
-      .then((resp) => resp.ok ? url : null)
+    var timer = setTimeout(() => {
+      controller.abort();
+    }, GOOGLE_FONTS_PROBE_TIMEOUT_MS);
+    return fetch(url, { method: "GET", signal: controller.signal })
+      .then((resp) => (resp.ok ? url : null))
       .catch(() => null)
-      .then((result) => { clearTimeout(timer); return result; });
+      .then((result) => {
+        clearTimeout(timer);
+        return result;
+      });
   }
 
   // Scrapes existing <link> tags for typekit/Google Fonts hints, then probes
@@ -341,17 +421,19 @@
     var sources = { typekit: null, googleFonts: [] };
     var links = document.querySelectorAll('link[rel="stylesheet"]');
     for (var i = 0; i < links.length; i++) {
-      var href = links[i].getAttribute('href') || '';
+      var href = links[i].getAttribute("href") || "";
       var tkMatch = href.match(/use\.typekit\.net\/([a-z0-9]+)\.css/);
       if (tkMatch) {
         sources.typekit = tkMatch[1];
       }
-      if (href.indexOf('fonts.googleapis.com') !== -1) {
+      if (href.indexOf("fonts.googleapis.com") !== -1) {
         sources.googleFonts.push(href);
       }
     }
 
-    var families = [bodyFamily, headingFamily].filter((f, idx, arr) => f && !isGenericFont(f) && arr.indexOf(f) === idx).slice(0, 2);
+    var families = [bodyFamily, headingFamily]
+      .filter((f, idx, arr) => f && !isGenericFont(f) && arr.indexOf(f) === idx)
+      .slice(0, 2);
 
     var probeResults = await Promise.all(families.map(probeGoogleFont));
     for (var p = 0; p < probeResults.length; p++) {
@@ -372,14 +454,17 @@
   var linkColor = extractLinkColor();
   var linkHover = extractLinkHoverColor();
   var lightDark = extractLightDarkColors();
-  var fontSources = await detectFontSources(bodyFont.family, headingFont.family);
+  var fontSources = await detectFontSources(
+    bodyFont.family,
+    headingFont.family,
+  );
 
   return JSON.stringify({
     fonts: {
       body: bodyFont,
       heading: headingFont,
       headingSizes: headingSizes,
-      sources: fontSources
+      sources: fontSources,
     },
     colors: {
       background: baseColors.background,
@@ -387,13 +472,14 @@
       link: linkColor,
       linkHover: linkHover,
       light: lightDark.light,
-      dark: lightDark.dark
+      dark: lightDark.dark,
     },
     spacing: {
       sectionPadding: extractSectionPadding(),
+      sectionGap: extractSectionGaps(),
       contentMaxWidth: extractContentMaxWidth(),
-      navHeight: extractNavHeight()
+      navHeight: extractNavHeight(),
     },
-    favicons: extractFavicons()
+    favicons: extractFavicons(),
   });
 })();
