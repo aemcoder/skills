@@ -443,6 +443,12 @@ block.
 Take the configs from Step 1 and create one parallel sub-agent for each.
 DO NOT modify or regenerate the prompts — use them exactly as returned.
 
+**Each sub-agent must use an isolated browser session.** When multiple
+agents run concurrently and share a browser instance, they collide —
+one agent closing a tab or navigating disrupts another's screenshot.
+Use whatever isolation the harness provides (named sessions, separate
+instances, separate profiles, etc.).
+
 Each sub-agent receives its prompt and runs the appropriate skill
 (`migrate-header` for header blocks, `migrate-block` for everything else).
 The generated prompts already include all parameters and skill references.

@@ -408,28 +408,28 @@ Serve the project root (`{projectPath}`) as a static site. Root-relative
 paths (`/scripts/...`, `/styles/...`, `/drafts/images/...`) resolve against
 the project root.
 
-**Fire-and-forget browser sessions — MANDATORY.**
-The AEM CLI dev server injects a LiveReload WebSocket into every page it
-serves. If you keep a browser tab open while other block agents write
-files, the server broadcasts a reload signal to ALL connected tabs —
-including yours — causing mid-screenshot navigation and lost work.
+**Isolated browser sessions — MANDATORY for parallel agents.**
+When multiple block agents run concurrently, each agent must use its own
+isolated browser session. If agents share a browser instance, one agent
+closing a tab or navigating can disrupt another agent's screenshot. Use
+whatever isolation the harness provides (named sessions, separate
+instances, separate profiles, etc.).
 
-**Rule:** open the browser, take your screenshot, then **close the browser
-completely** before writing any files. Reopen it fresh for the next
-iteration. Never hold a tab open across a file-write.
+**Fire-and-forget browser tabs — MANDATORY.**
+Do not hold browser tabs open while writing files. Some dev servers
+broadcast file-change events to all connected tabs, causing
+mid-screenshot navigation when another agent writes a file. The safe
+pattern: open → screenshot → close → edit files.
 
 ```text
 for each iteration:
-  1. write / edit files   ← browser CLOSED here
-  2. open browser → navigate to localhost:3000/drafts/{blockName}-preview
+  1. write / edit files        ← browser CLOSED here
+  2. open browser → navigate to the preview URL
   3. wait for blocks to load
   4. screenshot
-  5. close browser        ← browser CLOSED again
+  5. close browser             ← browser CLOSED again
   6. compare screenshots, plan next edit
 ```
-
-This round-trip adds ~1 s per iteration but eliminates all LiveReload
-collisions regardless of which browser tool is in use.
 
 ### 6c. Verify EDS Framework Loaded
 
@@ -560,8 +560,8 @@ For each iteration:
    edit. Edit `{projectPath}/blocks/{blockName}/{blockName}.css`. Do NOT
    rewrite the entire file. **Browser is closed while you do this.**
 
-2. **Open browser** → navigate to
-   `localhost:3000/drafts/{blockName}-preview.html` → wait for
+2. **Open browser** → navigate to the preview URL
+   (`drafts/{blockName}-preview.html` on the dev server) → wait for
    `data-block-status="loaded"` on your block.
 
 3. **Screenshot the preview** by CSS selector `.{blockName}-wrapper`.
